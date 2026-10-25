@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=69';
+import CONFIG from './config.js?v=70';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -627,21 +627,22 @@ function linksNav(c) {
   };
 }
 const linkPrincipal = c => linksNav(c).google;   // Google Maps é o recomendado, no iPhone também
-// Rota completa no Google Maps, na ordem otimizada. Um link leva até 10 casas (9 paradas + destino), que é o que o
-// app do Google Maps aceita; com mais casas, vira partes, e cada parte começa na última casa da anterior.
-const CASAS_POR_LINK = 10;
+// Rota completa no Google Maps, na ordem otimizada. O formato "?api=1&waypoints=" corta em 9 paradas sem avisar;
+// o formato de caminho (/maps/dir/A/B/C/...) aceitou 20 paradas a pé no teste. Até 25 casas por link; acima disso, partes.
+// Primeiro trecho vazio (/maps/dir//...) = sair de onde o celular está.
+const CASAS_POR_LINK = 25;
 function partesRotaGoogle() {
   if (!roteiro) return [];
   const ordem = roteiro.ordem.map((id, i) => ({c: casaPorId(id), n: i + 1})).filter(x => x.c && !visitadas.has(x.c.id));
   if (!ordem.length) return [];
   // Sai do início escolhido (ou da última casa visitada); com partida "GPS", da posição atual do celular.
   const tipo = roteiro.partida || partida; const feitas = roteiro.ordem.map(casaPorId).filter(c => c && visitadas.has(c.id));
-  let o = tipo === 'gps' ? null : (feitas.length ? feitas[feitas.length - 1] : roteiro.de);
+  let o = tipo === 'gps' ? (posicao ? {lat: posicao.lat, lng: posicao.lng} : null) : (feitas.length ? feitas[feitas.length - 1] : roteiro.de);
   const partes = [];
   for (let k = 0; k < ordem.length; k += CASAS_POR_LINK) {
     const bloco = ordem.slice(k, k + CASAS_POR_LINK), dest = bloco[bloco.length - 1].c;
-    const wps = bloco.slice(0, -1).map(x => coord(x.c)).join('|');
-    partes.push({url: `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${coord(dest)}${wps ? '&waypoints=' + encodeURIComponent(wps) : ''}&travelmode=walking`,
+    const caminho = [o ? coord(o) : '', ...bloco.map(x => coord(x.c))].join('/');
+    partes.push({url: `https://www.google.com/maps/dir/${caminho}/data=!4m2!4m1!3e2`,
       de: bloco[0].n, ate: bloco[bloco.length - 1].n, casas: bloco.length});
     o = dest;
   }
