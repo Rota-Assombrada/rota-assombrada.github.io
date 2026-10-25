@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=52';
+import CONFIG from './config.js?v=53';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -241,6 +241,7 @@ const fb = {
       authPronto = true; cargaFim('auth');
       usuario = u ? {uid: u.uid, nome: u.displayName || '', email: (u.email || '').toLowerCase(), emailToken: u.email || ''} : null;
       donoPlataforma = usuario ? await ehDonoPlataforma(usuario.email) : false;
+      tentarVoltarUltimo();
       renderConta(); renderInicio();
       if (cid) assinarMembro();
     });
@@ -442,7 +443,7 @@ async function tentarConvite() {
   // Roda quando o papel OU o condomínio terminam de carregar (o que chegar por último), e só uma vez por convite.
   if (!temConvite() || aceitandoConvite || !usuario || !cid || !papelCarregado || !condo) return;
   const cod = conviteDaRota.cod; guardarConvite(null);
-  const limparRota = () => { try { history.replaceState(null, '', '#' + cid); } catch {} ajustarEndereco(); };
+  const limparRota = () => { try { history.replaceState(null, '', aquiCom('#' + cid)); } catch {} ajustarEndereco(); };
   if (papel === 'admin' || papel === 'morador') { limparRota(); toast('Você já faz parte deste condomínio.'); return; }
   aceitandoConvite = true; renderAcesso(); atualizarParticipar();
   try {
@@ -2025,13 +2026,22 @@ function lerRota() {
   const cod = normalizarCodigo(c);
   return {c: c && c.toLowerCase() !== 'inicio' && CODIGO.test(cod) ? cod : null, inicio: (c || '').toLowerCase() === 'inicio', convite: tipo === 'convite' && /^[A-Za-z0-9]{8,40}$/.test(codConvite || '') ? codConvite : null};
 }
+// Endereço atual com outro "#". Precisa ser completo: com <base href="/">, um "#x" solto apontaria para a raiz e recarregaria a página.
+const aquiCom = hash => location.href.split('#')[0] + hash;
+let voltarUltimo = null;
+function tentarVoltarUltimo() {
+  if (!authPronto || !voltarUltimo) return;
+  const u = voltarUltimo; voltarUltimo = null; const r = lerRota();
+  if (usuario && !cid && !r.c && !r.inicio) location.replace(aquiCom('#' + u));
+}
 function aplicarRota() {
   const r = lerRota();
   if (r.convite && r.c) guardarConvite({cid: r.c, cod: r.convite});
   if (!r.c) {
     const ultimo = ls.get('hw.ultimo', null);
-    if (!r.inicio && ultimo && CODIGO.test(ultimo)) { location.replace('#' + ultimo); return; }
-    fecharCondo(); ajustarEndereco(); return;
+    // Endereço sem condomínio: abre o início. Só quem está logado volta direto para o último condomínio que abriu.
+    if (!r.inicio && ultimo && CODIGO.test(ultimo)) voltarUltimo = ultimo;
+    fecharCondo(); ajustarEndereco(); tentarVoltarUltimo(); return;
   }
   abrirCondo(r.c); ajustarEndereco();
 }
