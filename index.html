@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=63">
+<link rel="stylesheet" href="css/estilo.css?v=64">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -199,7 +199,7 @@
             <div class="campo"><label for="f-numero">Número / lote *</label><input type="text" id="f-numero" required inputmode="numeric" placeholder="12" maxlength="20"></div>
           </div>
           
-          <div class="campo"><label for="f-familia">Família / nome</label><input type="text" id="f-familia" placeholder="Família Souza" maxlength="60"></div>
+          <div class="campo"><label for="f-familia">Família / nome</label><input type="text" id="f-familia" placeholder="Família Souza" maxlength="60" aria-describedby="ajuda-familia"><span class="ajuda" id="ajuda-familia"></span><div class="chips-nome" id="chips-nome" aria-label="Sugestões de nome divertido"></div></div>
           <div class="campo"><span class="rotulo">O que a casa oferece</span><div class="multi" id="f-oferece"></div></div>
           <div class="campo"><span class="rotulo">Avisos</span><div class="multi" id="f-flags"></div></div>
           <div class="campo">
@@ -322,6 +322,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=63"></script>
+<script type="module" src="js/app.js?v=64"></script>
 </body>
 </html>

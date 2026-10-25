@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=63';
+import CONFIG from './config.js?v=64';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -42,6 +42,17 @@ const FLAGS = [['pequenos','Amigável para pequenos'],['cachorro','Tem cachorro'
 // Ao salvar sem nome, é esse que fica gravado.
 const NOMES_DIVERTIDOS = ["Casa do Fantasma Cócegas", "Toca do Morcego Banguela", "Mansão da Abóbora Risonha", "Castelo do Drácula Dorminhoco", "Cripta do Esqueleto Dançarino", "Casa da Bruxa Distraída", "Covil do Lobisomem Fofinho", "Casa do Vampiro Vegetariano", "Toca da Aranha Tricoteira", "Mansão do Fantasma Tímido", "Casa da Múmia Enrolada", "Castelo do Morcego Cantor", "Casa do Zumbi Educado", "Toca do Gato Preto Sortudo", "Casa da Caveira Sorridente", "Mansão do Caldeirão Borbulhante", "Casa do Fantasminha Camarada", "Cripta do Conde Comilão", "Casa da Bruxinha Atrapalhada", "Toca do Lobinho Uivador", "Casa do Monstro Cheiroso", "Castelo da Abóbora Gigante", "Casa do Fantasma Soneca", "Toca do Morcego de Óculos", "Casa da Teia Brilhante", "Mansão do Esqueleto Tossidor", "Casa do Vampiro Banguela", "Toca da Coruja Curiosa", "Casa do Duende Travesso", "Cripta da Múmia Cansada", "Casa do Fantasma Gargalhada", "Castelo do Lobisomem Cabeludo", "Casa da Bruxa do Pirulito", "Toca do Morceguinho Feliz", "Casa do Ogro Dorminhoco", "Mansão da Vassoura Voadora", "Casa do Zumbi Dançarino", "Toca da Aranha Cabeluda", "Casa do Fantasma Sem Lençol", "Castelo do Conde Chocolate", "Casa da Abóbora Banguela", "Cripta do Esqueleto Piadista", "Casa do Monstrinho do Armário", "Toca do Gato de Botas Pretas", "Casa da Bruxa Gulosa", "Mansão do Fantasma Cantor", "Casa do Vampiro Assustado", "Toca do Lobisomem Penteado", "Casa da Caveira Cheirosa", "Castelo do Morcego Acrobata", "Casa do Fantasma Esquecido", "Toca do Sapo Enfeitiçado", "Casa da Poção Colorida", "Mansão do Drácula Desastrado", "Casa do Zumbi Preguiçoso", "Cripta da Abóbora Falante", "Casa do Morcego Doceiro", "Toca da Bruxa Sonolenta", "Casa do Esqueleto Saltitante", "Castelo do Fantasma Bagunceiro", "Casa da Múmia Dançarina", "Toca do Monstro Verde", "Casa do Lobisomem Envergonhado", "Mansão da Aranha Dançarina", "Casa do Vampiro Dentuço", "Toca da Coruja Sabichona", "Casa do Fantasma das Balas", "Castelo da Bruxa Risonha", "Casa do Caldeirão Mágico", "Cripta do Conde Bocejo", "Casa da Abóbora Brilhante", "Toca do Morcego Bagunceiro", "Casa do Esqueleto Friorento", "Mansão do Zumbi Comilão", "Casa da Bruxa do Chapéu Torto", "Toca do Gato Fantasma", "Casa do Fantasma Pipoqueiro", "Castelo do Lobisomem Dançarino", "Casa da Teia Grudenta", "Toca do Duende Doceiro", "Casa do Vampiro Dorminhoco", "Mansão da Caveira Dançarina", "Casa do Monstro Cosquento", "Cripta do Fantasma Assobiador", "Casa da Abóbora Sapeca", "Toca do Morcego Distraído", "Casa do Drácula Docinho", "Castelo da Múmia Mandona", "Casa do Zumbi Cantor", "Toca da Aranha Sorridente", "Casa do Fantasma Pirulito", "Mansão da Bruxa Bondosa", "Casa do Esqueleto Tagarela", "Toca do Lobisomem Dorminhoco", "Casa da Vassoura Preguiçosa", "Castelo do Vampiro Sapeca", "Casa do Morcego Chocolateiro", "Cripta da Abóbora Medrosa", "Casa do Fantasma Arrepio", "Toca do Monstrinho Guloso", "Casa da Bruxa Confeiteira", "Mansão do Conde Cócegas", "Casa do Zumbi Sorridente", "Toca da Caveira Tagarela", "Casa do Lobisomem Doceiro", "Castelo do Fantasma Dançarino", "Casa da Múmia Gulosa", "Toca do Morcego Soneca", "Casa do Esqueleto Comilão", "Mansão da Abóbora Dançarina", "Casa do Vampiro Cantor", "Cripta da Bruxa Esquecida", "Casa do Fantasma Travesso", "Toca do Gato Bruxo", "Casa do Monstro Bocejo", "Castelo da Aranha Doceira", "Casa do Drácula Sapeca", "Toca da Abóbora Risadinha", "Casa do Zumbi Distraído", "Mansão do Morcego Comilão"];
 function nomeDivertido(id) { let x = 2166136261; for (const ch of String(id || 'casa')) { x ^= ch.charCodeAt(0); x = Math.imul(x, 16777619) >>> 0; } return NOMES_DIVERTIDOS[x % NOMES_DIVERTIDOS.length]; }
+// Aviso e chips de sugestão embaixo do campo do nome: o primeiro é o nome que a casa ganha se ficar vazio.
+let nomeAutoDaCasa = '', sugestoesNome = [];
+function renderSugestoesNome(novas) {
+  const aj = document.getElementById('ajuda-familia'), box = document.getElementById('chips-nome'); if (!aj || !box) return;
+  aj.innerHTML = nomeAutoDaCasa ? `Se não preencher, a casa vai se chamar <b>${h(nomeAutoDaCasa)}</b>. Ou escolha uma ideia:` : 'Se não preencher, a casa ganha um nome divertido automático. Ou escolha uma ideia:';
+  if (novas || !sugestoesNome.length) {
+    const resto = NOMES_DIVERTIDOS.filter(n => n !== nomeAutoDaCasa).sort(() => Math.random() - .5).slice(0, nomeAutoDaCasa ? 3 : 4);
+    sugestoesNome = nomeAutoDaCasa ? [nomeAutoDaCasa, ...resto] : resto;
+  }
+  box.innerHTML = sugestoesNome.map(n => `<button type="button" class="chip chip-nome" data-nome="${h(n)}">${h(n)}</button>`).join('') + '<button type="button" class="chip chip-nome chip-mais" data-mais-nomes>Outras ideias</button>';
+}
 const rotuloDe = (lista, k) => (lista.find(o => o[0] === k) || [k, k])[1];
 
 /* ---------- métricas e erros (Google Analytics do Firebase) ---------- */
@@ -1319,7 +1330,9 @@ let versaoForm = 0;
 function preencherForm(c) {
   versaoForm++;
   const idDica = editandoId || (!criandoOutra && usuario ? usuario.uid : '');
-  $('#f-familia').placeholder = idDica ? `Se deixar vazio: ${nomeDivertido(idDica)}` : 'Se deixar vazio, a casa ganha um nome divertido';
+  nomeAutoDaCasa = idDica ? nomeDivertido(idDica) : '';
+  $('#f-familia').placeholder = 'Família Souza';
+  renderSugestoesNome(true);
   $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hora-evento').checked = !(c.horaInicio || c.horaFim); $('#f-hi').value = c.horaInicio || evento.horaInicio || '18:00'; $('#f-hf').value = c.horaFim || evento.horaFim || '21:00'; mostrarHorasCasa(); $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
@@ -1584,6 +1597,9 @@ function atualizarForm() {
   const minha = editandoId && usuario && (editandoId === usuario.uid || souResponsavel(casaPorId(editandoId)));
   const casaEd = editandoId && casaPorId(editandoId);
   renderMoradores();
+  // nome automático da casa aberta no formulário (muda se trocar de casa ou de conta)
+  const idNome = editandoId || (!criandoOutra && usuario ? usuario.uid : ''), autoNovo = idNome ? nomeDivertido(idNome) : '';
+  if (autoNovo !== nomeAutoDaCasa || !$('#chips-nome').children.length) { nomeAutoDaCasa = autoNovo; renderSugestoesNome(true); }
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
   $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Casa de outra família' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
   // Faixa laranja: deixa claro que não é a sua casa e oferece o caminho de volta.
@@ -1987,6 +2003,11 @@ function ligarEventos() {
   $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x.h !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
   $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
   $('#f-obs').addEventListener('input', contarRecado);
+  $('#chips-nome').addEventListener('click', e => {
+    if (e.target.closest('[data-mais-nomes]')) { renderSugestoesNome(true); SFX.plop(); return; }
+    const b = e.target.closest('[data-nome]'); if (!b) return;
+    $('#f-familia').value = b.dataset.nome; SFX.plim(); $$('#chips-nome .chip').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  });
   $('#f-hora-evento').addEventListener('change', e => { if (!e.target.checked) { if (hm($('#f-hi').value) == null) $('#f-hi').value = evento.horaInicio || '18:00'; if (hm($('#f-hf').value) == null) $('#f-hf').value = evento.horaFim || '21:00'; } mostrarHorasCasa(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
     const b = $('#btn-excluir-minha'); if (!editandoId) return;

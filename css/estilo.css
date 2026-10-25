@@ -749,3 +749,8 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 
 .contador{align-self:flex-end;font-variant-numeric:tabular-nums}
 .contador.quase{color:var(--abobora);font-weight:800}
+
+.chips-nome{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.chip-nome{font-size:.85rem}
+.chip-mais{border-style:dashed;color:var(--abobora)}
+#ajuda-familia b{color:var(--abobora)}
