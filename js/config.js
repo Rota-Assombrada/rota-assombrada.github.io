@@ -14,15 +14,14 @@ export default {
   // Firebase (plano Spark, gratuito). Deixe `null` para rodar em modo local (dados só neste aparelho).
   // Para ligar: console.firebase.google.com → criar projeto → Firestore (modo produção) → Authentication → Anônimo →
   // Configurações do projeto → "Seus apps" → Web → copie o objeto firebaseConfig e cole aqui.
-  firebase: null,
-  // firebase: {
-  //   apiKey: '...',
-  //   authDomain: 'seu-projeto.firebaseapp.com',
-  //   projectId: 'seu-projeto',
-  //   storageBucket: 'seu-projeto.appspot.com',
-  //   messagingSenderId: '...',
-  //   appId: '...'
-  // },
+  firebase: {
+    apiKey: 'AIzaSyAKqra-wIMUB2ZxagKSg7I59m87cO7zVUA',
+    authDomain: 'rota-assombrada.firebaseapp.com',
+    projectId: 'rota-assombrada',
+    storageBucket: 'rota-assombrada.firebasestorage.app',
+    messagingSenderId: '990414708349',
+    appId: '1:990414708349:web:990aa8e58be7c28e011b14'
+  },
 
   // Valores iniciais do evento (o organizador pode mudar pelo app).
   evento: {

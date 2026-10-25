@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=3';
+import CONFIG from './config.js?v=6';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -31,7 +31,7 @@ const IC = {
   carregando: svg('<path d="M12 3a9 9 0 1 0 9 9"/>'),
 };
 const PIN_SVG = `<svg viewBox="0 0 46 52" aria-hidden="true"><path d="M23 50c-2-6-6-9-6-9h12s-4 3-6 9z" fill="#2a0d00"/><path d="M22 6c2 1 3 4 3 7" stroke="#5a8a2a" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse class="corpo" cx="23" cy="26" rx="21" ry="17" fill="#ff8a1f"/><ellipse cx="12" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><ellipse cx="34" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><path d="M13 20l4 5h-8zM33 20l4 5h-8z" fill="#2a0d00"/><path d="M12 32q11 8 22 0l-3 2-3-2-3 2-3-2-3 2-3-2-2 2z" fill="#2a0d00"/></svg>`;
-const PUMPKIN_BIG = `<svg viewBox="0 0 64 64" aria-hidden="true" style="width:64px;height:64px"><ellipse cx="32" cy="38" rx="28" ry="23" fill="#ff8a1f"/><path d="M18 32l6 7h-12zM46 32l6 7h-12z" fill="#2a0d00"/><path d="M16 46q16 14 32 0l-5 2-4-3-4 3-4-3-4 3-4-3-4 3z" fill="#2a0d00"/></svg>`;
+const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg><span class="fantasminha"><svg viewBox="0 0 40 46" aria-hidden="true"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="currentColor"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></span></div>`;
 
 const OFERECE = [['doces','Doces e balas'],['chocolate','Chocolate'],['brincadeira','Brincadeira ou susto'],['decoracao','Casa decorada'],['lembrancinha','Lembrancinha']];
 const FLAGS = [['pequenos','Amigável para pequenos'],['cachorro','Tem cachorro'],['alergia','Opção sem açúcar/alergia'],['assustadora','Bem assustadora']];
@@ -69,7 +69,10 @@ const store = {
           import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'),
         ]);
         const app = initializeApp(CONFIG.firebase); this.fs = fs; this.db = fs.getFirestore(app);
-        const a = auth.getAuth(app); const cred = await auth.signInAnonymously(a); meuUid = cred.user.uid; this.modo = 'nuvem';
+        const a = auth.getAuth(app); this.modo = 'nuvem';
+        try { const cred = await auth.signInAnonymously(a); meuUid = cred.user.uid; }
+        catch (e) { console.error('Login anônimo falhou', e); this.semLogin = true; toast('Login do Firebase desligado: dá para ver as casas, mas não salvar.', 5000); }
+        renderCabecalho();
         fs.onSnapshot(fs.collection(this.db, 'casas'), snap => { casas = snap.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); }, e => { console.error(e); toast('Sem conexão com o Firebase. Mostrando o que tenho.'); });
         fs.onSnapshot(fs.doc(this.db, 'config', 'evento'), snap => { if (snap.exists()) evento = {...CONFIG.evento, portaria: null, ...snap.data()}; aoMudarDados(); });
         return;
@@ -173,7 +176,8 @@ function renderPins() {
     if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8}));
   }
   const vazio = $('#mapa-vazio');
-  if (!casas.length) vazio.innerHTML = `<div class="cartao vazio">${PUMPKIN_BIG}<p><b>Nenhuma casa cadastrada ainda.</b></p><p>Moradores: toquem em <b>Participar</b>, usem o GPS na porta de casa ou marquem no mapa.</p></div>`;
+  $('#btn-ir-participar').hidden = !casas.length;
+  if (!casas.length) vazio.innerHTML = `<div class="cartao vazio vazio-casas">${PUMPKIN_BIG}<h3>Nenhuma abóbora acesa ainda</h3><p>As casas participantes aparecem aqui assim que os moradores se cadastram. Que tal começar pela sua?</p><button class="btn btn-primario" data-ir="participar">Cadastrar minha casa</button></div>`;
   else if (!vis.length) vazio.innerHTML = `<p class="vazio">Nenhuma casa passa nos filtros escolhidos.</p>`; else vazio.innerHTML = '';
 }
 function verTodas() { const pts = casas.filter(c => typeof c.lat === 'number').map(c => [c.lat, c.lng]); if (posicao) pts.push([posicao.lat, posicao.lng]); if (evento.portaria) pts.push([evento.portaria.lat, evento.portaria.lng]); if (pts.length) mapa.fitBounds(pts, {padding: [40, 40], maxZoom: 18}); }
@@ -395,7 +399,7 @@ function renderGuia() {
     const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no ${IOS ? 'Apple Maps' : 'Google Maps'}`;
     const l = linksNav(c); $('#nav-extra').innerHTML = (IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`) + `<a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
   } else {
-    $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<p><b>Roteiro concluído!</b> Feliz Halloween.</p></div>`;
+    $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
     $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = '';
   }
   guia.hidden = false;
@@ -456,7 +460,7 @@ async function toqueMapa(ll) {
 async function salvarSeguro(fn, msg) {
   const tela = document.createElement('div'); tela.className = 'salvando'; tela.innerHTML = `${IC.carregando}<div>Gravando no caldeirão…</div>`; document.body.appendChild(tela);
   try { await fn(); toast(msg); SFX.sucesso(); return true; }
-  catch (e) { console.error(e); toast(e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para gravar. Confira as regras do Firestore.' : 'Não consegui salvar agora. Tente de novo.', 4000); return false; }
+  catch (e) { console.error(e); toast(store.semLogin ? 'Não salvou: o organizador precisa ligar o login anônimo no Firebase.' : e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para gravar. Confira as regras do Firestore.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
   finally { tela.remove(); }
 }
 
@@ -473,6 +477,7 @@ function ligarEventos() {
   $('#btn-ver-todas').addEventListener('click', verTodas);
   $('#btn-ir-roteiro').addEventListener('click', () => irAba('roteiro'));
   $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
+  $('#mapa-vazio').addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irAba(b.dataset.ir); });
   $('#folha').addEventListener('click', e => { if (e.target === e.currentTarget) fecharFolha(); const b = e.target.closest('[data-acao]'); if (!b) return; const id = b.dataset.id; const a = b.dataset.acao;
     if (a === 'visitar') { const v = !visitadas.has(id); marcarVisitada(id, v); if (v) SFX.sucesso(); fecharFolha(); if (v && roteiro && vozAuto && roteiro.ordem.includes(id)) { const p = proximaParada(); if (p >= 0) falar('Boa! ' + falaParada(p)); } }
     if (a === 'ouvir') { const c = casaPorId(id); if (!c) return; const i = roteiro ? roteiro.ordem.indexOf(id) : -1; falar(i >= 0 ? falaParada(i) : `${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. ${posicao ? 'Fica a uns ' + falaM(distM(posicao, c)) + ', ' + direcaoFala(posicao, c) + '. ' : ''}${(c.oferece || []).length ? 'Oferece ' + listaFala((c.oferece || []).map(k => rotuloDe(OFERECE, k).toLowerCase())) + '.' : ''} ${c.obs || ''}`); }
