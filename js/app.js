@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=58';
+import CONFIG from './config.js?v=60';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -551,7 +551,30 @@ const falaM = m => m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} metros` :
 /* ---------- regras do evento ---------- */
 const hm = s => { if (!s || !/^\d{1,2}:\d{2}$/.test(s)) return null; const [a, b] = s.split(':').map(Number); return a * 60 + b; };
 function horario(c) { return {ini: c.horaInicio || evento.horaInicio || '', fim: c.horaFim || evento.horaFim || ''}; }
-function abertaAgora(c) { const {ini, fim} = horario(c); const a = hm(ini), b = hm(fim); if (a == null || b == null) return true; const d = new Date(); const n = d.getHours() * 60 + d.getMinutes(); return b >= a ? (n >= a && n <= b) : (n >= a || n <= b); }
+// Janela da casa no dia do evento (horário da casa ou do evento). Sem data cadastrada, vale só o horário de todo dia.
+function janelaCasa(c) {
+  const {ini, fim} = horario(c); const a = hm(ini), b = hm(fim);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(evento.data || '')) return null;
+  const base = new Date(`${evento.data}T00:00:00`).getTime();
+  const inicio = base + (a ?? 0) * 6e4; let fimMs = base + (b ?? 1439) * 6e4 + 59999; if (fimMs <= inicio) fimMs += 864e5;
+  return {inicio, fim: fimMs, base};
+}
+function abertaAgora(c) {
+  const j = janelaCasa(c);
+  if (j) { const n = Date.now(); return n >= j.inicio && n <= j.fim; }
+  const {ini, fim} = horario(c); const a = hm(ini), b = hm(fim); if (a == null || b == null) return true;
+  const d = new Date(); const n = d.getHours() * 60 + d.getMinutes(); return b >= a ? (n >= a && n <= b) : (n >= a || n <= b);
+}
+// Texto do horário: "Aberta agora · até 23:59", "Abre 31/10 · 17:00–23:59", "Abre às 17:00" (no dia) ou "Já fechou".
+function statusCasa(c) {
+  const aberta = abertaAgora(c), {ini, fim} = horario(c), faixa = ini && fim ? `${ini}–${fim}` : '';
+  if (aberta) return {aberta, texto: fim ? `Aberta agora · até ${fim}` : 'Aberta agora'};
+  const j = janelaCasa(c), n = Date.now();
+  if (j && n < j.base) return {aberta, texto: `Abre ${fmtData(evento.data)}${faixa ? ` · ${faixa}` : ''}`};
+  if (j && n < j.inicio) return {aberta, texto: `Abre às ${ini || '00:00'}${fim ? ` · até ${fim}` : ''}`};
+  if (j && n > j.fim) return {aberta, texto: `Já fechou${faixa ? ` · ${faixa}` : ''}`};
+  return {aberta, texto: `Fora do horário${faixa ? ` · ${faixa}` : ''}`};
+}
 function nomeCasa(c) { return (c.rua ? `${h(c.rua)}, ` : 'Casa ') + h(c.numero); }
 function nomeCasaTxt(c) { return (c.rua ? `${c.rua}, ` : 'Casa ') + c.numero; }
 function nomeCasaFala(c) { return c.rua ? `casa ${c.numero} da ${c.rua}` : `casa ${c.numero}`; }
@@ -679,8 +702,7 @@ function renderListaCasas() {
   $('#ordem-lista-casas').textContent = !lista.length ? 'Nenhuma casa passa nos filtros escolhidos.' : comGps ? 'Da mais perto para a mais longe de você. Toque para ver os detalhes.' : 'Por rua e número. Ligue o GPS para ver as mais perto primeiro.';
   $('#lista-casas-mapa').innerHTML = lista.map(c => {
     const aberta = abertaAgora(c); const vis = visitadas.has(c.id);
-    const {ini, fim} = horario(c);
-    const etqs = [aberta ? (fim ? `Aberta agora · até ${fim}` : 'Aberta agora') : (ini && fim ? `Fora do horário · ${ini}–${fim}` : 'Fora do horário')].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
+    const etqs = [statusCasa(c).texto].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
       <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
       <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="mini-obs">“${h(c.obs)}”</span>` : ''}</span>
@@ -872,7 +894,7 @@ function falaParada(idx) {
   if (ofer.length) s += `Oferece ${listaFala(ofer)}. `;
   if (avisos.length) s += `Atenção: ${listaFala(avisos)}. `;
   if ((c.flags || []).includes('pequenos')) s += 'Boa para os pequenos. ';
-  if (!abertaAgora(c)) s += `Essa casa abre às ${horario(c).ini}. `;
+  if (!abertaAgora(c)) { const j = janelaCasa(c); s += j && Date.now() < j.base ? `Essa casa abre no dia ${fmtData(evento.data)}, às ${horario(c).ini || 'hora do evento'}. ` : j && Date.now() > j.fim ? 'Essa casa já fechou. ' : `Essa casa abre às ${horario(c).ini}. `; }
   if (c.obs) s += c.obs.replace(/\s+/g, ' ').trim() + (/[.!?]$/.test(c.obs.trim()) ? ' ' : '. ');
   return s;
 }
@@ -1037,8 +1059,8 @@ function renderFiltros() {
 }
 function renderModo() { const av = $('#aviso-modo'); const textos = {casa: 'Toque no mapa exatamente onde fica a casa. Dê zoom para acertar.', portaria: 'Toque no mapa onde fica a portaria.'}; av.hidden = !modo; if (modo) $('#aviso-texto').textContent = textos[modo]; $('#mapa').classList.toggle('marcando', !!modo); }
 function cartaoCasa(c, idx) {
-  const aberta = abertaAgora(c); const {ini, fim} = horario(c);
-  const etq = [`<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${aberta ? 'Aberta agora' : 'Fora do horário'}${ini && fim ? ` · ${ini}–${fim}` : ''}</span>`]
+  const st = statusCasa(c), aberta = st.aberta;
+  const etq = [`<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${h(st.texto)}</span>`]
     .concat((c.oferece || []).map(k => `<span class="etq">${IC.doce}${h(rotuloDe(OFERECE, k))}</span>`))
     .concat((c.flags || []).map(k => `<span class="etq ${k === 'cachorro' || k === 'assustadora' ? 'alerta' : ''}">${k === 'cachorro' ? IC.cachorro : k === 'pequenos' ? IC.crianca : IC.susto}${h(rotuloDe(FLAGS, k))}</span>`));
   const dist = posicao ? `<span class="etq">${IC.navegar}${fmtM(distM(posicao, c))} de você</span>` : '';
@@ -2160,6 +2182,27 @@ function aplicarRota() {
   }
   abrirCondo(r.c); ajustarEndereco();
 }
+
+/* ---------- aviso de versão nova ---------- */
+// O GitHub Pages guarda a página por alguns minutos; quem está com o app aberto não vê as novidades.
+// A cada 5 min (e ao voltar para a aba) confere a versão publicada e oferece "Atualizar".
+const VERSAO_APP = +((document.querySelector('script[src*="app.js?v="]') || {}).src || '').replace(/.*v=(\d+).*/, '$1') || 0;
+let avisouVersao = false;
+async function conferirVersao() {
+  if (avisouVersao || !VERSAO_APP || location.hostname === 'localhost') return;
+  try {
+    const t = await (await fetch(`/index.html?v=${Date.now()}`, {cache: 'no-store'})).text();
+    const nova = +(t.match(/app\.js\?v=(\d+)/) || [])[1] || 0;
+    if (nova > VERSAO_APP) {
+      avisouVersao = true;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao'; b.innerHTML = `${IC.check} Tem novidade no app! Toque para atualizar`;
+      b.addEventListener('click', () => location.reload()); document.body.appendChild(b);
+    }
+  } catch {}
+}
+setInterval(conferirVersao, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) conferirVersao(); });
+setTimeout(conferirVersao, 20000);
 
 /* ---------- tela de abertura ---------- */
 // Fica na frente até o login e o condomínio carregarem (no mínimo um instante, no máximo 8 s). Tocar nela fecha.
