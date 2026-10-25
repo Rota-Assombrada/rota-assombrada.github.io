@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=45">
+<link rel="stylesheet" href="css/estilo.css?v=47">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -212,9 +212,9 @@
           <div class="campo campo-moradores" id="campo-moradores" hidden>
             <span class="rotulo-campo">Moradores desta casa</span>
             <ul class="lista-moradores" id="lista-moradores"></ul>
-            <div class="add-morador"><input type="email" id="f-email-morador" maxlength="160" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="E-mail do Google" aria-label="E-mail do Google de outro morador"><button type="button" class="btn btn-fantasma" id="btn-add-morador">Adicionar</button></div>
+            <div class="add-morador"><input type="text" id="f-email-morador" maxlength="160" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Nome ou e-mail do Google" aria-label="Buscar morador por nome ou e-mail" role="combobox" aria-autocomplete="list" aria-controls="sugestoes-morador" aria-expanded="false"><button type="button" class="btn btn-fantasma" id="btn-add-morador">Adicionar</button><ul class="sugestoes" id="sugestoes-morador" role="listbox" hidden></ul></div>
             <p class="status-morador" id="conferindo-morador" hidden aria-live="polite"></p>
-            <span class="ajuda" id="ajuda-moradores">Quem entrar com um destes e-mails do Google também pode editar ou tirar a casa do mapa. Os e-mails não aparecem no mapa: só os moradores desta casa e os admins veem.</span>
+            <span class="ajuda" id="ajuda-moradores">Busque pelo nome de quem já está no condomínio, ou digite o e-mail do Google de quem ainda não entrou. Todos aqui podem editar ou tirar a casa do mapa. Nada disso aparece no mapa.</span>
           </div>
           <p class="erro-msg" id="form-erro" hidden></p>
           <div class="acoes">
@@ -307,6 +307,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=45"></script>
+<script type="module" src="js/app.js?v=47"></script>
 </body>
 </html>

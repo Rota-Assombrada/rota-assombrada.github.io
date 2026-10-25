@@ -22,11 +22,16 @@ service cloud.firestore {
         && request.auth.token.email_verified == true;
     }
     function eu() { return request.auth.uid; }
-    function donoPlataforma() {
-      return logado()
-        && hashing.sha256(request.auth.token.email.lower()).toHexString().lower() in [
+    function emailEhDono(e) {
+      return e is string && hashing.sha256(e.lower()).toHexString().lower() in [
           'edc3e60dc481e945b137c839efaaf90135694890fc8967d6f013274d3c6a4dee'
         ];
+    }
+    function donoPlataforma() { return logado() && emailEhDono(request.auth.token.email); }
+    // Dono da plataforma e quem criou o condomínio: outros admins não tiram o admin nem removem.
+    function protegido(cid, d) {
+      return emailEhDono(d.get('email', ''))
+        || d.uid == get(/databases/$(database)/documents/condominios/$(cid)).data.get('criadoPor', '');
     }
 
     // ---------- papéis ----------
@@ -86,9 +91,22 @@ service cloud.firestore {
     // ---------- validação ----------
     function texto(v, max) { return v is string && v.size() <= max; }
     function indiceValido(d) {
-      return d.keys().hasOnly(['uid', 'nome', 'atualizadoEm']) && d.keys().hasAll(['uid'])
-        && texto(d.uid, 128) && d.uid.size() > 0 && texto(d.get('nome', ''), 40)
+      return d.keys().hasOnly(['uid', 'nome', 'mascara', 'atualizadoEm']) && d.keys().hasAll(['uid'])
+        && texto(d.uid, 128) && d.uid.size() > 0 && texto(d.get('nome', ''), 60)
+        // e-mail só pela metade (ex.: cr•••@gmail.com): o endereço completo nunca vai para o índice
+        && texto(d.get('mascara', ''), 80) && (d.get('mascara', '') == '' || d.mascara.matches('^[^@]{1,3}•••@[^@]+$'))
         && (!('atualizadoEm' in d) || d.atualizadoEm is int);
+    }
+    // Morador de uma casa: hash do e-mail, nome para mostrar e, se quem adicionou digitou, o e-mail.
+    function pessoaOk(p) {
+      return p is map && p.keys().hasOnly(['h', 'nome', 'email']) && p.keys().hasAll(['h'])
+        && p.h is string && p.h.matches('^[0-9a-f]{64}$') && texto(p.get('nome', ''), 60)
+        && texto(p.get('email', ''), 160) && (p.get('email', '') == '' || p.email.matches('^[^@\\s]+@[^@\\s]+$'));
+    }
+    function pessoasOk(l) {
+      return l is list && l.size() <= 6
+        && (l.size() < 1 || pessoaOk(l[0])) && (l.size() < 2 || pessoaOk(l[1])) && (l.size() < 3 || pessoaOk(l[2]))
+        && (l.size() < 4 || pessoaOk(l[3])) && (l.size() < 5 || pessoaOk(l[4])) && (l.size() < 6 || pessoaOk(l[5]));
     }
     function hora(v) { return v is string && (v == '' || v.matches('^[0-2][0-9]:[0-5][0-9]$')); }
     function lista(v, permitidos) { return v is list && v.size() <= permitidos.size() && v.hasOnly(permitidos); }
@@ -221,9 +239,11 @@ service cloud.firestore {
                   || (request.resource.data.papel == 'morador' && conviteValido(cid, request.resource.data.convite))))
         );
         // Só admin muda papel (aprovar, promover, rebaixar).
-        allow update: if ehAdmin(cid) && membroValido(mid, request.resource.data);
+        allow update: if ehAdmin(cid) && membroValido(mid, request.resource.data)
+          && (donoPlataforma() || mid == eu() || !protegido(cid, resource.data)
+              || (request.resource.data.papel == 'admin' && request.resource.data.email == resource.data.email));
         // Admin remove; a própria pessoa pode sair.
-        allow delete: if ehAdmin(cid) || (logado() && mid == eu());
+        allow delete: if (ehAdmin(cid) && (donoPlataforma() || !protegido(cid, resource.data))) || (logado() && mid == eu());
       }
 
       match /convites/{codigo} {
@@ -264,11 +284,10 @@ service cloud.firestore {
         }
       }
 
-      // Índice de quem já é morador, pelo SHA-256 de "codigo:email". Serve para conferir UM e-mail exato
-      // ao adicionar morador numa casa: membros não listam nem buscam por pedaço, só confirmam quem já conhecem.
+      // Diretório de moradores aprovados, pelo SHA-256 de "codigo:email": nome e e-mail pela metade.
+      // Moradores buscam aqui para adicionar alguém na casa; pendentes, visitantes e outros condomínios não veem.
       match /emails/{h} {
-        allow get: if ehMorador(cid);
-        allow list: if ehAdmin(cid);
+        allow get, list: if ehMorador(cid);
         allow create, update: if indiceValido(request.resource.data) && (
           ehAdmin(cid)
           || (ehMorador(cid) && h == meuHash(cid) && request.resource.data.uid == eu())
@@ -280,7 +299,8 @@ service cloud.firestore {
       match /atribuicoes/{casaId} {
         allow read: if ehAdmin(cid) || editorAntes(cid, casaId);
         allow create, update: if (ehAdmin(cid) || editorAntes(cid, casaId) || editorDepois(cid, casaId))
-          && request.resource.data.keys().hasOnly(['email', 'emails', 'ano', 'atualizadoEm'])
+          && request.resource.data.keys().hasOnly(['email', 'emails', 'moradores', 'ano', 'atualizadoEm'])
+          && pessoasOk(request.resource.data.get('moradores', []))
           && (!('email' in request.resource.data) || (texto(request.resource.data.email, 160) && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+$')))
           && itensOk(request.resource.data.get('emails', []), '^[^@\\s]+@[^@\\s]+$');
         allow delete: if ehAdmin(cid) || editorAntes(cid, casaId) || editorDepois(cid, casaId);

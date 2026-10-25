@@ -499,9 +499,26 @@ test('índice: morador registra o próprio e-mail e outro morador confere pelo e
   const snap = await assertSucceeds(getDoc(doc(como('adminA', 'a@x.com'), idx('VALE2', 'm@x.com'))));
   if (!snap.exists()) throw new Error('deveria achar');
 });
-test('índice: membro NÃO lista o índice (não dá para ver todo mundo)', async () => {
-  await assertFails(getDocs(collection(como('morM', 'm@x.com'), 'condominios/VALE2/emails')));
+test('índice: moradores aprovados listam o diretório para buscar por nome', async () => {
+  await assertSucceeds(getDocs(collection(como('morM', 'm@x.com'), 'condominios/VALE2/emails')));
   await assertSucceeds(getDocs(collection(como('adminA', 'a@x.com'), 'condominios/VALE2/emails')));
+  await assertFails(getDocs(collection(como('penP', 'p@x.com'), 'condominios/VALE2/emails')));
+  await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/emails')));
+  await assertFails(getDocs(collection(como('adminB', 'b@x.com'), 'condominios/VALE2/emails')));
+});
+test('índice: o e-mail completo NÃO entra no diretório, só pela metade', async () => {
+  const db = como('morM', 'm@x.com');
+  await assertSucceeds(setDoc(doc(db, idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara Lima', mascara: 'm•••@x.com', atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara Lima', mascara: 'm@x.com', atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara Lima', mascara: 'mara.lima•••@x.com', atualizadoEm: agora}));
+});
+test('moradores: adicionar pelo diretório (só o hash e o nome, sem o e-mail)', async () => {
+  const db = como('morM', 'm@x.com'); const b = writeBatch(db);
+  b.set(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['bia@x.com', 'cris@x.com']));
+  b.set(doc(db, 'condominios/VALE2/atribuicoes/morM'), {moradores: [{h: hashDe('VALE2', 'bia@x.com'), nome: 'Bia'}, {h: hashDe('VALE2', 'cris@x.com'), nome: '', email: 'cris@x.com'}], ano: 2026, atualizadoEm: agora});
+  await assertSucceeds(b.commit());
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {moradores: [{h: 'nao-e-hash', nome: 'X'}], ano: 2026, atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {moradores: [{h: hashDe('VALE2', 'bia@x.com'), extra: 1}], ano: 2026, atualizadoEm: agora}));
 });
 test('índice: pendente, visitante e outro condomínio NÃO consultam', async () => {
   await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', atualizadoEm: agora}));
@@ -519,4 +536,32 @@ test('índice: admin mantém o índice; a pessoa apaga o próprio', async () => 
   await assertSucceeds(setDoc(doc(como('adminA', 'a@x.com'), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', atualizadoEm: agora}));
   await assertFails(deleteDoc(doc(como('penP', 'p@x.com'), idx('VALE2', 'm@x.com'))));
   await assertSucceeds(deleteDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'm@x.com'))));
+});
+
+// ---------- admins protegidos (dono da plataforma e quem criou o condomínio) ----------
+async function comOutroAdmin() {
+  await env.withSecurityRulesDisabled(async ctx => { const d = ctx.firestore();
+    await setDoc(doc(d, 'condominios/VALE2/membros/adminC'), membro('adminC', 'admin', 'c@x.com'));
+    await setDoc(doc(d, 'condominios/VALE2/membros/donoD'), membro('donoD', 'admin', EMAIL_DONO)); });
+}
+test('protegidos: outro admin NÃO tira o admin nem remove quem criou o condomínio', async () => {
+  await comOutroAdmin(); const db = como('adminC', 'c@x.com');
+  await assertFails(updateDoc(doc(db, 'condominios/VALE2/membros/adminA'), {papel: 'morador'}));
+  await assertFails(deleteDoc(doc(db, 'condominios/VALE2/membros/adminA')));
+  await assertFails(updateDoc(doc(db, 'condominios/VALE2/membros/adminA'), {email: 'outro@x.com'}));
+});
+test('protegidos: outro admin NÃO mexe no dono da plataforma', async () => {
+  await comOutroAdmin(); const db = como('adminC', 'c@x.com');
+  await assertFails(updateDoc(doc(db, 'condominios/VALE2/membros/donoD'), {papel: 'morador'}));
+  await assertFails(deleteDoc(doc(db, 'condominios/VALE2/membros/donoD')));
+});
+test('protegidos: quem criou ainda tira admin e remove outros admins', async () => {
+  await comOutroAdmin(); const db = como('adminA', 'a@x.com');
+  await assertSucceeds(updateDoc(doc(db, 'condominios/VALE2/membros/adminC'), {papel: 'morador'}));
+  await assertSucceeds(deleteDoc(doc(db, 'condominios/VALE2/membros/adminC')));
+});
+test('protegidos: o dono da plataforma pode tudo e cada um pode sair sozinho', async () => {
+  await comOutroAdmin();
+  await assertSucceeds(updateDoc(doc(como('donoD', EMAIL_DONO), 'condominios/VALE2/membros/adminA'), {papel: 'morador'}));
+  await assertSucceeds(deleteDoc(doc(como('donoD', EMAIL_DONO), 'condominios/VALE2/membros/donoD')));
 });

@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=45';
+import CONFIG from './config.js?v=47';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -150,7 +150,7 @@ let papel = '';                 // '' | 'pendente' | 'morador' | 'admin' no cond
 let papelCarregado = false;
 let podeVerCasas = false;
 let casasCarregadas = false, membrosCarregados = false, convitesCarregados = false, authPronto = false;
-let atribuicoes = {};     // casaId -> [e-mails dos moradores] (o admin lê todos)
+let atribuicoes = {};     // casaId -> {moradores: [{h, nome, email}]} (o admin lê todos)
 let meuHashAqui = '';     // SHA-256 de "codigo:meu-email": acha as casas atribuídas a mim
 const hashAtribuicao = (c, email) => sha256hex(`${c}:${String(email || '').trim().toLowerCase()}`);
 async function atualizarMeuHash() { meuHashAqui = usuario && cid && crypto.subtle ? await hashAtribuicao(cid, usuario.email) : ''; }
@@ -232,7 +232,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng()})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, sincronizando: sincronizandoIndice})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -393,13 +393,15 @@ function assinarMembro() {
     e => { console.error(e); papel = ''; papelCarregado = true; aoMudarPapel(); });
 }
 function aoMudarPapel() {
+  // troca de conta ou de papel: esquece a lista de busca e as conferências (o admin vê e-mails completos, o morador não)
+  diretorio = null; diretorioCid = null; carregandoDiretorio = null; geracaoDiretorio++; statusMorador.clear(); sincronizandoIndice = false;
   atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); vigiarCasasAtribuidas(); entrarNoIndice(); });
   assinarCasas();
   parar('membros', 'convites', 'atribuicoes', 'indice'); indiceAtual = null;
   membros = []; convites = []; atribuicoes = {}; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
-    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); vigiarPedidos(); sincronizarIndice(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
-    subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, emailsDaAtribuicao(d.data())])); if (editandoId && moradoresDe === editandoId && !moradoresMexidos) carregarMoradores(); renderAdmin(); }, e => console.error(e));
+    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); diretorio = null; calcularProtegidos().then(renderAdmin); renderAdmin(); vigiarPedidos(); sincronizarIndice(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
+    subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, d.data()])); if (editandoId && moradoresDe === editandoId && !moradoresMexidos) carregarMoradores(); renderAdmin(); }, e => console.error(e));
     subs.indice = fb.fs.onSnapshot(fb.indices(cid), s => { indiceAtual = new Map(s.docs.map(d => [d.id, d.data()])); sincronizarIndice(); }, e => console.error(e));
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
@@ -456,34 +458,63 @@ async function pedirAcesso() {
   if (!usuario) { fb.entrar(); return; }
   await salvarSeguro(() => fb.fs.setDoc(fb.membro(cid, usuario.uid), {uid: usuario.uid, papel: 'pendente', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: Date.now(), atualizadoEm: Date.now()}), 'Pedido enviado! Um admin vai aprovar.');
 }
-// ---------- índice de moradores por e-mail ----------
-// condominios/{cid}/emails/{sha256("cid:email")} = {uid, nome}. Moradores só conferem um e-mail exato (não listam);
-// cada um registra o próprio ao entrar, e o app do admin mantém o índice igual à lista de membros.
-const primeiroNome = n => String(n || '').trim().split(/\s+/)[0].slice(0, 40);
+// Dono da plataforma e quem criou o condomínio não podem perder o admin nem ser removidos por outros admins.
+let protegidos = new Map();   // uid -> rótulo
+async function calcularProtegidos() {
+  const m = new Map(), donos = (CONFIG.donosPlataforma || []).map(x => String(x).toLowerCase());
+  for (const x of membros) {
+    if (x.email && crypto.subtle && donos.includes(await sha256hex(String(x.email).toLowerCase()))) m.set(x.id, 'Dono da plataforma');
+    else if (condo && x.id === condo.criadoPor) m.set(x.id, 'Criou o condomínio');
+  }
+  protegidos = m;
+}
+// ---------- diretório de moradores ----------
+// condominios/{cid}/emails/{sha256("cid:email")} = {uid, nome, mascara}. Só moradores aprovados leem, e o e-mail vai
+// pela metade (cr•••@gmail.com). Cada um se registra ao entrar; o app do admin mantém o diretório igual à lista de membros.
+const nomeCurto = n => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+function mascararEmail(e) { const [u, d] = String(e || '').toLowerCase().split('@'); return u && d ? `${u.slice(0, 2)}•••@${d}`.slice(0, 80) : ''; }
 let indiceAtual = null, sincronizandoIndice = false;
 async function entrarNoIndice() {
   if (!usuario || !cid || !meuHashAqui || !ehMorador()) return;
-  const chave = 'hw.indice.' + cid; if (ls.get(chave, '') === meuHashAqui) return;
-  try { await fb.fs.setDoc(fb.indice(cid, meuHashAqui), {uid: usuario.uid, nome: primeiroNome(usuario.nome), atualizadoEm: Date.now()}); ls.set(chave, meuHashAqui); } catch (e) { console.error(e); }
+  const chave = 'hw.indice2.' + cid; if (ls.get(chave, '') === meuHashAqui) return;
+  try { await fb.fs.setDoc(fb.indice(cid, meuHashAqui), {uid: usuario.uid, nome: nomeCurto(usuario.nome), mascara: mascararEmail(usuario.email), atualizadoEm: Date.now()}); ls.set(chave, meuHashAqui); } catch (e) { console.error(e); }
 }
 async function sincronizarIndice() {
   if (!ehAdmin() || !cid || !membrosCarregados || !indiceAtual || sincronizandoIndice || !crypto.subtle) return;
   sincronizandoIndice = true;
   try {
     const quer = new Map();
-    for (const m of membros) if ((m.papel === 'morador' || m.papel === 'admin') && m.email) quer.set(await hashAtribuicao(cid, m.email), {uid: m.id, nome: primeiroNome(m.nome)});
+    for (const m of membros) if ((m.papel === 'morador' || m.papel === 'admin') && m.email) quer.set(await hashAtribuicao(cid, m.email), {uid: m.id, nome: nomeCurto(m.nome), mascara: mascararEmail(m.email)});
     const b = fb.fs.writeBatch(fb.db); let n = 0;
-    quer.forEach((v, k) => { const atual = indiceAtual.get(k); if (!atual || atual.uid !== v.uid || (atual.nome || '') !== v.nome) { b.set(fb.indice(cid, k), {...v, atualizadoEm: Date.now()}); n++; } });
+    quer.forEach((v, k) => { const a = indiceAtual.get(k); if (!a || a.uid !== v.uid || (a.nome || '') !== v.nome || (a.mascara || '') !== v.mascara) { b.set(fb.indice(cid, k), {...v, atualizadoEm: Date.now()}); n++; } });
     indiceAtual.forEach((_, k) => { if (!quer.has(k)) { b.delete(fb.indice(cid, k)); n++; } });
-    if (n && n <= 450) await b.commit();
+    // não segura a trava esperando o servidor: a mudança já aparece no snapshot local, e a próxima rodada não acha diferença
+    if (n && n <= 450) b.commit().catch(e => console.error(e));
   } catch (e) { console.error(e); }
   finally { sincronizandoIndice = false; }
 }
-// Confere um e-mail: {nome} se já é morador, false se não é, null se não deu para saber.
+// Lista para a busca por nome: o admin usa os membros (com e-mail completo); o morador, o diretório.
+let diretorio = null, diretorioCid = null, carregandoDiretorio = null, geracaoDiretorio = 0;
+function carregarDiretorio() {
+  if (diretorio && diretorioCid === cid) return Promise.resolve(diretorio);
+  if (carregandoDiretorio) return carregandoDiretorio;
+  const alvo = cid, ger = geracaoDiretorio;
+  const tarefa = (async () => {
+    let lista = [];
+    if (ehAdmin() && membrosCarregados) lista = await Promise.all(membros.filter(m => (m.papel === 'morador' || m.papel === 'admin') && m.email)
+      .map(async m => ({h: await hashAtribuicao(alvo, m.email), uid: m.id, nome: nomeCurto(m.nome), email: m.email.toLowerCase(), mascara: mascararEmail(m.email)})));
+    else if (ehMorador()) { try { const snap = await fb.fs.getDocs(fb.indices(alvo)); lista = snap.docs.map(d => ({h: d.id, uid: d.data().uid, nome: d.data().nome || '', mascara: d.data().mascara || '', email: ''})); } catch (e) { console.error(e); } }
+    if (ger !== geracaoDiretorio) return [];   // trocou de conta no meio: descarta
+    if (alvo === cid) { diretorio = lista; diretorioCid = alvo; }
+    return lista;
+  })().finally(() => { if (carregandoDiretorio === tarefa) carregandoDiretorio = null; });
+  carregandoDiretorio = tarefa; return tarefa;
+}
+// Confere um e-mail completo: {nome} se já é morador, false se não é, null se não deu para saber.
 const statusMorador = new Map();
 async function conferirMorador(email) {
   if (!cid || !email) return null;
-  if (ehAdmin() && membrosCarregados) { const m = membros.find(x => (x.email || '').toLowerCase() === email && (x.papel === 'morador' || x.papel === 'admin')); return m ? {nome: primeiroNome(m.nome)} : false; }
+  if (ehAdmin() && membrosCarregados) { const m = membros.find(x => (x.email || '').toLowerCase() === email && (x.papel === 'morador' || x.papel === 'admin')); return m ? {nome: nomeCurto(m.nome)} : false; }
   if (!ehMorador()) return null;
   try { const snap = await fb.fs.getDoc(fb.indice(cid, await hashAtribuicao(cid, email))); return snap.exists() ? {nome: snap.data().nome || ''} : false; } catch (e) { return null; }
 }
@@ -491,10 +522,10 @@ async function statusDe(email) {
   const k = cid + '|' + email; if (statusMorador.has(k)) return statusMorador.get(k);
   const p = conferirMorador(email); statusMorador.set(k, p); const r = await p; if (r == null) statusMorador.delete(k); return r;
 }
-const textoStatus = r => r ? `${IC.check} ${r.nome ? h(r.nome) + ' já' : 'Já'} está no condomínio` : r === false ? 'Ainda não entrou no condomínio' : '';
+const textoStatus = r => r ? `${IC.check} ${r.nome ? h(r.nome.split(' ')[0]) + ' já' : 'Já'} está no condomínio` : r === false ? 'Ainda não entrou no condomínio' : '';
 async function sairDoCondo() {
   if (!usuario || !cid) return;
-  if (meuHashAqui) { try { await fb.fs.deleteDoc(fb.indice(cid, meuHashAqui)); } catch {} ls.set('hw.indice.' + cid, ''); }
+  if (meuHashAqui) { try { await fb.fs.deleteDoc(fb.indice(cid, meuHashAqui)); } catch {} ls.set('hw.indice2.' + cid, ''); }
   await salvarSeguro(() => fb.fs.deleteDoc(fb.membro(cid, usuario.uid)), 'Você saiu deste condomínio.');
 }
 function salvarCondo(campos) { return fb.fs.setDoc(fb.condo(cid), {...campos, atualizadoEm: Date.now()}, {merge: true}); }
@@ -675,6 +706,8 @@ function renderGpsCartao() {
   else if (gpsErro === 2 || gpsErro === 3) c.innerHTML = `<b>Não achei o GPS</b><p class="dica">Ligue a localização do celular${IOS ? ' em Ajustes, Privacidade e Segurança, Serviços de Localização' : ''} e tente de novo. Se abriu pelo WhatsApp, abra no ${IOS ? 'Safari' : 'Chrome'}.</p><button class="btn btn-primario btn-p" data-ligar-gps>Tentar de novo</button>`;
   else if (gpsWatch != null) c.innerHTML = `<p class="res-carregando">${SPIN} Procurando satélites… Se o celular perguntar, toque em <b>Permitir</b>.</p>`;
   else c.innerHTML = `<b>Ligue o GPS para ver onde você está</b><p class="dica">O celular vai perguntar se pode usar sua localização: toque em <b>Permitir</b>.</p><button class="btn btn-primario" data-ligar-gps>${IC.alvo} Ligar GPS</button>`;
+  // O Drácula acompanha o pedido do GPS (tocar nele faz o som dele, como no resto do cenário).
+  c.innerHTML = `<div class="gps-linha"><div class="gps-txt">${c.innerHTML}</div><div class="gps-drac">${DRACULA}</div></div>`;
   c.hidden = false;
 }
 let gpsErro = null;
@@ -1088,63 +1121,106 @@ function mostrarHorasCasa() {
   $('#f-hora-evento-txt').textContent = evento.horaInicio && evento.horaFim ? `Das ${evento.horaInicio} às ${evento.horaFim}, o mesmo horário do evento.` : 'Segue o horário que o admin definir para o evento.';
   renderHoras();
 }
-// ---------- moradores da casa (vários e-mails podem cuidar da mesma casa) ----------
-const emailsDaAtribuicao = d => [...new Set([...(Array.isArray(d && d.emails) ? d.emails : []), ...(d && d.email ? [d.email] : [])].map(e => String(e).toLowerCase()))].slice(0, 6);
-let moradoresForm = [], moradoresProntos = false, moradoresDe = null, moradoresMexidos = false, atribuicaoExiste = false, hashesSemEmail = [];
+// ---------- moradores da casa (até 6 pessoas cuidam da mesma casa) ----------
+// Cada morador: {h, nome, email}. h é o SHA-256 de "codigo:email" (é ele que dá acesso); o e-mail fica vazio quando a
+// pessoa foi escolhida no diretório, que só tem o e-mail pela metade.
+const emailValido = e => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e);
+let moradoresForm = [], moradoresProntos = false, moradoresDe = null, moradoresMexidos = false, atribuicaoExiste = false;
+async function pessoasDe(d) {
+  if (!d) return [];
+  const lista = (Array.isArray(d.moradores) ? d.moradores : []).filter(p => p && /^[0-9a-f]{64}$/.test(p.h || '')).map(p => ({h: p.h, nome: nomeCurto(p.nome), email: String(p.email || '').toLowerCase()}));
+  for (const e of [...(Array.isArray(d.emails) ? d.emails : []), ...(d.email ? [d.email] : [])].map(x => String(x).toLowerCase())) {
+    const hsh = await hashAtribuicao(cid, e); if (!lista.some(p => p.h === hsh)) lista.push({h: hsh, nome: '', email: e});
+  }
+  return lista.slice(0, 6);
+}
+const rotulosAtribuicao = d => !d ? [] : [...(Array.isArray(d.moradores) ? d.moradores.map(p => p.nome || p.email || 'morador') : []), ...(Array.isArray(d.emails) ? d.emails : []), ...(d.email ? [d.email] : [])];
 async function carregarMoradores() {
   const id = editandoId, c = id && casaPorId(id);
-  moradoresDe = id; moradoresMexidos = false; moradoresProntos = false; moradoresForm = []; hashesSemEmail = []; atribuicaoExiste = false;
+  moradoresDe = id; moradoresMexidos = false; moradoresProntos = false; moradoresForm = []; atribuicaoExiste = false;
   if (!c) { moradoresProntos = true; renderMoradores(); return; }   // casa nova: lista começa vazia
   renderMoradores();
-  let emails = null;
-  if (ehAdmin() && atribuicoes[id]) { emails = atribuicoes[id]; atribuicaoExiste = true; }
-  else if (podeEditar(c)) { try { const snap = await fb.fs.getDoc(fb.atribuicao(cid, id)); atribuicaoExiste = snap.exists(); emails = snap.exists() ? emailsDaAtribuicao(snap.data()) : []; } catch (e) { console.error(e); emails = null; } }
-  if (editandoId !== id) return;   // trocou de casa enquanto carregava
-  if (emails == null) { renderMoradores(); return; }   // sem permissão ou sem rede: não mexe na lista
-  const hs = await Promise.all(emails.map(e => hashAtribuicao(cid, e)));
+  let dados;   // undefined = não deu para ler (sem permissão ou sem rede): não mexe na lista ao salvar
+  if (ehAdmin() && atribuicoes[id]) dados = atribuicoes[id];
+  else if (podeEditar(c)) { try { const snap = await fb.fs.getDoc(fb.atribuicao(cid, id)); dados = snap.exists() ? snap.data() : null; } catch (e) { console.error(e); } }
+  if (editandoId !== id || dados === undefined) { if (editandoId === id) renderMoradores(); return; }
+  atribuicaoExiste = !!dados;
+  const pessoas = await pessoasDe(dados);
   if (editandoId !== id) return;
-  moradoresForm = emails; hashesSemEmail = hashesDaCasa(c).filter(x => !hs.includes(x)); moradoresProntos = true; renderMoradores();
+  // moradores que estão na casa mas sem nome guardado (formato antigo): o nome vem do diretório, se der
+  hashesDaCasa(c).forEach(x => { if (!pessoas.some(p => p.h === x)) pessoas.push({h: x, nome: '', email: ''}); });
+  moradoresForm = pessoas.slice(0, 6); moradoresProntos = true; renderMoradores();
+  if (!diretorio || diretorioCid !== cid) carregarDiretorio().then(() => { if (editandoId === id) renderMoradores(); });
 }
+function noDiretorio(hsh) { return diretorio && diretorioCid === cid ? diretorio.find(x => x.h === hsh) || null : null; }
 function renderMoradores() {
   const box = $('#campo-moradores'), c = editandoId && casaPorId(editandoId);
   const pode = !!usuario && (c ? podeEditar(c) : (ehMorador() || ehAdmin()));
   box.hidden = !pode; if (!pode) return;
   let criador = '';
   if (!c || c.uid === meuUid()) criador = 'Você (cadastrou a casa)';
-  else { const m = membros.find(x => x.id === c.uid); criador = m ? `${h(m.nome || 'Um morador')}${m.email ? ` · ${h(m.email)}` : ''}` : (ehAdmin() && membrosCarregados ? 'Quem cadastrou não está mais no condomínio' : 'Quem cadastrou a casa'); }
+  else { const m = membros.find(x => x.id === c.uid); const d = diretorio && diretorio.find(x => x.uid === c.uid); criador = m ? `${h(m.nome || 'Um morador')}${m.email ? ` · ${h(m.email)}` : ''}` : d ? h(d.nome || 'Um morador') : (ehAdmin() && membrosCarregados ? 'Quem cadastrou não está mais no condomínio' : 'Quem cadastrou a casa'); }
   const itens = [`<li class="morador-criador"><span class="morador-ic">${IC.casa}</span><span class="morador-txt"><b>${criador}</b><small>Conta que cadastrou</small></span></li>`];
   if (!moradoresProntos && c) itens.push(`<li><span class="res-carregando">${SPIN} Carregando moradores…</span></li>`);
-  moradoresForm.forEach(e => itens.push(`<li><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(e)}</b>${usuario && e === usuario.email ? '<small>Você</small>' : `<small class="status-morador" data-status-de="${h(e)}"></small>`}</span><button type="button" class="btn-x" data-tirar-morador="${h(e)}" aria-label="Tirar ${h(e)} da casa">${IC.x}</button></li>`));
-  if (hashesSemEmail.length) itens.push(`<li><span class="morador-txt"><small>Mais ${hashesSemEmail.length} morador${hashesSemEmail.length > 1 ? 'es' : ''} sem e-mail visível (continua com acesso).</small></span></li>`);
+  moradoresForm.forEach(p => {
+    const d = noDiretorio(p.h), eu = p.h === meuHashAqui;
+    const nome = p.nome || (d && d.nome) || p.email || 'Morador';
+    const sub = eu ? 'Você' : p.email && nome !== p.email ? h(p.email) : d ? h(d.email || d.mascara) : '';
+    const st = eu ? '' : d ? `<small class="status-morador ok">${IC.check} Já está no condomínio</small>` : p.email ? `<small class="status-morador" data-status-de="${h(p.email)}"></small>` : '';
+    itens.push(`<li><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(nome)}</b>${sub ? `<small>${sub}</small>` : ''}${st}</span><button type="button" class="btn-x" data-tirar-morador="${h(p.h)}" aria-label="Tirar ${h(nome)} da casa">${IC.x}</button></li>`);
+  });
   $('#lista-moradores').innerHTML = itens.join('');
   $$('#lista-moradores [data-status-de]').forEach(async el => { const r = await statusDe(el.dataset.statusDe); if (!el.isConnected) return; el.innerHTML = textoStatus(r); el.className = 'status-morador ' + (r ? 'ok' : r === false ? 'fora' : ''); });
-  const cheio = moradoresForm.length + hashesSemEmail.length >= 6;
+  const cheio = moradoresForm.length >= 6;
   $('#f-email-morador').disabled = !moradoresProntos || cheio; $('#btn-add-morador').disabled = !moradoresProntos || cheio;
-  if (cheio) $('#f-email-morador').placeholder = 'Limite de 6 moradores';
-  else $('#f-email-morador').placeholder = 'E-mail do Google';
+  $('#f-email-morador').placeholder = cheio ? 'Limite de 6 moradores' : 'Nome ou e-mail do Google';
 }
-let timerConferir = null;
+// Busca por nome ou e-mail com lista para tocar; e-mail completo de quem ainda não entrou também vale.
+let timerBusca = null, sugestoes = [];
+const semAcentoMin = t => semAcento(String(t || '')).toLowerCase();
+function fecharSugestoes() { $('#sugestoes-morador').hidden = true; $('#f-email-morador').setAttribute('aria-expanded', 'false'); sugestoes = []; }
 function aoDigitarMorador() {
-  const el = $('#conferindo-morador'), e = $('#f-email-morador').value.trim().toLowerCase();
-  clearTimeout(timerConferir);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e)) { el.hidden = true; return; }
-  el.hidden = false; el.className = 'status-morador'; el.innerHTML = `${SPIN} Procurando no condomínio…`;
-  timerConferir = setTimeout(async () => {
-    const r = await statusDe(e); if ($('#f-email-morador').value.trim().toLowerCase() !== e) return;
-    if (r == null) { el.hidden = true; return; }
-    el.className = 'status-morador ' + (r ? 'ok' : 'fora');
-    el.innerHTML = r ? textoStatus(r) + '. Pode adicionar.' : 'Ainda não entrou no condomínio. Pode adicionar: quando a pessoa entrar com este e-mail do Google, já consegue editar a casa.';
-  }, 450);
+  const termo = $('#f-email-morador').value.trim().toLowerCase(), st = $('#conferindo-morador');
+  clearTimeout(timerBusca);
+  if (termo.length < 2) { fecharSugestoes(); st.hidden = true; return; }
+  timerBusca = setTimeout(async () => {
+    const lista = await carregarDiretorio(); if ($('#f-email-morador').value.trim().toLowerCase() !== termo) return;
+    const c = editandoId && casaPorId(editandoId), criador = c ? c.uid : meuUid(), q = semAcentoMin(termo);
+    sugestoes = lista.filter(x => x.uid !== criador && !moradoresForm.some(p => p.h === x.h)
+      && (semAcentoMin(x.nome).split(' ').some(pal => pal.startsWith(q)) || semAcentoMin(x.nome).includes(q) || (x.email || '').startsWith(termo) || (x.mascara || '').replace('•••', '').startsWith(termo)))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).slice(0, 6);
+    const ul = $('#sugestoes-morador');
+    ul.innerHTML = sugestoes.map((x, i) => `<li role="option"><button type="button" data-sugestao="${i}"><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(x.nome || 'Morador')}</b><small>${h(x.email || x.mascara)}</small></span></button></li>`).join('');
+    ul.hidden = !sugestoes.length; $('#f-email-morador').setAttribute('aria-expanded', String(!!sugestoes.length));
+    // sem ninguém na lista: se for e-mail completo, confere; senão, explica
+    if (sugestoes.length) { st.hidden = true; return; }
+    st.hidden = false; st.className = 'status-morador';
+    if (!emailValido(termo)) { st.innerHTML = 'Ninguém com esse nome no condomínio. Se a pessoa ainda não entrou, digite o e-mail do Google dela.'; return; }
+    st.innerHTML = `${SPIN} Procurando no condomínio…`;
+    const r = await statusDe(termo); if ($('#f-email-morador').value.trim().toLowerCase() !== termo) return;
+    if (r == null) { st.hidden = true; return; }
+    st.className = 'status-morador ' + (r ? 'ok' : 'fora');
+    st.innerHTML = r ? textoStatus(r) + '. Toque em Adicionar.' : 'Ainda não entrou no condomínio. Pode adicionar: quando a pessoa entrar com este e-mail do Google, já consegue editar a casa.';
+  }, 200);
 }
-function adicionarMorador(aoSalvar) {
+function incluirPessoa(p, silencioso) {
+  if (moradoresForm.some(x => x.h === p.h)) { toast('Essa pessoa já está na lista.'); return false; }
+  if (moradoresForm.length >= 6) { toast('Limite de 6 moradores por casa.'); return false; }
+  moradoresForm = [...moradoresForm, p]; moradoresMexidos = true;
+  $('#f-email-morador').value = ''; $('#conferindo-morador').hidden = true; fecharSugestoes(); SFX.plim(); renderMoradores();
+  if (!silencioso) toast('Adicionado! Agora toque em Salvar para valer.');
+  return true;
+}
+function escolherSugestao(i) { const x = sugestoes[i]; if (x) incluirPessoa({h: x.h, nome: x.nome, email: x.email || ''}); }
+async function adicionarMorador(aoSalvar) {
   const inp = $('#f-email-morador'), e = inp.value.trim().toLowerCase().slice(0, 160);
-  if (!e) { inp.focus(); return; }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('Confira o e-mail: precisa ser o do Google da pessoa.'); inp.focus(); return; }
-  const c = editandoId && casaPorId(editandoId);
-  if ((!c || c.uid === meuUid()) && usuario && e === usuario.email) { toast('Você já cuida desta casa.'); inp.value = ''; return; }
-  if (moradoresForm.includes(e)) { toast('Esse e-mail já está na lista.'); inp.value = ''; return; }
-  moradoresForm = [...moradoresForm, e].slice(0, 6); moradoresMexidos = true; inp.value = ''; $('#conferindo-morador').hidden = true; SFX.plim(); renderMoradores();
-  if (!aoSalvar) toast('Adicionado! Agora toque em Salvar para valer.');
+  if (!e) { inp.focus(); return false; }
+  if (!aoSalvar && sugestoes.length) { escolherSugestao(0); return true; }
+  if (!emailValido(e)) { toast('Toque no nome da pessoa na lista, ou digite o e-mail do Google completo.'); inp.focus(); return false; }
+  const hsh = await hashAtribuicao(cid, e), c = editandoId && casaPorId(editandoId);
+  if ((!c || c.uid === meuUid()) && hsh === meuHashAqui) { toast('Você já cuida desta casa.'); inp.value = ''; return true; }
+  const d = noDiretorio(hsh);
+  return incluirPessoa({h: hsh, nome: d ? d.nome : '', email: e}, aoSalvar) || moradoresForm.some(x => x.h === hsh);
 }
 function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hora-evento').checked ? '' : $('#f-hi').value, horaFim: $('#f-hora-evento').checked ? '' : $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
 let versaoForm = 0;
@@ -1379,10 +1455,11 @@ function renderAdmin() {
     return `<li><div class="info"><b class="mono">${h(c.id)}</b><span>${vale ? `Válido até ${ate}` : c.ativo ? 'Expirado' : 'Desativado'}</span></div><div class="acoes">${vale ? `<button class="btn btn-p btn-fantasma" data-copiar-convite="${h(c.id)}">${IC.copiar} Copiar</button><a class="btn btn-p btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Convite para o mapa do Halloween de ${condo.nome} (só para moradores, não repasse): ${linkConvite(c.id)}`)}">WhatsApp</a><button class="btn btn-p btn-fantasma" data-desativar="${h(c.id)}">Desativar</button>` : `<button class="btn btn-p btn-fantasma" data-apagar-convite="${h(c.id)}">${IC.lixo} Apagar</button>`}</div></li>`; }).join('') : '<li><div class="info"><span>Nenhum convite ainda.</span></div></li>';
   $('#total-membros').textContent = ativos.length;
   if (membrosCarregados) $('#lista-membros').innerHTML = ativos.length ? ativos.sort((a, b) => (a.papel === 'admin' ? 0 : 1) - (b.papel === 'admin' ? 0 : 1) || (a.nome || '').localeCompare(b.nome || '')).map(m => { const sou = usuario && m.id === usuario.uid;
-    return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}</span></div>${sou ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
+    const prot = protegidos.get(m.id), trava = prot && !donoPlataforma;   // as regras do servidor também barram
+    return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}${prot ? ` · <span class="etq-protegido">${prot}</span>` : ''}</span></div>${sou || trava ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
-  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...((atribuicoes[c.id] || []).length ? [`+ ${atribuicoes[c.id].join(', ')}`] : [])].join(' '))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
+  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...(rotulosAtribuicao(atribuicoes[c.id]).length ? [`+ ${rotulosAtribuicao(atribuicoes[c.id]).join(', ')}`] : [])].join(' '))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 async function conferirEnderecos() {
@@ -1688,10 +1765,14 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
-  $('#btn-add-morador').addEventListener('click', adicionarMorador);
+  $('#btn-add-morador').addEventListener('click', () => adicionarMorador());
   $('#f-email-morador').addEventListener('input', aoDigitarMorador);
-  $('#f-email-morador').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); adicionarMorador(); } });
-  $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
+  $('#f-email-morador').addEventListener('focus', () => { if (ehMorador()) carregarDiretorio(); if ($('#f-email-morador').value.trim().length >= 2) aoDigitarMorador(); });
+  $('#f-email-morador').addEventListener('blur', () => setTimeout(fecharSugestoes, 200));
+  $('#f-email-morador').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); adicionarMorador(); } if (e.key === 'Escape') fecharSugestoes(); });
+  $('#sugestoes-morador').addEventListener('pointerdown', e => e.preventDefault());   // não perde o foco antes do toque
+  $('#sugestoes-morador').addEventListener('click', e => { const b = e.target.closest('[data-sugestao]'); if (b) escolherSugestao(+b.dataset.sugestao); });
+  $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x.h !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
   $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
   $('#f-hora-evento').addEventListener('change', e => { if (!e.target.checked) { if (hm($('#f-hi').value) == null) $('#f-hi').value = evento.horaInicio || '18:00'; if (hm($('#f-hf').value) == null) $('#f-hf').value = evento.horaFim || '21:00'; } mostrarHorasCasa(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
@@ -1721,25 +1802,23 @@ function ligarEventos() {
     const id = editandoId || (criandoOutra && ehAdmin() ? novoId() : usuario.uid);
     // Moradores: a casa guarda só o SHA-256 de "codigo:email"; os e-mails ficam em atribuicoes/, que só os moradores da casa e os admins leem.
     // Se a lista não carregou (sem rede), mantém os moradores que já estavam.
-    // E-mail digitado sem tocar em "Adicionar" entra junto ao salvar (antes ele era esquecido).
-    if ($('#f-email-morador').value.trim()) { if (!moradoresProntos) { toast('Espere a lista de moradores carregar e salve de novo.'); return; } adicionarMorador(true); if ($('#f-email-morador').value.trim()) return; }
-    let donoHashes = antiga ? hashesDaCasa(antiga) : [], gravarEmails = false;
-    if (moradoresProntos && moradoresDe === editandoId) {
-      const hs = await Promise.all(moradoresForm.map(e => hashAtribuicao(cid, e)));
-      donoHashes = [...new Set([...hashesSemEmail, ...hs])].slice(0, 6); gravarEmails = true;
-    }
-    const emails = moradoresForm.slice();
+    // E-mail digitado sem tocar em "Adicionar" entra junto ao salvar. Nome digitado sem escolher na lista: avisa.
+    if ($('#f-email-morador').value.trim()) { if (!moradoresProntos) { toast('Espere a lista de moradores carregar e salve de novo.'); return; } await adicionarMorador(true); if ($('#f-email-morador').value.trim()) return; }
+    // A casa guarda só os hashes; nomes e e-mails ficam em atribuicoes/, que só os moradores da casa e os admins leem.
+    // Se a lista não carregou (sem rede), mantém os moradores que já estavam.
+    let donoHashes = antiga ? hashesDaCasa(antiga) : [], gravar = false;
+    if (moradoresProntos && moradoresDe === editandoId) { donoHashes = [...new Set(moradoresForm.map(p => p.h))].slice(0, 6); gravar = true; }
+    const pessoas = moradoresForm.map(p => ({h: p.h, ...(p.nome ? {nome: p.nome} : {}), ...(p.email ? {email: p.email} : {})}));
     const casa = {...d, uid: antiga ? antiga.uid : usuario.uid, donoHash: '', donoHashes, criadoEm: antiga ? antiga.criadoEm : Date.now()};
     const ok = await salvarSeguro(() => {
       const b = fb.fs.writeBatch(fb.db);
       b.set(fb.casa(cid, id), limparCasa(casa));
-      if (gravarEmails && emails.length) b.set(fb.atribuicao(cid, id), {emails, ano, atualizadoEm: Date.now()});
-      else if (gravarEmails && atribuicaoExiste) b.delete(fb.atribuicao(cid, id));
+      if (gravar && pessoas.length) b.set(fb.atribuicao(cid, id), {moradores: pessoas, ano, atualizadoEm: Date.now()});
+      else if (gravar && atribuicaoExiste) b.delete(fb.atribuicao(cid, id));
       return b.commit();
-    }, emails.length ? `Casa salva com ${emails.length + 1} moradores.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
-    const emailDono = emails.find(e => !(atribuicoes[id] || []).includes(e)) || '';
-    if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, moradores: emails.length});
-    if (ok && moradoresMexidos && emails.length) setTimeout(() => toast(ehAdmin() && emailDono && !membros.some(m => (m.email || '').toLowerCase() === emailDono) ? 'Essa pessoa ainda não está no condomínio. Mande um convite para ela entrar e cuidar da casa.' : 'Os outros moradores precisam entrar no condomínio com esse e-mail do Google para editar a casa.', 6000), 3000);
+    }, pessoas.length ? `Casa salva com ${pessoas.length + 1} moradores.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
+    if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, moradores: pessoas.length});
+    if (ok && moradoresMexidos && pessoas.some(p => !noDiretorio(p.h))) setTimeout(() => toast('Quem ainda não entrou no condomínio precisa entrar com o mesmo e-mail do Google para editar a casa.', 6000), 3000);
     if (ok) { const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
   });
 
@@ -1817,8 +1896,8 @@ async function estadoPermissaoGPS() {
 }
 const DRACULA = `<svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><ellipse cx="80" cy="164" rx="46" ry="5" fill="#000" opacity=".35"/><g class="capa"><path d="M18 74 L80 58 L142 74 L150 162 L10 162 Z" fill="#1a0f2e"/><path d="M30 80 L80 66 L130 80 L136 160 L24 160 Z" fill="#b3123b"/></g><path d="M44 100 L80 88 L116 100 L118 160 L42 160 Z" fill="#1a0f2e"/><path d="M66 96 L80 108 L94 96 L94 160 L66 160 Z" fill="#f4f1fb"/><path d="M74 104 l6 10 6-10 z" fill="#b3123b"/><path d="M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z" fill="#b3123b"/><path d="M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z" fill="#2a1846"/><ellipse cx="80" cy="56" rx="30" ry="34" fill="#dcd6f0"/><path d="M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z" fill="#14091f"/><path d="M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z" fill="#dcd6f0"/><g class="olhos"><ellipse cx="68" cy="56" rx="6" ry="7" fill="#fff"/><ellipse cx="92" cy="56" rx="6" ry="7" fill="#fff"/><circle cx="69" cy="57" r="3.4" fill="#b3123b"/><circle cx="93" cy="57" r="3.4" fill="#b3123b"/><circle cx="70" cy="55.5" r="1.1" fill="#fff"/><circle cx="94" cy="55.5" r="1.1" fill="#fff"/></g><path d="M60 46 l14 4 M100 46 l-14 4" stroke="#14091f" stroke-width="3" stroke-linecap="round"/><ellipse cx="62" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><ellipse cx="98" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><g class="boca"><path d="M68 72 Q80 82 92 72 Q80 78 68 72 Z" fill="#4a0d1e"/><path d="M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z" fill="#fff"/></g></svg>`;
 function falaDracula(texto, depois) {
-  const d = $('.dracula'); if (d) d.classList.add('falando');
-  const fim = () => { const x = $('.dracula'); if (x) x.classList.remove('falando'); if (depois) depois(); };
+  const d = $('#folha-in .dracula') || $('.dracula'); if (d) d.classList.add('falando');
+  const fim = () => { $$('.dracula.falando').forEach(x => x.classList.remove('falando')); if (depois) depois(); };
   if (!temVoz()) { setTimeout(fim, 1500); return; }
   try {
     speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; const v = vozPT(); if (v) u.voice = v;
