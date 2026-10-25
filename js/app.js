@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=72';
+import CONFIG from './config.js?v=73';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -723,7 +723,7 @@ function renderListaCasas() {
     const etqs = [statusCasa(c).texto].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
       <span class="pin pin-lista ${c.esgotado ? 'esgotada' : aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
-      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span>${c.esgotado ? '<span class="nota-esgotado">Os doces desta casa acabaram</span>' : ''}<span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
+      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.esgotado ? '<span class="balao-obs balao-ficha balao-esgotado"><span class="balao-quem">Aviso da casa</span><span class="mini-obs">Os doces acabaram! Obrigado pela visita.</span></span>' : c.obs ? `<span class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
       ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
     </button></li>`;
   }).join('');
@@ -1096,11 +1096,11 @@ function renderFiltros() {
 function renderModo() { const av = $('#aviso-modo'); const textos = {casa: 'Toque no mapa exatamente onde fica a casa. Dê zoom para acertar.', portaria: 'Toque no mapa onde fica a portaria.'}; av.hidden = !modo; if (modo) $('#aviso-texto').textContent = textos[modo]; $('#mapa').classList.toggle('marcando', !!modo); }
 function cartaoCasa(c, idx) {
   const st = statusCasa(c), aberta = st.aberta;
-  const etq = [...(c.esgotado ? ['<span class="etq esgotado">Doces esgotados</span>'] : []), `<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${h(st.texto)}</span>`]
+  const etq = [`<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${h(st.texto)}</span>`]
     .concat((c.oferece || []).map(k => `<span class="etq">${IC.doce}${h(rotuloDe(OFERECE, k))}</span>`))
     .concat((c.flags || []).map(k => `<span class="etq ${k === 'cachorro' || k === 'assustadora' ? 'alerta' : ''}">${k === 'cachorro' ? IC.cachorro : k === 'pequenos' ? IC.crianca : IC.susto}${h(rotuloDe(FLAGS, k))}</span>`));
   const dist = posicao ? `<span class="etq">${IC.navegar}${fmtM(distM(posicao, c))} de você</span>` : '';
-  return `<div class="casa-titulo"><div class="num-grande">${h(c.numero)}</div><div><h3>${c.familia ? h(c.familia) : nomeCasa(c)}</h3><div class="end">${c.familia ? nomeCasa(c) : 'Casa participante'}${idx != null ? ` · parada ${idx + 1}` : ''}</div></div></div><div class="etiquetas">${etq.join('')}${dist}</div>${c.obs ? `<div class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="balao-txt">${h(c.obs)}</span></div>` : ''}`;
+  return `<div class="casa-titulo"><div class="num-grande">${h(c.numero)}</div><div><h3>${c.familia ? h(c.familia) : nomeCasa(c)}</h3><div class="end">${c.familia ? nomeCasa(c) : 'Casa participante'}${idx != null ? ` · parada ${idx + 1}` : ''}</div></div></div><div class="etiquetas">${etq.join('')}${dist}</div>${c.esgotado ? '<div class="balao-obs balao-ficha balao-esgotado"><span class="balao-quem">Aviso da casa</span><span class="balao-txt">Os doces acabaram! Obrigado pela visita.</span></div>' : c.obs ? `<div class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="balao-txt">${h(c.obs)}</span></div>` : ''}`;
 }
 function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
