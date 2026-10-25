@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=41';
+import CONFIG from './config.js?v=42';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -168,6 +168,7 @@ let modoVoltar = 'mapa';
 let filtros = ls.get('hw.filtros', {});
 let visitadas = new Set();
 let partida = 'gps';            // 'gps' | 'portaria' | 'casa:<id>'
+let partidaEscolhida = '';      // o que a pessoa tocou; sem escolha, a portaria (se marcada) é o padrão
 let roteiro = null;             // {ordem:[ids], de:{lat,lng}}
 let vozAuto = ls.get('hw.voz', true);
 let autoChegada = ls.get('hw.autochegada', true);
@@ -308,7 +309,7 @@ function abrirCondo(novo) {
   parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos');
   cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
-  partida = lsc.get('partida', 'gps'); ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
+  partidaEscolhida = lsc.get('partida', ''); partida = partidaEscolhida || 'gps'; ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
   visitadas = new Set(); roteiro = null; rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid); checarPaginaPrevia(cid);
   mostrarCondo();
@@ -334,6 +335,7 @@ function montarEvento() {
   evento = {nome: e.nome ?? (ano === anoAtualDoCondo() ? c.eventoNome : '') ?? '', data: e.data ?? (ano === anoAtualDoCondo() ? c.data : '') ?? '',
     horaInicio: e.horaInicio ?? c.horaInicio ?? '', horaFim: e.horaFim ?? c.horaFim ?? '', avisos: e.avisos ?? (ano === anoAtualDoCondo() ? c.avisos : '') ?? '', portaria: c.portaria || null};
   if (!evento.nome) evento.nome = `Halloween ${ano || ''}`.trim();
+  if (!partidaEscolhida) partida = evento.portaria ? 'portaria' : 'gps';
 }
 function trocarAno(novo) {
   ano = novo; parar('casas', 'casasAntigas', 'evento');
@@ -1237,7 +1239,7 @@ function atualizarParticipar() {
 }
 async function verificarCasaAnoPassado() {
   const box = $('#repetir-casa');
-  const mostrar = () => { box.hidden = !(casaAnoPassado && casaAnoPassado.ano === ano - 1 && !editandoId && !criandoOutra && ehAnoAtual() && casasCarregadas && !casaPorId(usuario && usuario.uid)); if (!box.hidden) $('#btn-repetir').textContent = `Repetir minha casa de ${ano - 1}`; };
+  const mostrar = () => { box.hidden = !(casaAnoPassado && casaAnoPassado.dados && casaAnoPassado.ano === ano - 1 && !editandoId && !criandoOutra && ehAnoAtual() && casasCarregadas && !minhaCasa()); if (!box.hidden) $('#btn-repetir').textContent = `Repetir minha casa de ${ano - 1}`; };
   if (!usuario || !cid || !ano || !ehMorador()) { box.hidden = true; return; }
   if (casaAnoPassado && casaAnoPassado.ano === ano - 1 && casaAnoPassado.cid === cid) return mostrar();
   casaAnoPassado = {ano: ano - 1, cid, dados: null};
@@ -1581,8 +1583,8 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-fechar-folha]')) fecharFolha(); });
 
   // roteiro
-  $('#partida').addEventListener('click', e => { const b = e.target.closest('[data-partida]'); if (!b) return; partida = b.dataset.partida; lsc.set('partida', partida); if (partida === 'gps') ligarGPS(false); renderPartida(); });
-  $('#partida').addEventListener('change', e => { if (e.target.id === 'sel-casa' && e.target.value) { partida = e.target.value; lsc.set('partida', partida); renderPartida(); } });
+  $('#partida').addEventListener('click', e => { const b = e.target.closest('[data-partida]'); if (!b) return; partida = partidaEscolhida = b.dataset.partida; lsc.set('partida', partida); if (partida === 'gps') ligarGPS(false); renderPartida(); });
+  $('#partida').addEventListener('change', e => { if (e.target.id === 'sel-casa' && e.target.value) { partida = partidaEscolhida = e.target.value; lsc.set('partida', partida); renderPartida(); } });
   $('#btn-montar').addEventListener('click', montarRoteiro);
   $('#btn-cheguei').addEventListener('click', cheguei);
   $('#btn-parar').addEventListener('click', () => {
