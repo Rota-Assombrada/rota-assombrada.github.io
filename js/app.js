@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=65';
+import CONFIG from './config.js?v=66';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1581,7 +1581,7 @@ const doisDig = n => String(n).padStart(2, '0');
 let timerContagem = null;
 function renderContagem() {
   const box = $('#contagem'); const m = cid && condo ? momentosEvento() : null;
-  if (!m || !ehAnoAtual()) { box.hidden = true; clearInterval(timerContagem); timerContagem = null; return; }
+  if (!m || !ehAnoAtual() || abaAtual !== 'mapa') { box.hidden = true; clearInterval(timerContagem); timerContagem = null; return; }   // só na tela principal (Mapa)
   const agora = Date.now(); let html = '';
   if (agora < m.dia.getTime()) {
     const t = Math.floor((m.ini.getTime() - agora) / 1000);
@@ -1920,6 +1920,7 @@ function irAba(nome) {
   if (rolarRoteiro) setTimeout(() => $(roteiro ? '#guia' : '#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}), 120);
   ['mapa', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
   if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
+  renderContagem();
   if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') { atualizarParticipar(); setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80); }
   if (!rolarRoteiro) window.scrollTo({top: 0, behavior: 'auto'});
 }
