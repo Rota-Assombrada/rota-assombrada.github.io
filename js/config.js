@@ -26,6 +26,10 @@ export default {
     appId: '1:990414708349:web:990aa8e58be7c28e011b14'
   },
 
+  // App Check com reCAPTCHA v3 (gratuito): prova que o pedido veio deste site, e não de um robô.
+  // É a "chave do site" do reCAPTCHA, pública por natureza. Vazio = App Check desligado.
+  appCheckSiteKey: '',
+
   // Valores iniciais do evento (o organizador pode mudar pelo app).
   evento: {
     nome: 'Halloween do Condomínio',

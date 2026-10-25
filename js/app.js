@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=17';
+import CONFIG from './config.js?v=18';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -93,9 +93,18 @@ const fb = {
       import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'),
     ]);
     const app = initializeApp(CONFIG.firebase);
+    const emu = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).has('emu');
+    // App Check: cada pedido ao Firebase leva um atestado do reCAPTCHA de que veio deste site.
+    if (CONFIG.appCheckSiteKey && !emu) {
+      try {
+        const ac = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+        if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        ac.initializeAppCheck(app, {provider: new ac.ReCaptchaV3Provider(CONFIG.appCheckSiteKey), isTokenAutoRefreshEnabled: true});
+      } catch (e) { console.error('App Check não iniciou', e); }
+    }
     this.fs = fs; this.db = fs.getFirestore(app); this.auth = auth; this.a = auth.getAuth(app); this.a.languageCode = 'pt';
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
-    if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).has('emu')) {
+    if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
       window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento})};
     }
@@ -732,6 +741,7 @@ function cartaoCondo(id, nome, extra = '') {
 async function renderInicio() {
   if (cid) return;
   $('#inicio-abobora').innerHTML = PUMPKIN_BIG;
+  $('#aviso-recaptcha').hidden = !CONFIG.appCheckSiteKey;
   const meus = await carregarMeusEventos();
   const rec = ls.get('hw.recentes', []).filter(r => CODIGO.test(r.cid) && !meus.some(m => m.cid === r.cid));
   $('#card-recentes').hidden = !rec.length;

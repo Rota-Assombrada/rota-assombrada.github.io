@@ -428,3 +428,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .lista-casas li .acoes .btn{width:100%;justify-content:center}
 @media (min-width:560px){.lista-casas li .acoes{width:auto;flex:0 0 auto;grid-auto-flow:column;grid-template-columns:none}}
 .toast{max-width:min(92vw,480px);overflow-wrap:anywhere;border-radius:18px}
+
+/* reCAPTCHA: o selo flutuante cobriria a barra de abas; o aviso obrigatório fica no rodapé da tela inicial */
+.grecaptcha-badge{visibility:hidden}
+.aviso-recaptcha{text-align:center;font-size:.75rem;color:var(--fg3);margin:4px 0 24px}
+.aviso-recaptcha a{color:var(--fg2)}
