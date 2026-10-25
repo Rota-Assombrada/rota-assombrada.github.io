@@ -85,6 +85,11 @@ service cloud.firestore {
 
     // ---------- validação ----------
     function texto(v, max) { return v is string && v.size() <= max; }
+    function indiceValido(d) {
+      return d.keys().hasOnly(['uid', 'nome', 'atualizadoEm']) && d.keys().hasAll(['uid'])
+        && texto(d.uid, 128) && d.uid.size() > 0 && texto(d.get('nome', ''), 40)
+        && (!('atualizadoEm' in d) || d.atualizadoEm is int);
+    }
     function hora(v) { return v is string && (v == '' || v.matches('^[0-2][0-9]:[0-5][0-9]$')); }
     function lista(v, permitidos) { return v is list && v.size() <= permitidos.size() && v.hasOnly(permitidos); }
     function coordenada(p) {
@@ -257,6 +262,18 @@ service cloud.firestore {
           );
           allow delete: if ehAdmin(cid) || (logado() && resource.data.uid == eu()) || responsavel(cid, resource.data);
         }
+      }
+
+      // Índice de quem já é morador, pelo SHA-256 de "codigo:email". Serve para conferir UM e-mail exato
+      // ao adicionar morador numa casa: membros não listam nem buscam por pedaço, só confirmam quem já conhecem.
+      match /emails/{h} {
+        allow get: if ehMorador(cid);
+        allow list: if ehAdmin(cid);
+        allow create, update: if indiceValido(request.resource.data) && (
+          ehAdmin(cid)
+          || (ehMorador(cid) && h == meuHash(cid) && request.resource.data.uid == eu())
+        );
+        allow delete: if ehAdmin(cid) || (logado() && h == meuHash(cid));
       }
 
       // E-mails dos moradores de cada casa: só admins e os próprios moradores daquela casa leem e gravam.

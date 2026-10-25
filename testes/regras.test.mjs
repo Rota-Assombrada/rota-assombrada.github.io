@@ -491,3 +491,32 @@ test('atribuição: morador NÃO se atribui a casa de outro nem muda o hash da p
 test('atribuição: hash fora do formato é recusado', async () => {
   await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2/eventos/2026/casas/x79'), {...casaBase('adminA'), donoHash: 'ana@x.com'}));
 });
+
+// ---------- índice de e-mails (conferir se alguém já é morador) ----------
+const idx = (cid, email) => `condominios/${cid}/emails/${hashDe(cid, email)}`;
+test('índice: morador registra o próprio e-mail e outro morador confere pelo e-mail exato', async () => {
+  await assertSucceeds(setDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', atualizadoEm: agora}));
+  const snap = await assertSucceeds(getDoc(doc(como('adminA', 'a@x.com'), idx('VALE2', 'm@x.com'))));
+  if (!snap.exists()) throw new Error('deveria achar');
+});
+test('índice: membro NÃO lista o índice (não dá para ver todo mundo)', async () => {
+  await assertFails(getDocs(collection(como('morM', 'm@x.com'), 'condominios/VALE2/emails')));
+  await assertSucceeds(getDocs(collection(como('adminA', 'a@x.com'), 'condominios/VALE2/emails')));
+});
+test('índice: pendente, visitante e outro condomínio NÃO consultam', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', atualizadoEm: agora}));
+  await assertFails(getDoc(doc(como('penP', 'p@x.com'), idx('VALE2', 'm@x.com'))));
+  await assertFails(getDoc(doc(visitante(), idx('VALE2', 'm@x.com'))));
+  await assertFails(getDoc(doc(como('adminB', 'b@x.com'), idx('VALE2', 'm@x.com'))));
+});
+test('índice: ninguém registra e-mail de outra pessoa nem entra sem ser morador', async () => {
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'outro@x.com')), {uid: 'morM', nome: 'X', atualizadoEm: agora}));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'm@x.com')), {uid: 'outro', nome: 'X', atualizadoEm: agora}));
+  await assertFails(setDoc(doc(como('penP', 'p@x.com'), idx('VALE2', 'p@x.com')), {uid: 'penP', nome: 'P', atualizadoEm: agora}));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', email: 'm@x.com', atualizadoEm: agora}));
+});
+test('índice: admin mantém o índice; a pessoa apaga o próprio', async () => {
+  await assertSucceeds(setDoc(doc(como('adminA', 'a@x.com'), idx('VALE2', 'm@x.com')), {uid: 'morM', nome: 'Mara', atualizadoEm: agora}));
+  await assertFails(deleteDoc(doc(como('penP', 'p@x.com'), idx('VALE2', 'm@x.com'))));
+  await assertSucceeds(deleteDoc(doc(como('morM', 'm@x.com'), idx('VALE2', 'm@x.com'))));
+});

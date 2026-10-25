@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=42';
+import CONFIG from './config.js?v=44';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -260,6 +260,8 @@ const fb = {
   casasAntigas: id => fb.fs.collection(fb.db, 'condominios', id, 'casas'),
   atribuicao: (id, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'atribuicoes', casaId),
   atribuicoes: id => fb.fs.collection(fb.db, 'condominios', id, 'atribuicoes'),
+  indice: (id, hsh) => fb.fs.doc(fb.db, 'condominios', id, 'emails', hsh),
+  indices: id => fb.fs.collection(fb.db, 'condominios', id, 'emails'),
   busca: id => fb.fs.doc(fb.db, 'busca', id),
   buscas: () => fb.fs.collection(fb.db, 'busca'),
   criador: uid => fb.fs.doc(fb.db, 'criadores', uid),
@@ -391,13 +393,14 @@ function assinarMembro() {
     e => { console.error(e); papel = ''; papelCarregado = true; aoMudarPapel(); });
 }
 function aoMudarPapel() {
-  atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); vigiarCasasAtribuidas(); });
+  atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); vigiarCasasAtribuidas(); entrarNoIndice(); });
   assinarCasas();
-  parar('membros', 'convites', 'atribuicoes');
+  parar('membros', 'convites', 'atribuicoes', 'indice'); indiceAtual = null;
   membros = []; convites = []; atribuicoes = {}; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
-    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); vigiarPedidos(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
+    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); vigiarPedidos(); sincronizarIndice(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
     subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, emailsDaAtribuicao(d.data())])); if (editandoId && moradoresDe === editandoId && !moradoresMexidos) carregarMoradores(); renderAdmin(); }, e => console.error(e));
+    subs.indice = fb.fs.onSnapshot(fb.indices(cid), s => { indiceAtual = new Map(s.docs.map(d => [d.id, d.data()])); sincronizarIndice(); }, e => console.error(e));
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
   tentarConvite();
@@ -453,8 +456,45 @@ async function pedirAcesso() {
   if (!usuario) { fb.entrar(); return; }
   await salvarSeguro(() => fb.fs.setDoc(fb.membro(cid, usuario.uid), {uid: usuario.uid, papel: 'pendente', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: Date.now(), atualizadoEm: Date.now()}), 'Pedido enviado! Um admin vai aprovar.');
 }
+// ---------- índice de moradores por e-mail ----------
+// condominios/{cid}/emails/{sha256("cid:email")} = {uid, nome}. Moradores só conferem um e-mail exato (não listam);
+// cada um registra o próprio ao entrar, e o app do admin mantém o índice igual à lista de membros.
+const primeiroNome = n => String(n || '').trim().split(/\s+/)[0].slice(0, 40);
+let indiceAtual = null, sincronizandoIndice = false;
+async function entrarNoIndice() {
+  if (!usuario || !cid || !meuHashAqui || !ehMorador()) return;
+  const chave = 'hw.indice.' + cid; if (ls.get(chave, '') === meuHashAqui) return;
+  try { await fb.fs.setDoc(fb.indice(cid, meuHashAqui), {uid: usuario.uid, nome: primeiroNome(usuario.nome), atualizadoEm: Date.now()}); ls.set(chave, meuHashAqui); } catch (e) { console.error(e); }
+}
+async function sincronizarIndice() {
+  if (!ehAdmin() || !cid || !membrosCarregados || !indiceAtual || sincronizandoIndice || !crypto.subtle) return;
+  sincronizandoIndice = true;
+  try {
+    const quer = new Map();
+    for (const m of membros) if ((m.papel === 'morador' || m.papel === 'admin') && m.email) quer.set(await hashAtribuicao(cid, m.email), {uid: m.id, nome: primeiroNome(m.nome)});
+    const b = fb.fs.writeBatch(fb.db); let n = 0;
+    quer.forEach((v, k) => { const atual = indiceAtual.get(k); if (!atual || atual.uid !== v.uid || (atual.nome || '') !== v.nome) { b.set(fb.indice(cid, k), {...v, atualizadoEm: Date.now()}); n++; } });
+    indiceAtual.forEach((_, k) => { if (!quer.has(k)) { b.delete(fb.indice(cid, k)); n++; } });
+    if (n && n <= 450) await b.commit();
+  } catch (e) { console.error(e); }
+  finally { sincronizandoIndice = false; }
+}
+// Confere um e-mail: {nome} se já é morador, false se não é, null se não deu para saber.
+const statusMorador = new Map();
+async function conferirMorador(email) {
+  if (!cid || !email) return null;
+  if (ehAdmin() && membrosCarregados) { const m = membros.find(x => (x.email || '').toLowerCase() === email && (x.papel === 'morador' || x.papel === 'admin')); return m ? {nome: primeiroNome(m.nome)} : false; }
+  if (!ehMorador()) return null;
+  try { const snap = await fb.fs.getDoc(fb.indice(cid, await hashAtribuicao(cid, email))); return snap.exists() ? {nome: snap.data().nome || ''} : false; } catch (e) { return null; }
+}
+async function statusDe(email) {
+  const k = cid + '|' + email; if (statusMorador.has(k)) return statusMorador.get(k);
+  const p = conferirMorador(email); statusMorador.set(k, p); const r = await p; if (r == null) statusMorador.delete(k); return r;
+}
+const textoStatus = r => r ? `${IC.check} ${r.nome ? h(r.nome) + ' já' : 'Já'} está no condomínio` : r === false ? 'Ainda não entrou no condomínio' : '';
 async function sairDoCondo() {
   if (!usuario || !cid) return;
+  if (meuHashAqui) { try { await fb.fs.deleteDoc(fb.indice(cid, meuHashAqui)); } catch {} ls.set('hw.indice.' + cid, ''); }
   await salvarSeguro(() => fb.fs.deleteDoc(fb.membro(cid, usuario.uid)), 'Você saiu deste condomínio.');
 }
 function salvarCondo(campos) { return fb.fs.setDoc(fb.condo(cid), {...campos, atualizadoEm: Date.now()}, {merge: true}); }
@@ -515,14 +555,25 @@ function linksNav(c) {
   };
 }
 const linkPrincipal = c => linksNav(c).google;   // Google Maps é o recomendado, no iPhone também
-function linkRotaCompleta() {
-  if (!roteiro) return '';
-  const pend = roteiro.ordem.map(casaPorId).filter(c => c && !visitadas.has(c.id)).slice(0, 10); if (!pend.length) return '';
+// Rota completa no Google Maps, na ordem otimizada. Um link leva até 10 casas (9 paradas + destino), que é o que o
+// app do Google Maps aceita; com mais casas, vira partes, e cada parte começa na última casa da anterior.
+const CASAS_POR_LINK = 10;
+function partesRotaGoogle() {
+  if (!roteiro) return [];
+  const ordem = roteiro.ordem.map((id, i) => ({c: casaPorId(id), n: i + 1})).filter(x => x.c && !visitadas.has(x.c.id));
+  if (!ordem.length) return [];
   // Sai do início escolhido (ou da última casa visitada); com partida "GPS", da posição atual do celular.
   const tipo = roteiro.partida || partida; const feitas = roteiro.ordem.map(casaPorId).filter(c => c && visitadas.has(c.id));
-  const o = tipo === 'gps' ? null : (feitas.length ? feitas[feitas.length - 1] : roteiro.de);
-  const dest = pend[pend.length - 1]; const wps = pend.slice(0, -1).map(coord).join('|');
-  return `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${coord(dest)}${wps ? '&waypoints=' + encodeURIComponent(wps) : ''}&travelmode=walking`;
+  let o = tipo === 'gps' ? null : (feitas.length ? feitas[feitas.length - 1] : roteiro.de);
+  const partes = [];
+  for (let k = 0; k < ordem.length; k += CASAS_POR_LINK) {
+    const bloco = ordem.slice(k, k + CASAS_POR_LINK), dest = bloco[bloco.length - 1].c;
+    const wps = bloco.slice(0, -1).map(x => coord(x.c)).join('|');
+    partes.push({url: `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${coord(dest)}${wps ? '&waypoints=' + encodeURIComponent(wps) : ''}&travelmode=walking`,
+      de: bloco[0].n, ate: bloco[bloco.length - 1].n, casas: bloco.length});
+    o = dest;
+  }
+  return partes;
 }
 
 /* ---------- mapa (Leaflet + OpenStreetMap) ---------- */
@@ -963,11 +1014,18 @@ function renderGuia() {
     $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = tr ? `${fmtM(d)} a pé` : `${fmtM(d)} · ${direcaoFala(de, c)}`;
     const gi = $('#guia-instrucao'); if (tr) gi.textContent = textoInstrucao(tr.passos, fmtM); else gi.innerHTML = trechoBuscando ? `${SPIN} Procurando o caminho pelas ruas…` : ''; gi.hidden = !gi.innerHTML;
     $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
-    const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small>`;
-    const l = linksNav(c); $('#nav-extra').innerHTML = `<span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
+    // Botão principal: todas as casas que faltam, na ordem otimizada (em partes se forem muitas). Embaixo, só a próxima.
+    const partes = partesRotaGoogle(), faltam = partes.reduce((t, x) => t + x.casas, 0);
+    const nav = $('#btn-navegar'); nav.removeAttribute('aria-disabled');
+    if (faltam > 1) { nav.href = partes[0].url; nav.innerHTML = `<span class="nav-linha">${IC.navegar} Rota completa no Google Maps</span><small class="recomendado">${partes.length > 1 ? `parte 1 de ${partes.length} · casas ${partes[0].de} a ${partes[0].ate}` : `${faltam} casas em ordem`}</small>`; }
+    else { nav.href = linkPrincipal(c); nav.innerHTML = `<span class="nav-linha">${IC.navegar} Navegar no Google Maps</span><small class="recomendado">última casa</small>`; }
+    $('#partes-google').innerHTML = partes.length > 1 ? `<p class="dica">O Google Maps aceita até ${CASAS_POR_LINK} casas por vez. Terminou uma parte? Abra a próxima.</p>` + partes.slice(1).map((x, k) => `<a class="btn btn-fantasma" href="${x.url}" target="_blank" rel="noopener">${IC.navegar} Parte ${k + 2} · casas ${x.de} a ${x.ate}</a>`).join('') : '';
+    $('#partes-google').hidden = partes.length < 2;
+    const l = linksNav(c); $('#nav-extra').innerHTML = faltam > 1 ? `<span class="rotulo">Só a próxima casa</span><a href="${l.google}" target="_blank" rel="noopener">Google Maps</a><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`
+      : `<span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
   } else {
     $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-instrucao').hidden = true; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
-    $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; $('#btn-parar').textContent = 'Fechar roteiro'; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = '';
+    $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; $('#btn-parar').textContent = 'Fechar roteiro'; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = ''; $('#partes-google').hidden = true;
   }
   guia.hidden = false;
 }
@@ -988,7 +1046,7 @@ function renderRoteiro() {
   const temReta = rotaTrechos && rotaChave === chaveRoteiro() && rotaTrechos.some(x => !x.ruas);
   const tudoReto = temReta && rotaTrechos.every(x => !x.ruas);
   if (pernas) tot.textContent = (tudoReto ? `Percurso total: cerca de ${fmtM(totalM)} em linha reta.` : `Percurso total a pé: cerca de ${fmtM(totalM)}.`) + (temReta ? ' A linha pontilhada é caminho direto, porque as ruas internas do condomínio não aparecem como públicas no mapa. Siga pelas ruas do condomínio na direção indicada.' : ''); else if (rotaCarregando) tot.innerHTML = `${SPIN} Calculando o caminho pelas ruas…`; else tot.textContent = `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
-  const lr = linkRotaCompleta(); const br = $('#btn-rota-google'); br.hidden = !lr; if (lr) br.href = lr;
+  $('#btn-rota-google').hidden = true;   // a rota completa agora é o botão principal do guia
 }
 function renderParticipar() {
   $('#f-oferece').innerHTML = OFERECE.map(([k, r]) => `<button type="button" class="chip" data-multi="oferece" data-k="${k}" aria-pressed="false">${IC.doce}${r}</button>`).join('');
@@ -1052,23 +1110,37 @@ function renderMoradores() {
   else { const m = membros.find(x => x.id === c.uid); criador = m ? `${h(m.nome || 'Um morador')}${m.email ? ` · ${h(m.email)}` : ''}` : (ehAdmin() && membrosCarregados ? 'Quem cadastrou não está mais no condomínio' : 'Quem cadastrou a casa'); }
   const itens = [`<li class="morador-criador"><span class="morador-ic">${IC.casa}</span><span class="morador-txt"><b>${criador}</b><small>Conta que cadastrou</small></span></li>`];
   if (!moradoresProntos && c) itens.push(`<li><span class="res-carregando">${SPIN} Carregando moradores…</span></li>`);
-  moradoresForm.forEach(e => itens.push(`<li><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(e)}</b>${usuario && e === usuario.email ? '<small>Você</small>' : ''}</span><button type="button" class="btn-x" data-tirar-morador="${h(e)}" aria-label="Tirar ${h(e)} da casa">${IC.x}</button></li>`));
+  moradoresForm.forEach(e => itens.push(`<li><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(e)}</b>${usuario && e === usuario.email ? '<small>Você</small>' : `<small class="status-morador" data-status-de="${h(e)}"></small>`}</span><button type="button" class="btn-x" data-tirar-morador="${h(e)}" aria-label="Tirar ${h(e)} da casa">${IC.x}</button></li>`));
   if (hashesSemEmail.length) itens.push(`<li><span class="morador-txt"><small>Mais ${hashesSemEmail.length} morador${hashesSemEmail.length > 1 ? 'es' : ''} sem e-mail visível (continua com acesso).</small></span></li>`);
   $('#lista-moradores').innerHTML = itens.join('');
+  $$('#lista-moradores [data-status-de]').forEach(async el => { const r = await statusDe(el.dataset.statusDe); if (!el.isConnected) return; el.innerHTML = textoStatus(r); el.className = 'status-morador ' + (r ? 'ok' : r === false ? 'fora' : ''); });
   const cheio = moradoresForm.length + hashesSemEmail.length >= 6;
   $('#f-email-morador').disabled = !moradoresProntos || cheio; $('#btn-add-morador').disabled = !moradoresProntos || cheio;
   if (cheio) $('#f-email-morador').placeholder = 'Limite de 6 moradores';
   else $('#f-email-morador').placeholder = 'E-mail do Google';
 }
-function adicionarMorador() {
+let timerConferir = null;
+function aoDigitarMorador() {
+  const el = $('#conferindo-morador'), e = $('#f-email-morador').value.trim().toLowerCase();
+  clearTimeout(timerConferir);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e)) { el.hidden = true; return; }
+  el.hidden = false; el.className = 'status-morador'; el.innerHTML = `${SPIN} Procurando no condomínio…`;
+  timerConferir = setTimeout(async () => {
+    const r = await statusDe(e); if ($('#f-email-morador').value.trim().toLowerCase() !== e) return;
+    if (r == null) { el.hidden = true; return; }
+    el.className = 'status-morador ' + (r ? 'ok' : 'fora');
+    el.innerHTML = r ? textoStatus(r) + '. Pode adicionar.' : 'Ainda não entrou no condomínio. Pode adicionar: quando a pessoa entrar com este e-mail do Google, já consegue editar a casa.';
+  }, 450);
+}
+function adicionarMorador(aoSalvar) {
   const inp = $('#f-email-morador'), e = inp.value.trim().toLowerCase().slice(0, 160);
   if (!e) { inp.focus(); return; }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('Confira o e-mail: precisa ser o do Google da pessoa.'); inp.focus(); return; }
   const c = editandoId && casaPorId(editandoId);
   if ((!c || c.uid === meuUid()) && usuario && e === usuario.email) { toast('Você já cuida desta casa.'); inp.value = ''; return; }
   if (moradoresForm.includes(e)) { toast('Esse e-mail já está na lista.'); inp.value = ''; return; }
-  moradoresForm = [...moradoresForm, e].slice(0, 6); moradoresMexidos = true; inp.value = ''; SFX.plim(); renderMoradores();
-  toast('Adicionado! Salve a casa para valer.');
+  moradoresForm = [...moradoresForm, e].slice(0, 6); moradoresMexidos = true; inp.value = ''; $('#conferindo-morador').hidden = true; SFX.plim(); renderMoradores();
+  if (!aoSalvar) toast('Adicionado! Agora toque em Salvar para valer.');
 }
 function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hora-evento').checked ? '' : $('#f-hi').value, horaFim: $('#f-hora-evento').checked ? '' : $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
 let versaoForm = 0;
@@ -1613,6 +1685,7 @@ function ligarEventos() {
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
   $('#btn-add-morador').addEventListener('click', adicionarMorador);
+  $('#f-email-morador').addEventListener('input', aoDigitarMorador);
   $('#f-email-morador').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); adicionarMorador(); } });
   $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
   $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
@@ -1644,6 +1717,8 @@ function ligarEventos() {
     const id = editandoId || (criandoOutra && ehAdmin() ? novoId() : usuario.uid);
     // Moradores: a casa guarda só o SHA-256 de "codigo:email"; os e-mails ficam em atribuicoes/, que só os moradores da casa e os admins leem.
     // Se a lista não carregou (sem rede), mantém os moradores que já estavam.
+    // E-mail digitado sem tocar em "Adicionar" entra junto ao salvar (antes ele era esquecido).
+    if ($('#f-email-morador').value.trim()) { if (!moradoresProntos) { toast('Espere a lista de moradores carregar e salve de novo.'); return; } adicionarMorador(true); if ($('#f-email-morador').value.trim()) return; }
     let donoHashes = antiga ? hashesDaCasa(antiga) : [], gravarEmails = false;
     if (moradoresProntos && moradoresDe === editandoId) {
       const hs = await Promise.all(moradoresForm.map(e => hashAtribuicao(cid, e)));

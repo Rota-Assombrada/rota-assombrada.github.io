@@ -612,3 +612,17 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .acoes-folha>.btn-grande,.acoes-folha>[data-acao="visitar"],.acoes-folha>[data-acao="ouvir"]:last-child{grid-column:1/-1}
 .acoes-folha>.btn-grande{flex-wrap:wrap;row-gap:4px}
 .folha-in .nav-extra{margin-top:20px;padding-top:16px;border-top:1px solid var(--borda);gap:10px}
+
+.status-morador{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-size:.85rem;font-weight:700;color:var(--fg3)}
+.status-morador svg{width:16px;height:16px;flex:none}
+.status-morador.ok{color:var(--veneno)}
+.status-morador.fora{color:var(--abobora)}
+.morador-txt .status-morador{margin:2px 0 0;font-size:.8rem}
+
+.partes-google{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.partes-google .dica{margin:0}
+.partes-google .btn{width:100%;justify-content:center}
+#btn-navegar{flex-direction:column;gap:6px;text-align:center}
+#btn-navegar .nav-linha{display:block;line-height:1.25}
+#btn-navegar .nav-linha svg{display:inline-block;vertical-align:-3px;margin-right:6px}
+#btn-navegar .recomendado{margin-left:0}
