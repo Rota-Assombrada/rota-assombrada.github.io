@@ -3,7 +3,11 @@
 //   c/{codigo}/index.html          -> prévia com o nome do condomínio, leva ao app
 //   c/{codigo}/convite/index.html  -> prévia de convite (só moradores); o código do convite fica no "#"
 // Usa só dados que já são públicos (coleção "busca": nome e cidade). Roda no GitHub Actions de hora em hora.
-import {readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync} from 'node:fs';
+import {readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync, copyFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 
 const BASE = 'https://rota-assombrada.github.io/';
 const config = readFileSync(new URL('../js/config.js', import.meta.url), 'utf8');
@@ -30,6 +34,34 @@ async function listarBusca() {
   return itens;
 }
 
+// ---------- capas com o nome do condomínio (Chrome sem janela) ----------
+const MODELO = readFileSync(new URL('./capa-modelo.html', import.meta.url), 'utf8');
+const CHROME = [process.env.CHROME_BIN, 'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+  .filter(Boolean).find(b => { try { return spawnSync(b, ['--version'], {stdio: 'ignore'}).status === 0; } catch { return false; } });
+function paraJpg(png, jpg) {
+  for (const [cmd, args] of [['magick', [png, '-quality', '86', jpg]], ['convert', [png, '-quality', '86', jpg]], ['sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '86', png, '--out', jpg]]]) {
+    try { if (spawnSync(cmd, args, {stdio: 'ignore'}).status === 0 && existsSync(jpg)) return true; } catch {}
+  }
+  return false;
+}
+// Desenha a capa só quando o texto muda (a versão fica num arquivo ao lado), para não gerar commit toda hora.
+function capa(pasta, valores) {
+  const html = MODELO.replace('{{SELO}}', valores.selo ? `<div class="selo">${h(valores.selo)}</div>` : '').replace('{{NOME}}', h(valores.nome))
+    .replace('{{CLASSE_NOME}}', valores.nome.length > 34 ? 'longo' : '').replace('{{SUB}}', h(valores.sub)).replace('{{CHIP}}', h(valores.chip));
+  const versao = createHash('sha256').update(html).digest('hex').slice(0, 10);
+  const jpg = join(pasta, 'capa.jpg'), arqVersao = join(pasta, 'capa.versao');
+  if (existsSync(jpg) && existsSync(arqVersao) && readFileSync(arqVersao, 'utf8').trim() === versao) return `capa.jpg?v=${versao}`;
+  if (!CHROME) return null;
+  const tmp = join(tmpdir(), `capa-${versao}`); mkdirSync(tmp, {recursive: true});
+  writeFileSync(join(tmp, 'capa.html'), html);
+  const png = join(tmp, 'capa.png');
+  spawnSync(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-sandbox', `--user-data-dir=${join(tmp, 'perfil')}`, '--virtual-time-budget=5000', '--window-size=1200,630', `--screenshot=${png}`, `file://${join(tmp, 'capa.html')}`], {stdio: 'ignore', timeout: 60000});
+  if (!existsSync(png)) return null;
+  if (!paraJpg(png, jpg)) return null;
+  writeFileSync(arqVersao, versao + '\n');
+  return `capa.jpg?v=${versao}`;
+}
+
 function pagina({titulo, descricao, url, imagem, alt, destino}) {
   return `<!doctype html>
 <html lang="pt-BR">
@@ -43,8 +75,8 @@ function pagina({titulo, descricao, url, imagem, alt, destino}) {
 <meta property="og:title" content="${h(titulo)}">
 <meta property="og:description" content="${h(descricao)}">
 <meta property="og:url" content="${h(url)}">
-<meta property="og:image" content="${BASE}img/${imagem}">
-<meta property="og:image:secure_url" content="${BASE}img/${imagem}">
+<meta property="og:image" content="${imagem}">
+<meta property="og:image:secure_url" content="${imagem}">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -53,7 +85,7 @@ function pagina({titulo, descricao, url, imagem, alt, destino}) {
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${h(titulo)}">
 <meta name="twitter:description" content="${h(descricao)}">
-<meta name="twitter:image" content="${BASE}img/${imagem}">
+<meta name="twitter:image" content="${imagem}">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="${BASE}img/favicon-32.png">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0a16;color:#f7f1ff;font:700 18px system-ui,sans-serif;text-align:center;padding:24px}a{color:#ff8a1f}</style>
@@ -66,17 +98,17 @@ function pagina({titulo, descricao, url, imagem, alt, destino}) {
 `;
 }
 
-const IMG_SITE = 'preview.jpg', IMG_CONVITE = 'preview-convite.jpg';
-function paginaCondo({cid, nome, cidade}) {
+const IMG_SITE = `${BASE}img/preview.jpg`, IMG_CONVITE = `${BASE}img/preview-convite.jpg`;
+function paginaCondo({cid, nome, cidade}, img) {
   const titulo = `${nome} · Rota Assombrada`;
   const descricao = `O mapa do Halloween de ${nome}${cidade ? ` (${cidade})` : ''}: veja as casas que dão doces, monte o roteiro e cadastre a sua.`;
-  return pagina({titulo, descricao, url: `${BASE}c/${cid}/`, imagem: IMG_SITE, alt: `Mapa do Halloween de ${nome}`,
+  return pagina({titulo, descricao, url: `${BASE}c/${cid}/`, imagem: img ? `${BASE}c/${cid}/${img}` : IMG_SITE, alt: `Mapa do Halloween de ${nome}`,
     destino: `var d=${JSON.stringify(BASE + '#' + cid)};document.getElementById('ir').href=d;location.replace(d);`});
 }
-function paginaConvite({cid, nome}) {
+function paginaConvite({cid, nome}, img) {
   const titulo = `Convite: ${nome} · Rota Assombrada`;
-  const descricao = `Convite com entrada automática no mapa do Halloween de ${nome}. Compartilhe só com moradores do condomínio.`;
-  return pagina({titulo, descricao, url: `${BASE}c/${cid}/convite/`, imagem: IMG_CONVITE, alt: `Convite para o mapa do Halloween de ${nome}`,
+  const descricao = `Convite para o mapa do Halloween de ${nome}: sua entrada é aprovada automaticamente. Compartilhe só com moradores do condomínio.`;
+  return pagina({titulo, descricao, url: `${BASE}c/${cid}/convite/`, imagem: img ? `${BASE}c/${cid}/convite/${img}` : IMG_CONVITE, alt: `Convite para o mapa do Halloween de ${nome}`,
     destino: `var c=location.hash.slice(1),d=${JSON.stringify(BASE + '#' + cid)}+(/^[A-Za-z0-9]{8,40}$/.test(c)?'/convite/'+c:'');document.getElementById('ir').href=d;location.replace(d);`});
 }
 
@@ -88,7 +120,9 @@ const manter = new Set(itens.map(i => i.cid));
 for (const nome of existsSync(pastaC) ? readdirSync(pastaC) : []) if (CODIGO.test(nome) && !manter.has(nome)) rmSync(`${pastaC}/${nome}`, {recursive: true, force: true});
 for (const it of itens) {
   mkdirSync(`${pastaC}/${it.cid}/convite`, {recursive: true});
-  writeFileSync(`${pastaC}/${it.cid}/index.html`, paginaCondo(it));
-  writeFileSync(`${pastaC}/${it.cid}/convite/index.html`, paginaConvite(it));
+  const imgCondo = capa(`${pastaC}/${it.cid}`, {nome: it.nome, sub: 'O mapa das casas que dão doces no Halloween', chip: 'Cadastre sua casa e monte o roteiro'});
+  const imgConvite = capa(`${pastaC}/${it.cid}/convite`, {selo: 'CONVITE', nome: it.nome, sub: 'Entrada aprovada automaticamente', chip: 'Só para moradores · não repasse'});
+  writeFileSync(`${pastaC}/${it.cid}/index.html`, paginaCondo(it, imgCondo));
+  writeFileSync(`${pastaC}/${it.cid}/convite/index.html`, paginaConvite(it, imgConvite));
 }
-console.log(`Prévias geradas para ${itens.length} condomínio(s): ${itens.map(i => i.cid).join(', ') || 'nenhum'}`);
+console.log(`Prévias geradas para ${itens.length} condomínio(s): ${itens.map(i => i.cid).join(', ') || 'nenhum'}${CHROME ? '' : ' (sem Chrome: capas genéricas)'}`);

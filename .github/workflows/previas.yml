@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['scripts/gerar-previas.mjs', '.github/workflows/previas.yml']
+    paths: ['scripts/gerar-previas.mjs', 'scripts/capa-modelo.html', '.github/workflows/previas.yml']
 
 permissions:
   contents: write
