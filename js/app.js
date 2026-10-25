@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=47';
+import CONFIG from './config.js?v=48';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1121,6 +1121,46 @@ function mostrarHorasCasa() {
   $('#f-hora-evento-txt').textContent = evento.horaInicio && evento.horaFim ? `Das ${evento.horaInicio} às ${evento.horaFim}, o mesmo horário do evento.` : 'Segue o horário que o admin definir para o evento.';
   renderHoras();
 }
+// ---------- sugestão de rua enquanto digita ----------
+// Ruas das casas já cadastradas (na hora, sem internet) + Photon, o buscador do OpenStreetMap feito para sugerir enquanto
+// digita (o Nominatim não permite isso). Só pergunta depois de uma pausa, a partir de 3 letras, perto do condomínio,
+// e guarda as respostas. Recebe só o texto da rua e a área do mapa; nunca nome ou e-mail.
+let sugestoesRua = [];
+const photonCache = new Map();
+async function ruasPhoton(termo) {
+  const centro = (condo && condo.centro) || null; if (!centro || termo.length < 3) return [];
+  const k = cid + '|' + semAcento(termo).toLowerCase(); if (photonCache.has(k)) return photonCache.get(k);
+  const d = 0.012, lat = +centro.lat, lng = +centro.lng;
+  const q = new URLSearchParams({q: termo, lat: lat.toFixed(5), lon: lng.toFixed(5), limit: '8', layer: 'street', bbox: [lng - d, lat - d, lng + d, lat + d].map(x => x.toFixed(5)).join(',')});
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?${q}`, {referrerPolicy: 'strict-origin'});
+    const nomes = r.ok ? [...new Set(((await r.json()).features || []).map(f => f.properties && f.properties.name).filter(Boolean).map(n => String(n).slice(0, 60)))] : [];
+    photonCache.set(k, nomes); return nomes;
+  } catch (e) { return []; }
+}
+function fecharSugestoesRua() { $('#sugestoes-rua').hidden = true; $('#f-rua').setAttribute('aria-expanded', 'false'); sugestoesRua = []; }
+async function sugerirRuas(comInternet) {
+  const termo = $('#f-rua').value.trim(); if (termo.length < 2) { fecharSugestoesRua(); return; }
+  const q = semAcento(termo).toLowerCase(), daqui = casas.map(c => c.rua).filter(Boolean);
+  const uso = new Map(); daqui.forEach(n => uso.set(n, (uso.get(n) || 0) + 1));   // as ruas mais usadas aparecem primeiro
+  const pega = n => { const t = semAcento(n).toLowerCase(); return (t.split(/[\s.]+/).some(p => p.startsWith(q)) || t.includes(q)) && t !== q; };
+  const desenhar = doMapa => {
+    if ($('#f-rua').value.trim() !== termo || document.activeElement !== $('#f-rua')) return;
+    const todas = [...new Map([...daqui, ...doMapa].map(n => [semAcento(n).toLowerCase(), n])).values()];
+    sugestoesRua = todas.filter(pega).sort((a, b) => (uso.get(b) || 0) - (uso.get(a) || 0) || a.localeCompare(b, 'pt')).slice(0, 6);
+    const ul = $('#sugestoes-rua');
+    ul.innerHTML = sugestoesRua.map((n, i) => `<li role="option"><button type="button" data-rua="${i}"><span class="morador-ic">${IC.casa}</span><span class="morador-txt"><b>${h(n)}</b><small>${uso.get(n) ? `${uso.get(n)} casa${uso.get(n) > 1 ? 's' : ''} já cadastrada${uso.get(n) > 1 ? 's' : ''} nesta rua` : 'Rua do mapa perto do condomínio'}</small></span></button></li>`).join('');
+    ul.hidden = !sugestoesRua.length; $('#f-rua').setAttribute('aria-expanded', String(!!sugestoesRua.length));
+  };
+  desenhar([]);   // primeiro as ruas do condomínio, na hora
+  if (comInternet) desenhar(await ruasPhoton(termo));
+}
+function escolherRua(i) {
+  const n = sugestoesRua[i]; if (!n) return;
+  $('#f-rua').value = n; fecharSugestoesRua(); SFX.plim();
+  // com número já preenchido, a abóbora vai para o endereço; senão, o foco segue para o número
+  if ($('#f-numero').value.trim()) $('#f-rua').dispatchEvent(new Event('change')); else $('#f-numero').focus();
+}
 // ---------- moradores da casa (até 6 pessoas cuidam da mesma casa) ----------
 // Cada morador: {h, nome, email}. h é o SHA-256 de "codigo:email" (é ele que dá acesso); o e-mail fica vazio quando a
 // pessoa foi escolhida no diretório, que só tem o e-mail pela metade.
@@ -1759,6 +1799,13 @@ function ligarEventos() {
     toast('Pegando sua posição…'); navigator.geolocation.getCurrentPosition(p => { definirPinCasa({lat: p.coords.latitude, lng: p.coords.longitude}, true); toast(`Posição marcada (precisão ${Math.round(p.coords.accuracy)} m). Se não estiver na porta de casa, arraste a abóbora.`, 4000); }, () => toast('Não consegui pegar o GPS. Toque no mapa onde fica a casa.'), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
   });
   $('#btn-achar-endereco').addEventListener('click', () => acharPeloEndereco(false));
+  let timerRua = null;
+  $('#f-rua').addEventListener('input', () => { sugerirRuas(false); clearTimeout(timerRua); timerRua = setTimeout(() => sugerirRuas(true), 350); });
+  $('#f-rua').addEventListener('focus', () => { if ($('#f-rua').value.trim().length >= 2) sugerirRuas(true); });
+  $('#f-rua').addEventListener('blur', () => setTimeout(fecharSugestoesRua, 200));
+  $('#f-rua').addEventListener('keydown', e => { if (e.key === 'Enter' && sugestoesRua.length) { e.preventDefault(); escolherRua(0); } if (e.key === 'Escape') fecharSugestoesRua(); });
+  $('#sugestoes-rua').addEventListener('pointerdown', e => e.preventDefault());
+  $('#sugestoes-rua').addEventListener('click', e => { const b = e.target.closest('[data-rua]'); if (b) escolherRua(+b.dataset.rua); });
   ['#f-rua', '#f-numero'].forEach(sel => $(sel).addEventListener('change', () => { if ($('#f-rua').value.trim() && $('#f-numero').value.trim()) acharPeloEndereco(true); if (marcadorCasa) marcadorCasa.setIcon(iconeCasaPin()); }));
   $('#btn-trava-mapa').addEventListener('click', () => { travarMapaCasa(!mapaCasaTravado); if (!mapaCasaTravado) $('#dica-mapa-casa').textContent = 'Mapa destravado: toque onde fica a casa ou arraste a abóbora. Depois toque em "Pronto, travar posição".'; });
   $('#btn-repetir').addEventListener('click', () => { if (!casaAnoPassado || !casaAnoPassado.dados) return; const {uid, criadoEm, atualizadoEm, ...dados} = casaAnoPassado.dados; preencherForm(dados); $('#repetir-casa').hidden = true; SFX.plim(); toast('Casa do ano passado copiada. Confira os horários e salve.', 4000); });

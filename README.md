@@ -54,6 +54,7 @@ Admins de cada condomínio são definidos no próprio app, pela aba Admin, sem m
 - Um condomínio não enxerga nem altera outro.
 - Casa atribuída a um e-mail: na casa fica só o SHA-256 de `codigo:email`; o e-mail em si fica em `atribuicoes/`, que só admins leem. Quem entra com aquele e-mail pode editar ou tirar a casa e passa a ser o dono dela.
 - Endereço automático no cadastro usa o Nominatim do OpenStreetMap (recebe rua, número e cidade digitados).
+- Sugestão de rua enquanto digita usa as ruas das casas já cadastradas e o Photon do OpenStreetMap (recebe só o texto da rua e a área do condomínio).
 - Todo campo é validado no servidor: lista de campos permitidos, tipos, tamanhos e valores.
 - No navegador, textos de usuários são escapados antes de ir para a tela, e há Content-Security-Policy limitando de onde vêm scripts e conexões.
 - Testes automáticos das regras em [`testes/regras.test.mjs`](testes/regras.test.mjs) simulam cada papel tentando o que não pode.
