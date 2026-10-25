@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=39';
+import CONFIG from './config.js?v=40';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -156,7 +156,11 @@ async function atualizarMeuHash() { meuHashAqui = usuario && cid && crypto.subtl
 const souResponsavel = c => !!c && !!meuHashAqui && c.donoHash === meuHashAqui;
 const minhaCasa = () => usuario ? (casaPorId(usuario.uid) || casas.find(souResponsavel) || null) : null;
 let membros = [], convites = [];
-let conviteDaRota = null;
+// Convite do link: {cid, cod}. Fica guardado na aba do navegador até ser usado, para sobreviver ao vaivém do login do Google.
+let conviteDaRota = (() => { try { const v = JSON.parse(sessionStorage.getItem('hw.convite') || 'null'); return v && v.cid && v.cod && Date.now() - (v.ts || 0) < 6 * 36e5 ? v : null; } catch { return null; } })();
+let aceitandoConvite = false;
+function guardarConvite(v) { conviteDaRota = v; try { v ? sessionStorage.setItem('hw.convite', JSON.stringify({...v, ts: Date.now()})) : sessionStorage.removeItem('hw.convite'); } catch {} }
+const temConvite = () => !!(conviteDaRota && conviteDaRota.cid === cid);
 let modo = null;                // null | 'casa' | 'portaria'
 let modoVoltar = 'mapa';
 let filtros = ls.get('hw.filtros', {});
@@ -314,6 +318,7 @@ function abrirCondo(novo) {
     montarEvento();
     if (ehAdmin()) passarParaAnos();
     lembrarRecente(cid, condo.nome);
+    tentarConvite();
     if (!centrouCondo && condo.centro) { centrouCondo = true; mapa.setView([condo.centro.lat, condo.centro.lng], condo.zoom || 17); }
     renderTudoCondo();
   }, e => { console.error(e); condoCarregado = true; cargaFim('condo'); cargaFim('casas'); casasCarregadas = true; toast('Não consegui abrir este condomínio.'); renderTudoCondo(); });
@@ -424,18 +429,20 @@ function aoMudarDados() {
 
 /* ---------- entrar no condomínio ---------- */
 async function tentarConvite() {
-  if (!conviteDaRota || !usuario || !cid || !papelCarregado || !condo) return;
-  const cod = conviteDaRota; conviteDaRota = null;
+  // Roda quando o papel OU o condomínio terminam de carregar (o que chegar por último), e só uma vez por convite.
+  if (!temConvite() || aceitandoConvite || !usuario || !cid || !papelCarregado || !condo) return;
+  const cod = conviteDaRota.cod; guardarConvite(null);
   const limparRota = () => { try { history.replaceState(null, '', '#' + cid); } catch {} };
   if (papel === 'admin' || papel === 'morador') { limparRota(); toast('Você já faz parte deste condomínio.'); return; }
+  aceitandoConvite = true; renderAcesso(); atualizarParticipar();
   try {
     if (papel === 'pendente') await fb.fs.deleteDoc(fb.membro(cid, usuario.uid));
     await fb.fs.setDoc(fb.membro(cid, usuario.uid), {uid: usuario.uid, papel: 'morador', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: cod, criadoEm: Date.now(), atualizadoEm: Date.now()});
     SFX.festa(); toast('Convite aceito! Agora você pode cadastrar sua casa.', 4000); limparRota(); evento_('convite_aceito');
   } catch (e) {
     console.error(e); limparRota();
-    toast('Este convite expirou ou foi desativado. Peça um novo ao admin.', 5000);
-  }
+    toast('Este convite expirou ou foi desativado. Peça um novo ao admin.', 5000); evento_('convite_recusado');
+  } finally { aceitandoConvite = false; renderAcesso(); atualizarParticipar(); }
 }
 async function pedirAcesso() {
   if (!usuario) { fb.entrar(); return; }
@@ -1143,7 +1150,8 @@ function renderAcesso() {
   if (!condoCarregado || (condo && !podeVerCasas && (!papelCarregado || !casasCarregadas))) html = `<div class="skel-cartao" aria-hidden="true"><span class="skel skel-circ grande"></span><span class="skel skel-l1" style="width:60%"></span><span class="skel skel-l2" style="width:80%"></span><span class="skel skel-btn largo"></span></div><p class="res-carregando">${SPIN} Abrindo o portão do condomínio…</p>`;
   else if (condoCarregado && !condo) html = cartaoAviso('Condomínio não encontrado', 'Confira o link com quem te mandou. O código pode ter mudado.', `<button class="btn btn-primario" data-acao-acesso="inicio">Ver outros condomínios</button>`);
   else if (condo && !podeVerCasas && papelCarregado) {
-    if (!usuario) html = cartaoAviso('Mapa só para moradores', conviteDaRota ? 'Você recebeu um convite! Entre com Google para aceitar.' : `O mapa de ${h(condo.nome)} é fechado. Entre com Google para pedir acesso.`, `<button class="btn btn-google" data-acao-acesso="entrar">${IC.google} Entrar com Google</button>`);
+    if (usuario && (aceitandoConvite || (temConvite() && !papelCarregado))) html = cartaoAviso('Aceitando seu convite…', 'Só um instante: estamos colocando você no condomínio.', '');
+    else if (!usuario) html = cartaoAviso('Mapa só para moradores', temConvite() ? 'Você recebeu um convite! Entre com Google para aceitar.' : `O mapa de ${h(condo.nome)} é fechado. Entre com Google para pedir acesso.`, `<button class="btn btn-google" data-acao-acesso="entrar">${IC.google} Entrar com Google</button>`);
     else if (papel === 'pendente') html = cartaoAviso('Pedido enviado', 'Um admin do condomínio precisa aprovar sua entrada. Assim que aprovar, o mapa aparece aqui sozinho.', `<button class="btn btn-fantasma" data-acao-acesso="cancelar">Cancelar pedido</button>`);
     else html = cartaoAviso('Você ainda não faz parte', `Peça para entrar em ${h(condo.nome)}. Se alguém te mandou um link de convite, abra por ele e a entrada é automática.`, `<button class="btn btn-primario" data-acao-acesso="pedir">Pedir para entrar</button>`);
   }
@@ -1156,7 +1164,8 @@ function atualizarParticipar() {
   if (!cid) return;
   const gate = $('#gate'), form = $('#form-casa');
   let html = '';
-  if (!usuario) html = `<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
+  if (!usuario) html = `${temConvite() ? '<p class="ok-msg">Você recebeu um convite! Entre com Google e o cadastro é aprovado na hora.</p>' : ''}<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
+  else if (aceitandoConvite || (temConvite() && !ehMorador())) html = `<p class="res-carregando">${SPIN} Aceitando seu convite…</p><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!papelCarregado) html = `<p class="res-carregando">${SPIN} Conferindo seu acesso…</p><span class="skel skel-campo"></span><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!ehMorador() && papel === 'pendente') html = `<p>Seu pedido está com o admin. Assim que aprovar, você cadastra a casa aqui.</p>`;
   else if (!ehMorador() && !minhaCasa()) html = `<button type="button" class="btn btn-primario btn-grande" data-acao-acesso="pedir">Pedir para entrar no condomínio</button><p class="dica">Só moradores aprovados colocam casas no mapa.</p>`;
@@ -1732,7 +1741,7 @@ function lerRota() {
 }
 function aplicarRota() {
   const r = lerRota();
-  if (r.convite) conviteDaRota = r.convite;
+  if (r.convite && r.c) guardarConvite({cid: r.c, cod: r.convite});
   if (!r.c) {
     const ultimo = ls.get('hw.ultimo', null);
     if (!r.inicio && ultimo && CODIGO.test(ultimo)) { location.replace('#' + ultimo); return; }
