@@ -550,3 +550,12 @@ input::placeholder,textarea::placeholder{color:var(--fg3);opacity:.8}
 .lista-avisos li.novo{border-color:var(--abobora);background:linear-gradient(180deg,rgba(255,138,31,.12),var(--superficie2))}
 .lista-avisos p{margin:0;font-weight:800;color:var(--fg)}
 @media (max-width:420px){.topo-botoes{gap:6px}.topo-botoes .btn-icone{width:44px;height:44px}}
+
+/* ===== Trava do mapa do cadastro ===== */
+.mapa-casa-wrap{position:relative}
+.aviso-trava{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:600;background:rgba(13,10,22,.85);color:var(--fg);font-weight:800;font-size:.8rem;padding:6px 12px;border-radius:999px;border:1px solid var(--borda);pointer-events:none;white-space:nowrap}
+.aviso-trava.pisca{animation:piscaTrava .7s ease-in-out 2}
+@keyframes piscaTrava{50%{background:var(--abobora);color:var(--no-abobora)}}
+.mapa.travado{cursor:default}
+.mapa.travado .pin-arrastar{cursor:default;filter:drop-shadow(0 6px 6px rgba(0,0,0,.55))}
+#conferencia{margin-top:10px}

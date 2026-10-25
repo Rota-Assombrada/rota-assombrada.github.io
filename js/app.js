@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=35';
+import CONFIG from './config.js?v=37';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -988,10 +988,10 @@ function preencherForm(c) {
   $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hi').value = c.horaInicio || ''; $('#f-hf').value = c.horaFim || ''; $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
-  pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa);
+  pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa); travarMapaCasa(true); confirmouLonge = '';
 }
 /* ---------- mapa do cadastro e endereço automático ---------- */
-let mapaCasa = null, marcadorCasa = null;
+let mapaCasa = null, marcadorCasa = null, confirmouLonge = '';
 function iconeCasaPin() { return L.divIcon({className: 'pin-wrap', iconSize: [46, 52], iconAnchor: [23, 50], html: `<div class="pin pin-arrastar">${PIN_SVG}<span class="num">${h(($('#f-numero') && $('#f-numero').value.trim()) || '?')}</span></div>`}); }
 function iniciarMapaCasa() {
   if (mapaCasa || !$('#mapa-casa') || $('#form-casa').hidden) return;
@@ -1001,8 +1001,8 @@ function iniciarMapaCasa() {
   const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Imagens &copy; Esri'});
   noite.addTo(mapaCasa); L.control.layers({'Noite': noite, 'Satélite': satelite}, null, {position: 'topright'}).addTo(mapaCasa);
   if (evento.portaria) L.marker([evento.portaria.lat, evento.portaria.lng], {icon: iconeMarcador(IC.porta, 'portaria'), interactive: false}).addTo(mapaCasa);
-  mapaCasa.on('click', e => definirPinCasa(e.latlng, false));
-  atualizarMapaCasa();
+  mapaCasa.on('click', e => { if (mapaCasaTravado) { const av = $('#aviso-trava'); av.classList.remove('pisca'); void av.offsetWidth; av.classList.add('pisca'); return; } definirPinCasa(e.latlng, false); });
+  atualizarMapaCasa(); travarMapaCasa(true);
 }
 function atualizarMapaCasa(centrar) {
   if (!mapaCasa) return;
@@ -1011,6 +1011,7 @@ function atualizarMapaCasa(centrar) {
   if (!marcadorCasa) {
     marcadorCasa = L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeCasaPin(), draggable: true, autoPan: true, zIndexOffset: 1000}).addTo(mapaCasa);
     marcadorCasa.on('dragend', () => { const ll = marcadorCasa.getLatLng(); definirPinCasa(ll, false, true); });
+    if (mapaCasaTravado) marcadorCasa.dragging.disable();
   } else { marcadorCasa.setLatLng([pinCasa.lat, pinCasa.lng]); marcadorCasa.setIcon(iconeCasaPin()); }
   if (centrar) mapaCasa.setView([pinCasa.lat, pinCasa.lng], Math.max(mapaCasa.getZoom(), 18));
 }
@@ -1019,26 +1020,68 @@ function definirPinCasa(ll, centrar, arrastou) {
   atualizarForm(); atualizarMapaCasa(centrar); SFX.plop();
   if (!arrastou && !centrar) { const d = $('#dica-mapa-casa'); d.textContent = 'Abóbora no lugar! Se precisar, arraste para ajustar.'; }
 }
-let ultimoGeo = 0, geoBuscando = false;
-async function acharPeloEndereco(automatico) {
-  const rua = $('#f-rua').value.trim(), num = $('#f-numero').value.trim(); const dica = $('#dica-mapa-casa');
-  if (!rua) { if (!automatico) { dica.textContent = 'Escreva a rua primeiro.'; $('#f-rua').focus(); } return; }
-  if (geoBuscando) return;
-  const espera = 1100 - (Date.now() - ultimoGeo); if (espera > 0) await new Promise(r => setTimeout(r, espera));   // limite de 1 consulta por segundo do Nominatim
-  geoBuscando = true; ultimoGeo = Date.now(); const btn = $('#btn-achar-endereco'); const txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${SPIN} Procurando…`;
-  try {
-    const q = new URLSearchParams({format: 'jsonv2', limit: '3', countrycodes: 'br', 'accept-language': 'pt-BR', q: [num ? `${rua}, ${num}` : rua, condo && condo.cidade].filter(Boolean).join(', ')});
+const geoCache = new Map(); let geoFila = Promise.resolve(), ultimoGeo = 0, geoBuscando = false;
+// Nominatim (OpenStreetMap): no máximo 1 consulta por segundo. "exato" só quando achou a casa/prédio; senão é o meio da rua.
+function geocodificar(rua, num) {
+  const chave = `${cid}|${semAcento(rua)}|${String(num || '').trim()}`;
+  if (geoCache.has(chave)) return Promise.resolve(geoCache.get(chave));
+  const tarefa = geoFila.then(async () => {
+    if (geoCache.has(chave)) return geoCache.get(chave);
+    const espera = 1100 - (Date.now() - ultimoGeo); if (espera > 0) await new Promise(r => setTimeout(r, espera)); ultimoGeo = Date.now();
+    // limit 5 + geometria: quando o mapa só conhece a rua, juntamos os pedaços dela para medir a distância até a rua inteira.
+    const q = new URLSearchParams({format: 'jsonv2', limit: '5', countrycodes: 'br', 'accept-language': 'pt-BR', polygon_geojson: '1', polygon_threshold: '0.00005', q: [num ? `${rua}, ${num}` : rua, condo && condo.cidade].filter(Boolean).join(', ')});
     const c = (condo && condo.centro) || null;
     if (c) { q.set('viewbox', `${c.lng - 0.03},${c.lat + 0.03},${c.lng + 0.03},${c.lat - 0.03}`); q.set('bounded', '1'); }
     const r = await carga(fetch(`https://nominatim.openstreetmap.org/search?${q}`, {headers: {Accept: 'application/json'}, referrerPolicy: 'strict-origin'}));
     const lista = r.ok ? await r.json() : [];
-    if (!lista.length) { dica.textContent = 'Não achei esse endereço no mapa. Toque no mapa onde fica a casa.'; if (!automatico) SFX.boo(); return; }
-    const a = lista[0]; const exato = ['house', 'building', 'residential', 'apartments'].includes(a.type) || a.addresstype === 'building' || a.addresstype === 'house';
-    definirPinCasa({lat: +a.lat, lng: +a.lon}, true, true);
-    dica.textContent = exato ? 'Achei o endereço! Confira se a abóbora está na sua casa e arraste se precisar.' : 'Achei a rua, mas não o número. Arraste a abóbora até a sua casa.';
+    const a = lista[0]; const exato = !!a && (['house', 'building', 'apartments'].includes(a.type) || ['building', 'house'].includes(a.addresstype));
+    const nomeRua = a && (a.name || '');
+    const linhas = exato ? [] : lista.filter(x => (x.name || '') === nomeRua && x.geojson && /LineString/.test(x.geojson.type))
+      .flatMap(x => x.geojson.type === 'LineString' ? [x.geojson.coordinates] : x.geojson.coordinates).map(l => l.map(([lng, lat]) => ({lat, lng})));
+    const res = a ? {lat: +a.lat, lng: +a.lon, exato, linhas} : null;
+    geoCache.set(chave, res); return res;
+  });
+  geoFila = tarefa.catch(() => {}); return tarefa;
+}
+// Distância da abóbora até o endereço: até a casa, quando o mapa conhece o número; senão, até a linha da rua (o trecho mais perto).
+function distPontoSegmento(p, a, b) {
+  const kx = 111320 * Math.cos(p.lat * Math.PI / 180), ky = 110540;
+  const ax = (a.lng - p.lng) * kx, ay = (a.lat - p.lat) * ky, bx = (b.lng - p.lng) * kx, by = (b.lat - p.lat) * ky;
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy; let tt = L ? -(ax * dx + ay * dy) / L : 0; tt = Math.max(0, Math.min(1, tt));
+  return Math.hypot(ax + tt * dx, ay + tt * dy);
+}
+function distanciaAoEndereco(g, p) {
+  if (!g) return 0;
+  if (g.exato || !g.linhas || !g.linhas.length) return distM(g, p);
+  let m = Infinity; g.linhas.forEach(l => { for (let i = 0; i < l.length - 1; i++) m = Math.min(m, distPontoSegmento(p, l[i], l[i + 1])); });
+  return Number.isFinite(m) ? m : distM(g, p);
+}
+const limiteEndereco = g => !g ? Infinity : g.exato ? 120 : (g.linhas && g.linhas.length ? 80 : 350);
+async function acharPeloEndereco(automatico) {
+  const rua = $('#f-rua').value.trim(), num = $('#f-numero').value.trim(); const dica = $('#dica-mapa-casa');
+  if (!rua) { if (!automatico) { dica.textContent = 'Escreva a rua primeiro.'; $('#f-rua').focus(); } return; }
+  if (geoBuscando) return;
+  geoBuscando = true; const btn = $('#btn-achar-endereco'); const txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${SPIN} Procurando…`;
+  try {
+    const g = await geocodificar(rua, num);
+    if (!g) { dica.textContent = 'Não achei esse endereço no mapa. Destrave o mapa e toque onde fica a casa.'; if (!automatico) SFX.boo(); return; }
+    definirPinCasa(g, true, true); travarMapaCasa(true);
+    dica.textContent = g.exato ? 'Achei o endereço! Se a abóbora não estiver em cima da casa, destrave o mapa e arraste.' : 'Achei a rua, mas não o número. Destrave o mapa e arraste a abóbora até a sua casa.';
     SFX.plim();
-  } catch (e) { console.error(e); dica.textContent = 'A busca de endereço não respondeu. Toque no mapa onde fica a casa.'; }
+  } catch (e) { console.error(e); dica.textContent = 'A busca de endereço não respondeu. Destrave o mapa e toque onde fica a casa.'; }
   finally { geoBuscando = false; btn.disabled = false; btn.innerHTML = txt; }
+}
+// Trava do mapa do cadastro: travado, tocar ou arrastar não muda a posição (e a página rola sem mexer no mapa).
+let mapaCasaTravado = true;
+function travarMapaCasa(travar) {
+  mapaCasaTravado = travar;
+  if (mapaCasa) {
+    ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard'].forEach(k => { if (mapaCasa[k]) mapaCasa[k][travar ? 'disable' : 'enable'](); });
+    if (marcadorCasa && marcadorCasa.dragging) marcadorCasa.dragging[travar ? 'disable' : 'enable']();
+    mapaCasa.getContainer().classList.toggle('travado', travar);
+  }
+  const b = $('#btn-trava-mapa'); if (b) { b.innerHTML = travar ? `${svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>')} Destravar para ajustar` : `${svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>')} Pronto, travar posição`; b.classList.toggle('btn-sucesso', !travar); b.classList.toggle('btn-fantasma', travar); }
+  const av = $('#aviso-trava'); if (av) av.hidden = !travar;
 }
 function limparForm() { editandoId = null; pinCasa = null; preencherForm({}); $('#form-erro').hidden = true; }
 async function salvarSeguro(fn, msg) {
@@ -1112,8 +1155,14 @@ async function verificarCasaAnoPassado() {
 function atualizarForm() {
   const minha = editandoId && usuario && (editandoId === usuario.uid || souResponsavel(casaPorId(editandoId)));
   const campo = $('#campo-email-dono'); campo.hidden = !ehAdmin();
-  const daMinhaConta = editandoId && usuario && casaPorId(editandoId) && casaPorId(editandoId).uid === usuario.uid;
-  $('#ajuda-email-dono').textContent = (daMinhaConta ? 'Hoje esta casa é da sua conta Google. Preencha só se quiser passar a casa para outra pessoa. ' : '') + 'Quem entrar com este e-mail do Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa: só admins veem.';
+  // Mostra ao admin a quem a casa pertence hoje: a conta que cadastrou e, se houver, o e-mail atribuído.
+  const casaEd = editandoId && casaPorId(editandoId); let dono = '';
+  if (casaEd && usuario) {
+    if (casaEd.uid === usuario.uid) dono = 'Hoje esta casa é da sua conta Google.';
+    else { const m = membros.find(x => x.id === casaEd.uid); dono = m ? `Hoje esta casa é da conta de ${m.nome || 'um morador'}${m.email ? ` (${m.email})` : ''}, que a cadastrou.` : (membrosCarregados ? 'Quem cadastrou esta casa não está mais na lista de membros. Atribua a um e-mail para alguém poder cuidar dela.' : ''); }
+    if (atribuicoes[editandoId]) dono += ` Também está atribuída a ${atribuicoes[editandoId]}.`;
+  }
+  $('#ajuda-email-dono').textContent = (dono ? dono + ' ' : '') + 'Preencha o e-mail só para passar a casa para outra pessoa: quem entrar com ele no Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa, só admins veem.';
   if (ehAdmin() && document.activeElement !== $('#f-email-dono')) $('#f-email-dono').value = editandoId ? (atribuicoes[editandoId] || '') : (campo.dataset.reter || '');
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
   $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Editar casa' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
@@ -1155,6 +1204,19 @@ function renderAdmin() {
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
   $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h(atribuicoes[c.id] ? `Responsável: ${atribuicoes[c.id]}` : (dono(c.uid) || 'Cadastrada por admin'))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
+}
+async function conferirEnderecos() {
+  const alvo = $('#conferencia'); const btn = $('#btn-conferir'); const lista = casas.filter(c => c.rua && c.numero && typeof c.lat === 'number');
+  if (!lista.length) { alvo.innerHTML = '<p class="dica">Nenhuma casa com rua e número para conferir.</p>'; return; }
+  btn.disabled = true; const problemas = [];
+  for (let i = 0; i < lista.length; i++) {
+    const c = lista[i]; alvo.innerHTML = `<p class="res-carregando">${SPIN} Conferindo ${i + 1} de ${lista.length}: ${nomeCasa(c)}…</p>`;
+    let g = null; try { g = await geocodificar(c.rua, c.numero); } catch {}
+    if (g) { const d = distanciaAoEndereco(g, c); if (d > limiteEndereco(g)) problemas.push({c, g, d}); }
+  }
+  btn.disabled = false;
+  alvo.innerHTML = problemas.length ? `<p class="erro-msg">${problemas.length} casa${problemas.length > 1 ? 's estão' : ' está'} longe do endereço:</p><ul class="lista-casas">${problemas.map(({c, g, d}) => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>Abóbora a ${fmtM(d)} ${g.exato ? 'do endereço' : `da ${h(c.rua)}`}${g.exato ? '' : ' (o mapa só conhece a rua, não o número)'}</span></div><div class="acoes"><button class="btn btn-p btn-primario" data-corrigir="${h(c.id)}" data-lat="${g.lat}" data-lng="${g.lng}">Usar o endereço</button><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Ajustar</button></div></li>`).join('')}</ul>`
+    : '<p class="ok-msg">Tudo certo: todas as casas estão perto do endereço cadastrado.</p>';
 }
 function mostrarInicio() {
   contarTela('inicio'); setTimeout(renderSino, 0);
@@ -1433,7 +1495,8 @@ function ligarEventos() {
     toast('Pegando sua posição…'); navigator.geolocation.getCurrentPosition(p => { definirPinCasa({lat: p.coords.latitude, lng: p.coords.longitude}, true); toast(`Posição marcada (precisão ${Math.round(p.coords.accuracy)} m). Se não estiver na porta de casa, arraste a abóbora.`, 4000); }, () => toast('Não consegui pegar o GPS. Toque no mapa onde fica a casa.'), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
   });
   $('#btn-achar-endereco').addEventListener('click', () => acharPeloEndereco(false));
-  ['#f-rua', '#f-numero'].forEach(sel => $(sel).addEventListener('change', () => { if (!pinCasa && $('#f-rua').value.trim() && $('#f-numero').value.trim()) acharPeloEndereco(true); if (marcadorCasa) marcadorCasa.setIcon(iconeCasaPin()); }));
+  ['#f-rua', '#f-numero'].forEach(sel => $(sel).addEventListener('change', () => { if ($('#f-rua').value.trim() && $('#f-numero').value.trim()) acharPeloEndereco(true); if (marcadorCasa) marcadorCasa.setIcon(iconeCasaPin()); }));
+  $('#btn-trava-mapa').addEventListener('click', () => { travarMapaCasa(!mapaCasaTravado); if (!mapaCasaTravado) $('#dica-mapa-casa').textContent = 'Mapa destravado: toque onde fica a casa ou arraste a abóbora. Depois toque em "Pronto, travar posição".'; });
   $('#btn-repetir').addEventListener('click', () => { if (!casaAnoPassado || !casaAnoPassado.dados) return; const {uid, criadoEm, atualizadoEm, ...dados} = casaAnoPassado.dados; preencherForm(dados); $('#repetir-casa').hidden = true; SFX.plim(); toast('Casa do ano passado copiada. Confira os horários e salve.', 4000); });
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   $('#btn-cancelar-edicao').addEventListener('click', () => { criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); });
@@ -1447,6 +1510,15 @@ function ligarEventos() {
     e.preventDefault(); const d = lerForm(); const erro = $('#form-erro');
     if (!d.numero) { erro.textContent = 'Informe o número ou lote da casa.'; erro.hidden = false; $('#f-numero').focus(); return; }
     if (typeof d.lat !== 'number') { erro.textContent = 'Marque a casa no mapa (ou use o GPS) antes de salvar.'; erro.hidden = false; return; }
+    if (d.rua) {
+      let g = null; try { g = await geocodificar(d.rua, d.numero); } catch {}
+      const longe = g ? distanciaAoEndereco(g, d) : 0; const chaveLonge = `${d.lat},${d.lng}|${d.rua}|${d.numero}`;
+      if (g && longe > limiteEndereco(g) && confirmouLonge !== chaveLonge) {
+        confirmouLonge = chaveLonge; SFX.boo();
+        erro.textContent = `A abóbora está a ${fmtM(longe)} ${g.exato ? 'do endereço' : 'da rua'} "${g.exato ? `${d.rua}, ${d.numero}` : d.rua}". Confira no mapa. Se estiver certo mesmo, toque em Salvar de novo; para usar o endereço, toque em "Achar pelo endereço".`;
+        erro.hidden = false; $('#mapa-casa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'}); return;
+      }
+    }
     erro.hidden = true;
     if (!usuario) { toast('Entre com Google para salvar sua casa.'); fb.entrar(); return; }
     const antiga = editandoId ? casaPorId(editandoId) : null;
@@ -1518,6 +1590,12 @@ function ligarEventos() {
     if ((b = q('data-editar'))) { editandoId = b.dataset.editar; criandoOutra = false; preencherForm(casaPorId(editandoId)); irAba('participar'); return; }
     if (e.target.closest('#btn-casa-outra')) { criandoOutra = true; editandoId = null; limparForm(); criandoOutra = true; irAba('participar'); return; }
     if ((b = q('data-excluir'))) { if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.className = 'btn btn-p btn-perigo'; b.textContent = 'Confirmar exclusão'; setTimeout(() => { if (b.isConnected) renderAdmin(); }, 4000); return; } const id = b.dataset.excluir; await salvarSeguro(() => fb.fs.deleteDoc(fb.casa(cid, id)), 'Casa excluída.'); return; }
+  });
+  $('#btn-conferir').addEventListener('click', conferirEnderecos);
+  $('#conferencia').addEventListener('click', async e => {
+    const b = e.target.closest('[data-corrigir]'); if (!b) return; const c = casaPorId(b.dataset.corrigir); if (!c) return;
+    const ok = await salvarSeguro(() => fb.fs.setDoc(fb.casa(cid, c.id), limparCasa({...c, lat: +b.dataset.lat, lng: +b.dataset.lng})), `Casa ${nomeCasaTxt(c)} foi para o endereço.`);
+    if (ok) { b.closest('li').remove(); if (!$('#conferencia li')) $('#conferencia').innerHTML = '<p class="ok-msg">Todas as casas conferidas estão no endereço.</p>'; }
   });
   $('#btn-exportar').addEventListener('click', () => { const blob = new Blob([JSON.stringify({condominio: cid, ano, evento, casas}, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rota-assombrada-${cid}-${ano}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
   $('#c-importar').addEventListener('change', async e => {
