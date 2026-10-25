@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=44';
+import CONFIG from './config.js?v=45';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -799,11 +799,15 @@ async function montarRoteiro() {
   roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, partida, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
+  // Mostra o mapa com o roteiro na hora (antes de buscar o caminho pelas ruas, que pode demorar),
+  // para a tela não ficar parada no botão do Google Maps que aparece no lugar do "Montar".
+  const pontos = [pp.p, ...roteiro.ordem.map(casaPorId).filter(Boolean)].map(c => [c.lat, c.lng]);
+  if (pontos.length > 1) mapa.fitBounds(pontos, {padding: [60, 60], maxZoom: 18});
+  $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
   if (vozAuto) { const idx = proximaParada(); falar(`Roteiro montado com ${n} casa${n > 1 ? 's' : ''}, saindo de ${pp.nome}. ` + (idx >= 0 ? falaParada(idx) : '')); }
   if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
-  $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
 }
 function proximaParada() { if (!roteiro) return -1; return roteiro.ordem.findIndex(id => !visitadas.has(id) && casaPorId(id)); }
 function origemAtual(idx) { if (posicao && Date.now() - posicao.t < 60000) return {lat: posicao.lat, lng: posicao.lng}; for (let i = idx - 1; i >= 0; i--) { const c = casaPorId(roteiro.ordem[i]); if (c) return {lat: c.lat, lng: c.lng}; } return roteiro.de; }

@@ -626,3 +626,5 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 #btn-navegar .nav-linha{display:block;line-height:1.25}
 #btn-navegar .nav-linha svg{display:inline-block;vertical-align:-3px;margin-right:6px}
 #btn-navegar .recomendado{margin-left:0}
+
+#mapa{scroll-margin-top:12px}
