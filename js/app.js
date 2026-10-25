@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=9';
+import CONFIG from './config.js?v=10';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -914,6 +914,7 @@ function atualizarBoasVindasGPS() {
   if (posicao) c.innerHTML = `<p class="ok-msg">GPS ligado! Precisão de ${Math.round(posicao.acc)} m.</p>`;
   else if (gpsErro === 1) c.innerHTML = `<p class="erro-msg">A permissão foi negada.</p><p class="dica">${IOS ? 'Toque no "aA" da barra de endereço, Ajustes do Site, Localização: Permitir. Depois recarregue a página.' : 'Toque no cadeado ao lado do endereço, Permissões, Localização: Permitir. Depois recarregue a página.'}</p>`;
   else if (gpsErro === 2) c.innerHTML = '<p class="erro-msg">O GPS do celular parece desligado.</p><p class="dica">Ligue a localização nas configurações do celular e toque em Ligar GPS de novo.</p><button class="btn btn-primario" data-bv="gps">Ligar GPS</button>';
+  else if (gpsErro != null) c.innerHTML = `<p class="erro-msg">Não consegui achar sua localização.</p><p class="dica">Confira se a localização do celular está ligada. Se você abriu o link pelo WhatsApp ou Instagram, abra no ${IOS ? 'Safari' : 'Chrome'}, que funciona melhor. Dá para seguir sem GPS e usar a portaria como ponto de partida.</p><button class="btn btn-primario" data-bv="gps">Tentar de novo</button>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-bv]'); if (!b) return; const a = b.dataset.bv;
@@ -923,7 +924,12 @@ document.addEventListener('click', e => {
     falaDracula('Muahahaha! Bem-vindos à Rota Assombrada! Se você está me ouvindo, o som está perfeito.', () => SFX.risada());
     $('#bv-som-resp').hidden = false; $('#bv-som-resp').textContent = 'Ouviu o Drácula? Se não, tire do silencioso, aumente o volume e toque de novo.';
   }
-  if (a === 'gps') { gpsErro = null; b.disabled = true; b.textContent = 'Procurando satélites…'; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); }
+  if (a === 'gps') {
+    gpsErro = null; b.disabled = true; b.textContent = 'Procurando satélites…';
+    if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; }
+    ligarGPS(true);
+    setTimeout(() => { if (!posicao && gpsErro == null) { gpsErro = 3; atualizarBoasVindasGPS(); } }, 20000);
+  }
   if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); if (vozAuto) setTimeout(() => falaDracula('Boa caçada! E não esqueçam de dizer: doces ou travessuras!'), 500); }
 });
 function lerRota() {

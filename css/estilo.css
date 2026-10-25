@@ -341,3 +341,16 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .li-acao{background:none!important;border:0!important;padding:4px 0!important}
 .li-acao .btn{width:100%}
 @media (max-width:380px){.balao{max-width:170px;font-size:.88rem}.dracula{width:110px}}
+
+/* ===== Folha: altura real do celular e botão principal sempre visível ===== */
+.folha-in{max-height:85vh;max-height:85dvh;padding-bottom:0}
+.boas-vindas{padding-bottom:0}
+.boas-vindas .acoes{position:sticky;bottom:0;z-index:2;margin-top:12px;padding:14px 0 calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,rgba(28,21,48,0),var(--superficie) 28%)}
+.folha-in>:not(.boas-vindas):last-child{margin-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+@media (max-height:780px){
+  .dracula{width:92px}
+  .balao{margin-bottom:36px;font-size:.88rem;padding:10px 12px}
+  .boas-vindas h3{font-size:1.15rem}
+  .passo{padding:10px}
+  .passo .dica{font-size:.85rem;margin:2px 0 6px}
+}
