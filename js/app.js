@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=56';
+import CONFIG from './config.js?v=57';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -623,9 +623,18 @@ function iniciarMapa() {
   mapa.on('click', e => toqueMapa(e.latlng));
   setTimeout(() => mapa.invalidateSize(), 300);
 }
+// Casas no mesmo lugar (ex.: o mapa só conhecia a rua e pôs as duas no meio dela): espalha os pinos lado a lado
+// para todos aparecerem. Devolve id -> deslocamento em pixels.
+function espalharPinos(lista, raio = 8) {
+  const grupos = [], dx = {};
+  lista.forEach(c => { const g = grupos.find(gr => distM(gr[0], c) <= raio); if (g) g.push(c); else grupos.push([c]); });
+  grupos.forEach(g => { if (g.length > 1) g.forEach((c, i) => { dx[c.id] = Math.round((i - (g.length - 1) / 2) * 34); }); });
+  return dx;
+}
+function casasNoMesmoLugar(p, idIgnorar, raio = 6) { return casas.filter(c => c.id !== idIgnorar && typeof c.lat === 'number' && distM(p, c) <= raio); }
 function iconePin(c, extra) {
   const cls = ['pin', visitadas.has(c.id) ? 'visitada' : '', abertaAgora(c) ? '' : 'fechada', extra.atual ? 'atual' : '', extra.ordem ? 'ordem' : ''].filter(Boolean).join(' ');
-  return L.divIcon({className: 'pin-wrap', iconSize: [46, 52], iconAnchor: [23, 50], html: `<div class="${cls}" data-ordem="${extra.ordem || ''}">${PIN_SVG}<span class="num">${h(c.numero)}</span></div>`});
+  return L.divIcon({className: 'pin-wrap', iconSize: [46, 52], iconAnchor: [23 - (extra.dx || 0), 50], html: `<div class="${cls}" data-ordem="${extra.ordem || ''}">${PIN_SVG}<span class="num">${h(c.numero)}</span></div>`});
 }
 function iconeMarcador(ic, cls = '') { return L.divIcon({className: 'marcador-wrap', iconSize: [44, 44], iconAnchor: [22, 22], html: `<div class="marcador ${cls}">${ic}</div>`}); }
 function renderPins() {
@@ -634,7 +643,8 @@ function renderPins() {
   const atualIdx = proximaParada(); const atualId = atualIdx >= 0 ? roteiro.ordem[atualIdx] : null;
   const ordemDe = {}; if (roteiro) roteiro.ordem.forEach((id, i) => { if (!visitadas.has(id)) ordemDe[id] = i + 1; });
   const vis = casas.filter(c => typeof c.lat === 'number' && filtrada(c));
-  vis.forEach(c => { const m = L.marker([c.lat, c.lng], {icon: iconePin(c, {atual: c.id === atualId, ordem: ordemDe[c.id]}), title: nomeCasaTxt(c), zIndexOffset: c.id === atualId ? 1000 : 0}); m.on('click', () => { if (modo) return; abrirFolha(c.id); }); camadaPins.addLayer(m); });
+  const desloc = espalharPinos(vis);
+  vis.forEach(c => { const m = L.marker([c.lat, c.lng], {icon: iconePin(c, {atual: c.id === atualId, ordem: ordemDe[c.id], dx: desloc[c.id]}), title: nomeCasaTxt(c), zIndexOffset: c.id === atualId ? 1000 : 0}); m.on('click', () => { if (modo) return; abrirFolha(c.id); }); camadaPins.addLayer(m); });
   camadaExtras.clearLayers();
   if (evento.portaria) camadaExtras.addLayer(L.marker([evento.portaria.lat, evento.portaria.lng], {icon: iconeMarcador(IC.porta, 'portaria'), title: 'Portaria', interactive: false, zIndexOffset: -100}));
   const salva = editandoId && casaPorId(editandoId); const mudouPin = pinCasa && (!salva || salva.lat !== pinCasa.lat || salva.lng !== pinCasa.lng);
@@ -1398,7 +1408,7 @@ async function mapaEstatico(pontos, W, H) {
     pedidos.push(carregarImagem(`https://tile.openstreetmap.org/${z}/${tx}/${ty}.png`).then(img => g.drawImage(img, tx * 256 - ox, ty * 256 - oy)).catch(() => {}));
   await Promise.all(pedidos);
   pontos.forEach(p => {
-    const x = X(p.lng, z) - ox, y = Y(p.lat, z) - oy;
+    const x = X(p.lng, z) - ox + (p.dx || 0), y = Y(p.lat, z) - oy;
     g.beginPath(); g.arc(x, y, p.tipo === 'portaria' ? 14 : 17, 0, Math.PI * 2);
     g.fillStyle = p.tipo === 'portaria' ? '#fff3c4' : '#ff8a1f'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#3a1d00'; g.stroke();
     const t = String(p.rotulo).slice(0, 4); g.fillStyle = '#1c0b00'; g.font = `900 ${t.length > 3 ? 11 : 14}px Nunito, Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x, y + 0.5);
@@ -1413,7 +1423,8 @@ async function imprimirLista() {
   const b = $('#btn-imprimir'); const txt = b.innerHTML; b.disabled = true; b.innerHTML = `${SPIN} Preparando…`;
   try {
     const lista = casas.filter(c => typeof c.lat === 'number').slice().sort((a, c) => (a.rua || '').localeCompare(c.rua || '', 'pt') || String(a.numero).localeCompare(String(c.numero), 'pt', {numeric: true}));
-    const pontos = lista.map(c => ({lat: c.lat, lng: c.lng, rotulo: c.numero}));
+    const desloc = espalharPinos(lista);
+    const pontos = lista.map(c => ({lat: c.lat, lng: c.lng, rotulo: c.numero, dx: desloc[c.id] || 0}));
     if (evento.portaria) pontos.push({lat: evento.portaria.lat, lng: evento.portaria.lng, rotulo: 'P', tipo: 'portaria'});
     let img = ''; try { img = await mapaEstatico(pontos, 1000, 620); } catch (e) { console.error(e); }
     const partes = [evento.nome, evento.data ? fmtData(evento.data) + (ano ? `/${ano}` : '') : '', evento.horaInicio && evento.horaFim ? `${evento.horaInicio} às ${evento.horaFim}` : ''].filter(Boolean);
@@ -1618,8 +1629,11 @@ async function conferirEnderecos() {
     if (g) { const d = distanciaAoEndereco(g, c); if (d > limiteEndereco(g)) problemas.push({c, g, d}); }
   }
   btn.disabled = false;
-  alvo.innerHTML = problemas.length ? `<p class="erro-msg">${problemas.length} casa${problemas.length > 1 ? 's estão' : ' está'} longe do endereço:</p><ul class="lista-casas">${problemas.map(({c, g, d}) => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>Abóbora a ${fmtM(d)} ${g.exato ? 'do endereço' : `da ${h(c.rua)}`}${g.exato ? '' : ' (o mapa só conhece a rua, não o número)'}</span></div><div class="acoes"><button class="btn btn-p btn-primario" data-corrigir="${h(c.id)}" data-lat="${g.lat}" data-lng="${g.lng}">Usar o endereço</button><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Ajustar</button></div></li>`).join('')}</ul>`
-    : '<p class="ok-msg">Tudo certo: todas as casas estão perto do endereço cadastrado.</p>';
+  // casas empilhadas no mesmo ponto (aparecem lado a lado no mapa, mas a posição de pelo menos uma está errada)
+  const empilhadas = []; lista.forEach((c, i) => lista.slice(i + 1).forEach(o => { if (distM(c, o) <= 6) empilhadas.push([c, o]); }));
+  const htmlEmp = empilhadas.length ? `<p class="erro-msg">${empilhadas.length === 1 ? 'Duas casas estão' : `${empilhadas.length} pares de casas estão`} no mesmo lugar do mapa:</p><ul class="lista-casas">${empilhadas.map(([a, b]) => `<li><div class="info"><b>${nomeCasa(a)} e ${nomeCasa(b)}</b><span>Mesmo ponto no mapa. Ajuste a abóbora de cada uma no telhado certo.</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(a.id)}">${IC.editar} ${h(a.numero)}</button><button class="btn btn-p btn-fantasma" data-editar="${h(b.id)}">${IC.editar} ${h(b.numero)}</button></div></li>`).join('')}</ul>` : '';
+  alvo.innerHTML = htmlEmp + (problemas.length ? `<p class="erro-msg">${problemas.length} casa${problemas.length > 1 ? 's estão' : ' está'} longe do endereço:</p><ul class="lista-casas">${problemas.map(({c, g, d}) => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>Abóbora a ${fmtM(d)} ${g.exato ? 'do endereço' : `da ${h(c.rua)}`}${g.exato ? '' : ' (o mapa só conhece a rua, não o número)'}</span></div><div class="acoes"><button class="btn btn-p btn-primario" data-corrigir="${h(c.id)}" data-lat="${g.lat}" data-lng="${g.lng}">Usar o endereço</button><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Ajustar</button></div></li>`).join('')}</ul>`
+    : empilhadas.length ? '' : '<p class="ok-msg">Tudo certo: todas as casas estão perto do endereço cadastrado.</p>');
 }
 function mostrarInicio() {
   contarTela('inicio'); setTimeout(renderSino, 0);
@@ -1955,6 +1969,14 @@ function ligarEventos() {
         erro.textContent = `A abóbora está a ${fmtM(longe)} ${g.exato ? 'do endereço' : 'da rua'} "${g.exato ? `${d.rua}, ${d.numero}` : d.rua}". Confira no mapa. Se estiver certo mesmo, toque em Salvar de novo; para usar o endereço, toque em "Achar pelo endereço".`;
         erro.hidden = false; $('#mapa-casa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'}); return;
       }
+    }
+    // Mesmo lugar de outra casa: quase sempre é porque o mapa só achou a rua. Pede para ajustar (segundo toque salva assim mesmo).
+    const juntas = casasNoMesmoLugar(d, editandoId || (criandoOutra ? null : usuario && usuario.uid));
+    const chaveJunto = `${d.lat},${d.lng}|junto`;
+    if (juntas.length && confirmouLonge !== chaveJunto) {
+      confirmouLonge = chaveJunto; SFX.boo();
+      erro.textContent = `A abóbora está no mesmo lugar da casa ${juntas.map(nomeCasaTxt).join(' e ')}. Destrave o mapa e arraste até o telhado certo. Se estiver certo mesmo, toque em Salvar de novo.`;
+      erro.hidden = false; $('#mapa-casa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'}); return;
     }
     erro.hidden = true;
     if (!usuario) { toast('Entre com Google para salvar sua casa.'); fb.entrar(); return; }
