@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=6';
+import CONFIG from './config.js?v=7';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -29,6 +29,7 @@ const IC = {
   casa: svg('<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>'),
   ouvir: svg('<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>'),
   carregando: svg('<path d="M12 3a9 9 0 1 0 9 9"/>'),
+  google: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>',
 };
 const PIN_SVG = `<svg viewBox="0 0 46 52" aria-hidden="true"><path d="M23 50c-2-6-6-9-6-9h12s-4 3-6 9z" fill="#2a0d00"/><path d="M22 6c2 1 3 4 3 7" stroke="#5a8a2a" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse class="corpo" cx="23" cy="26" rx="21" ry="17" fill="#ff8a1f"/><ellipse cx="12" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><ellipse cx="34" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><path d="M13 20l4 5h-8zM33 20l4 5h-8z" fill="#2a0d00"/><path d="M12 32q11 8 22 0l-3 2-3-2-3 2-3-2-3 2-3-2-2 2z" fill="#2a0d00"/></svg>`;
 const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg><span class="fantasminha"><svg viewBox="0 0 40 46" aria-hidden="true"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="currentColor"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></span></div>`;
@@ -40,8 +41,11 @@ const rotuloDe = (lista, k) => (lista.find(o => o[0] === k) || [k, k])[1];
 /* ---------- estado ---------- */
 let casas = [];                 // [{id, rua, numero, familia, oferece, flags, horaInicio, horaFim, obs, lat, lng, uid, criadoEm}]
 let evento = {...CONFIG.evento, portaria: null};
-let meuUid = ls.get('hw.uid', null) || (() => { const u = 'd' + Math.random().toString(36).slice(2, 12); ls.set('hw.uid', u); return u; })();
-let organizador = ls.get('hw.org', false);
+const uidLocal = ls.get('hw.uid', null) || (() => { const u = 'd' + Math.random().toString(36).slice(2, 12); ls.set('hw.uid', u); return u; })();
+let usuario = null;             // {uid, nome, email} quando logado com Google
+let organizador = false;        // decidido pelo e-mail (as regras do Firestore conferem de novo no servidor)
+let jaAbriuMinhaCasa = false;
+const meuUid = () => store.modo === 'nuvem' ? (usuario ? usuario.uid : null) : uidLocal;
 let modo = null;                // null | 'casa' | 'portaria'
 let modoVoltar = 'mapa';
 let filtros = ls.get('hw.filtros', {});
@@ -69,9 +73,13 @@ const store = {
           import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'),
         ]);
         const app = initializeApp(CONFIG.firebase); this.fs = fs; this.db = fs.getFirestore(app);
-        const a = auth.getAuth(app); this.modo = 'nuvem';
-        try { const cred = await auth.signInAnonymously(a); meuUid = cred.user.uid; }
-        catch (e) { console.error('Login anônimo falhou', e); this.semLogin = true; toast('Login do Firebase desligado: dá para ver as casas, mas não salvar.', 5000); }
+        this.auth = auth; this.a = auth.getAuth(app); this.a.languageCode = 'pt'; this.modo = 'nuvem';
+        auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
+        auth.onAuthStateChanged(this.a, async u => {
+          usuario = u ? {uid: u.uid, nome: u.displayName || '', email: (u.email || '').toLowerCase()} : null;
+          organizador = usuario ? await ehOrganizador(usuario.email) : false;
+          aoMudarLogin();
+        });
         renderCabecalho();
         fs.onSnapshot(fs.collection(this.db, 'casas'), snap => { casas = snap.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); }, e => { console.error(e); toast('Sem conexão com o Firebase. Mostrando o que tenho.'); });
         fs.onSnapshot(fs.doc(this.db, 'config', 'evento'), snap => { if (snap.exists()) evento = {...CONFIG.evento, portaria: null, ...snap.data()}; aoMudarDados(); });
@@ -81,19 +89,50 @@ const store = {
     casas = ls.get('hw.casas', []); evento = {...CONFIG.evento, portaria: null, ...ls.get('hw.evento', {})}; aoMudarDados();
   },
   async salvarCasa(c) {
-    if (this.modo === 'nuvem') { const {id, ...dados} = c; await this.fs.setDoc(this.fs.doc(this.db, 'casas', id), dados); return; }
+    if (this.modo === 'nuvem') { await this.fs.setDoc(this.fs.doc(this.db, 'casas', c.id), limparCasa(c)); return; }
     const i = casas.findIndex(x => x.id === c.id); if (i >= 0) casas[i] = c; else casas.push(c); ls.set('hw.casas', casas); aoMudarDados();
   },
   async excluirCasa(id) {
     if (this.modo === 'nuvem') { await this.fs.deleteDoc(this.fs.doc(this.db, 'casas', id)); return; }
     casas = casas.filter(c => c.id !== id); ls.set('hw.casas', casas); aoMudarDados();
   },
+  async entrar() {
+    if (this.modo !== 'nuvem') return;
+    const prov = new this.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt: 'select_account'});
+    try { await this.auth.signInWithPopup(this.a, prov); }
+    catch (e) {
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) return this.auth.signInWithRedirect(this.a, prov);
+      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
+      console.error(e); toast(e && e.code === 'auth/unauthorized-domain' ? 'Este endereço ainda não foi autorizado no Firebase.' : e && e.code === 'auth/operation-not-allowed' ? 'O login com Google ainda não foi ligado no Firebase.' : 'Não consegui entrar agora. Tente de novo.', 5000);
+    }
+  },
+  async sair() { if (this.modo === 'nuvem') await this.auth.signOut(this.a); },
   async salvarEvento(ev) {
     if (this.modo === 'nuvem') { await this.fs.setDoc(this.fs.doc(this.db, 'config', 'evento'), ev, {merge: true}); return; }
     evento = {...evento, ...ev}; ls.set('hw.evento', evento); aoMudarDados();
   }
 };
-function aoMudarDados() { renderCabecalho(); renderPlacar(); renderPins(); renderRoteiro(); if (abaAtual === 'organizador') renderOrganizador(); }
+const CAMPOS_CASA = ['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'criadoEm', 'atualizadoEm'];
+function limparCasa(c) {
+  const s = (v, n) => String(v ?? '').trim().slice(0, n);
+  const hora = v => /^[0-2]\d:[0-5]\d$/.test(v || '') ? v : '';
+  return {rua: s(c.rua, 60), numero: s(c.numero, 20), familia: s(c.familia, 60),
+    oferece: [...new Set((c.oferece || []).filter(k => OFERECE.some(o => o[0] === k)))],
+    flags: [...new Set((c.flags || []).filter(k => FLAGS.some(o => o[0] === k)))],
+    horaInicio: hora(c.horaInicio), horaFim: hora(c.horaFim), obs: s(c.obs, 240),
+    lat: +c.lat, lng: +c.lng, uid: s(c.uid, 128), criadoEm: +c.criadoEm || Date.now(), atualizadoEm: Date.now()};
+}
+async function ehOrganizador(email) {
+  if (!email || !crypto.subtle) return false;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.toLowerCase()));
+  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return (CONFIG.organizadores || []).includes(hex);
+}
+function aoMudarLogin() {
+  renderConta(); renderOrganizadorVisivel(); atualizarParticipar(); renderPins(); renderPlacar();
+  if (abaAtual === 'organizador') { if (organizador) renderOrganizador(); else irAba('mapa'); }
+}
+function aoMudarDados() { renderCabecalho(); renderPlacar(); renderPins(); renderRoteiro(); if (abaAtual === 'organizador') renderOrganizador(); if (abaAtual === 'participar') atualizarParticipar(); }
 
 /* ---------- geometria ---------- */
 const R = 6371000;
@@ -123,7 +162,7 @@ function filtrada(c) {
   if (filtros.naoVisitadas && visitadas.has(c.id)) return false;
   return true;
 }
-const podeEditar = c => organizador || (c && c.uid === meuUid);
+const podeEditar = c => !!c && (organizador || store.modo === 'local' || (!!meuUid() && c.uid === meuUid()));
 
 /* ---------- links para o app de mapas do celular ---------- */
 function linksNav(c) {
@@ -376,9 +415,9 @@ function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
   $('#folha-in').innerHTML = cartaoCasa(c) + `<div class="acoes">
     <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar até aqui (${IOS ? 'Apple Maps' : 'Google Maps'})</a>
-    <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${id}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
-    <button class="btn btn-fantasma" data-acao="ouvir" data-id="${id}">${IC.ouvir} Ouvir</button>
-    ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${id}">${IC.editar} Editar</button>` : ''}
+    <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
+    <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
+    ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
   </div><div class="nav-extra">${IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`}<a href="${l.waze}" target="_blank" rel="noopener">Waze</a></div>`;
   $('#folha').hidden = false; SFX.plop();
 }
@@ -388,7 +427,7 @@ function renderPartida() {
   if (evento.portaria) ops.push(['portaria', IC.porta, 'Portaria', 'Ponto de encontro do condomínio']);
   const sel = partida.startsWith('casa:') ? partida : '';
   $('#partida').innerHTML = ops.map(([k, ic, t, s]) => `<button type="button" class="opcao" role="radio" aria-checked="${partida === k}" data-partida="${k}">${ic}<span>${t}<small>${s}</small></span></button>`).join('') +
-    (casas.length ? `<label class="opcao" role="radio" aria-checked="${!!sel}" style="cursor:default">${IC.casa}<span style="flex:1">A partir de uma casa<select id="sel-casa" aria-label="Escolher casa de partida" style="margin-top:6px"><option value="">Escolher…</option>${casas.map(c => `<option value="casa:${c.id}" ${sel === 'casa:' + c.id ? 'selected' : ''}>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</option>`).join('')}</select></span></label>` : '');
+    (casas.length ? `<label class="opcao" role="radio" aria-checked="${!!sel}" style="cursor:default">${IC.casa}<span style="flex:1">A partir de uma casa<select id="sel-casa" aria-label="Escolher casa de partida" style="margin-top:6px"><option value="">Escolher…</option>${casas.map(c => `<option value="casa:${h(c.id)}" ${sel === 'casa:' + c.id ? 'selected' : ''}>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</option>`).join('')}</select></span></label>` : '');
 }
 function renderGuia() {
   const idx = proximaParada(); const guia = $('#guia');
@@ -413,7 +452,7 @@ function renderRoteiro() {
   renderGuia();
   const idx = proximaParada(); let totalM = 0, ant = roteiro.de;
   lista.innerHTML = roteiro.ordem.map((id, i) => { const c = casaPorId(id); if (!c) return ''; const feita = visitadas.has(id); const d = distM(ant, c); totalM += d; ant = c;
-    return `<li class="${feita ? 'feita' : ''} ${i === idx ? 'atual' : ''}"><span class="ordem">${i + 1}</span><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'} · ${fmtM(d)}</span></div><button class="btn btn-icone vis" data-visitar="${id}" aria-pressed="${feita}" aria-label="${feita ? 'Desmarcar' : 'Marcar visitada'}: ${nomeCasaTxt(c)}">${IC.check}</button><button class="btn btn-icone" data-ver="${id}" aria-label="Ver detalhes">${IC.casa}</button></li>`; }).join('');
+    return `<li class="${feita ? 'feita' : ''} ${i === idx ? 'atual' : ''}"><span class="ordem">${i + 1}</span><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'} · ${fmtM(d)}</span></div><button class="btn btn-icone vis" data-visitar="${h(id)}" aria-pressed="${feita}" aria-label="${feita ? 'Desmarcar' : 'Marcar visitada'}: ${h(nomeCasaTxt(c))}">${IC.check}</button><button class="btn btn-icone" data-ver="${h(id)}" aria-label="Ver detalhes">${IC.casa}</button></li>`; }).join('');
   tot.textContent = `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
   const lr = linkRotaCompleta(); const br = $('#btn-rota-google'); br.hidden = !lr; if (lr) br.href = lr;
 }
@@ -437,17 +476,31 @@ function preencherForm(c) {
 }
 function limparForm() { editandoId = null; pinCasa = null; preencherForm({}); $('#form-erro').hidden = true; }
 function renderOrganizador() {
-  $('#bloqueio-pin').hidden = organizador; $('#area-organizador').hidden = !organizador; if (!organizador) return;
+  if (!organizador) return;
   $('#c-nome').value = evento.nome || ''; $('#c-data').value = evento.data || ''; $('#c-zap').value = evento.whatsapp || ''; $('#c-hi').value = evento.horaInicio || ''; $('#c-hf').value = evento.horaFim || ''; $('#c-avisos').value = evento.avisos || '';
   $('#portaria-status').textContent = evento.portaria ? 'Portaria marcada no mapa.' : 'Portaria ainda não marcada: ela vira o ponto de partida de quem está sem GPS.';
   $('#total-casas').textContent = casas.length;
-  $('#lista-casas').innerHTML = casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${c.id}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${c.id}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>';
+  $('#lista-casas').innerHTML = casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>';
+}
+function renderOrganizadorVisivel() { $('#aba-organizador').hidden = !organizador; }
+function renderConta() {
+  const b = $('#btn-conta'); const nuvem = store.modo === 'nuvem'; b.hidden = !nuvem; if (!nuvem) return;
+  if (usuario) { const ini = (usuario.nome || usuario.email || '?').trim().charAt(0).toUpperCase(); b.innerHTML = `<span class="avatar">${h(ini)}</span>`; b.setAttribute('aria-label', `Conectado como ${usuario.nome || usuario.email}. Toque para sair.`); b.title = 'Sair'; b.classList.add('logado'); }
+  else { b.innerHTML = `${IC.google}<span>Entrar</span>`; b.setAttribute('aria-label', 'Entrar com Google'); b.title = 'Entrar com Google'; b.classList.remove('logado'); }
+}
+function atualizarParticipar() {
+  const precisaLogin = store.modo === 'nuvem' && !usuario;
+  $('#gate-login').hidden = !precisaLogin; $('#form-casa').hidden = precisaLogin;
+  if (precisaLogin) { $('#participar-intro').textContent = 'Para colocar sua casa no mapa, entre com sua conta Google. Assim só você consegue mexer nela.'; return; }
+  $('#participar-intro').textContent = organizador ? 'Você é organizador: pode cadastrar e editar qualquer casa.' : 'Marque a casa no mapa (ou use o GPS na porta) e conte o que vai rolar.';
+  if (store.modo === 'nuvem' && !editandoId && !jaAbriuMinhaCasa) { const minha = casaPorId(usuario.uid); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
 }
 function irAba(nome) {
+  if (nome === 'organizador' && !organizador) nome = 'mapa';
   abaAtual = nome; ls.set('hw.aba', nome);
   ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
   if (nome === 'mapa') setTimeout(() => mapa && mapa.invalidateSize(), 50);
-  if (nome === 'roteiro') renderRoteiro(); if (nome === 'organizador') renderOrganizador();
+  if (nome === 'roteiro') renderRoteiro(); if (nome === 'organizador') renderOrganizador(); if (nome === 'participar') atualizarParticipar();
   window.scrollTo({top: 0, behavior: 'auto'});
 }
 
@@ -460,7 +513,7 @@ async function toqueMapa(ll) {
 async function salvarSeguro(fn, msg) {
   const tela = document.createElement('div'); tela.className = 'salvando'; tela.innerHTML = `${IC.carregando}<div>Gravando no caldeirão…</div>`; document.body.appendChild(tela);
   try { await fn(); toast(msg); SFX.sucesso(); return true; }
-  catch (e) { console.error(e); toast(store.semLogin ? 'Não salvou: o organizador precisa ligar o login anônimo no Firebase.' : e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para gravar. Confira as regras do Firestore.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
+  catch (e) { console.error(e); toast(e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para isso. Só o dono da casa ou um organizador pode mexer.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
   finally { tela.remove(); }
 }
 
@@ -510,17 +563,24 @@ function ligarEventos() {
     if (!d.numero) { erro.textContent = 'Informe o número ou lote da casa.'; erro.hidden = false; $('#f-numero').focus(); return; }
     if (typeof d.lat !== 'number') { erro.textContent = 'Marque a casa no mapa (ou use o GPS) antes de salvar.'; erro.hidden = false; return; }
     erro.hidden = true;
+    if (store.modo === 'nuvem' && !usuario) { toast('Entre com Google para salvar sua casa.'); store.entrar(); return; }
     const antiga = editandoId ? casaPorId(editandoId) : null;
     if (antiga && !podeEditar(antiga)) { toast('Só quem cadastrou ou o organizador pode editar esta casa.'); return; }
-    const casa = {id: editandoId || novoId(), ...d, uid: antiga ? antiga.uid : meuUid, criadoEm: antiga ? antiga.criadoEm : Date.now(), atualizadoEm: Date.now()};
+    const novoIdCasa = store.modo === 'nuvem' && !organizador ? usuario.uid : novoId();
+    const casa = {id: editandoId || novoIdCasa, ...d, uid: antiga ? antiga.uid : meuUid(), criadoEm: antiga ? antiga.criadoEm : Date.now(), atualizadoEm: Date.now()};
     const ok = await salvarSeguro(() => store.salvarCasa(casa), editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
     if (ok) { limparForm(); irAba('mapa'); mapa.setView([casa.lat, casa.lng], 18); }
   });
 
   // organizador
-  $('#btn-pin').addEventListener('click', () => { if ($('#c-pin').value === String(CONFIG.pinOrganizador)) { organizador = true; ls.set('hw.org', true); SFX.sucesso(); renderOrganizador(); toast('Bem-vindo, organizador!'); } else { SFX.boo(); toast('PIN errado. Boo!'); } });
-  $('#c-pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btn-pin').click(); });
-  $('#btn-salvar-config').addEventListener('click', () => salvarSeguro(() => store.salvarEvento({nome: $('#c-nome').value.trim(), data: $('#c-data').value, whatsapp: $('#c-zap').value.trim(), horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim()}), 'Evento salvo!'));
+  $('#btn-conta').addEventListener('click', async () => {
+    if (!usuario) { store.entrar(); return; }
+    const b = $('#btn-conta');
+    if (b.dataset.confirma) { delete b.dataset.confirma; editandoId = null; jaAbriuMinhaCasa = false; limparForm(); await store.sair(); toast('Você saiu. Até a próxima assombração!'); return; }
+    b.dataset.confirma = '1'; b.innerHTML = '<span>Sair?</span>'; SFX.boo(); setTimeout(() => { if (b.dataset.confirma) { delete b.dataset.confirma; renderConta(); } }, 3500);
+  });
+  $('#btn-entrar-google').addEventListener('click', () => store.entrar());
+  $('#btn-salvar-config').addEventListener('click', () => salvarSeguro(() => store.salvarEvento({nome: $('#c-nome').value.trim().slice(0, 80), data: $('#c-data').value, whatsapp: $('#c-zap').value.trim().slice(0, 30), horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim().slice(0, 160)}), 'Evento salvo!'));
   $('#btn-marcar-portaria').addEventListener('click', () => { modo = 'portaria'; modoVoltar = 'organizador'; irAba('mapa'); renderModo(); });
   $('#lista-casas').addEventListener('click', e => {
     const ed = e.target.closest('[data-editar]'); if (ed) { editandoId = ed.dataset.editar; preencherForm(casaPorId(editandoId)); irAba('participar'); return; }
@@ -532,7 +592,7 @@ function ligarEventos() {
   $('#btn-exportar').addEventListener('click', () => { const blob = new Blob([JSON.stringify({evento, casas}, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `halloween-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
   $('#c-importar').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return; const msg = $('#import-msg');
-    try { const d = JSON.parse(await f.text()); const lista = Array.isArray(d.casas) ? d.casas : []; let n = 0; for (const c of lista) { if (c && typeof c.lat === 'number' && typeof c.lng === 'number' && c.numero != null) { await store.salvarCasa({...c, id: c.id || novoId()}); n++; } } if (d.evento) await store.salvarEvento(d.evento); msg.textContent = `${n} casa${n === 1 ? '' : 's'} importada${n === 1 ? '' : 's'}.`; msg.className = 'ok-msg'; SFX.sucesso(); }
+    try { const d = JSON.parse(await f.text()); const lista = Array.isArray(d.casas) ? d.casas : []; let n = 0; for (const c of lista) { if (c && typeof c.lat === 'number' && typeof c.lng === 'number' && c.numero != null) { await store.salvarCasa({...c, id: /^[A-Za-z0-9_-]{1,128}$/.test(c.id || '') ? c.id : novoId(), uid: c.uid || meuUid()}); n++; } } if (d.evento) { const {nome, data, horaInicio, horaFim, whatsapp, avisos, portaria} = d.evento; await store.salvarEvento({nome: String(nome || '').slice(0, 80), data: String(data || '').slice(0, 10), horaInicio: horaInicio || '', horaFim: horaFim || '', whatsapp: String(whatsapp || '').slice(0, 30), avisos: String(avisos || '').slice(0, 160), portaria: portaria && typeof portaria.lat === 'number' ? {lat: portaria.lat, lng: portaria.lng} : null}); } msg.textContent = `${n} casa${n === 1 ? '' : 's'} importada${n === 1 ? '' : 's'}.`; msg.className = 'ok-msg'; SFX.sucesso(); }
     catch (err) { console.error(err); msg.textContent = 'Arquivo inválido.'; msg.className = 'erro-msg'; }
     e.target.value = '';
   });
@@ -543,8 +603,9 @@ function ligarEventos() {
 function aplicarNome() { const partes = String(CONFIG.nomeApp || 'Rota Assombrada').trim().split(' '); const ult = partes.pop(); $('.titulo').innerHTML = `${h(partes.join(' '))} <span>${h(ult)}</span>`; document.title = CONFIG.nomeApp || 'Rota Assombrada'; }
 async function iniciar() {
   aplicarNome(); iniciarMapa(); ligarEventos(); renderFiltros(); renderParticipar(); renderModo(); renderCabecalho(); renderPlacar(); renderRoteiro();
-  irAba(abaAtual);
+  renderOrganizadorVisivel(); irAba(abaAtual);
   await store.init();
+  renderConta(); atualizarParticipar(); if (store.modo === 'local') { organizador = true; renderOrganizadorVisivel(); }
   if (casas.length) verTodas();
   if (partida === 'gps' || autoChegada) ligarGPS(!casas.length);
   if (ls.get('hw.musica', false)) toast('Toque no alto-falante para religar a música.', 3500);

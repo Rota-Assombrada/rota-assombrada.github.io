@@ -1,21 +1,84 @@
 rules_version = '2';
+
+// Regras de segurança da Rota Assombrada.
+// - Qualquer pessoa vê o mapa (casas e dados do evento).
+// - Para cadastrar, é preciso entrar com Google. Cada conta tem UMA casa, cujo documento tem o id da própria conta.
+// - Só o dono da casa edita ou exclui a própria casa.
+// - Organizadores (lista de hashes SHA-256 do e-mail Google, para não publicar e-mails) editam tudo e o evento.
+// - Todo campo é validado: tipos, tamanhos máximos e valores permitidos.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Casas participantes: qualquer pessoa lê; quem está logado (login anônimo) cria, edita e exclui.
-    // O app só mostra "Editar/Excluir" para quem cadastrou a casa ou para o organizador (PIN).
+
+    function logadoGoogle() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function organizador() {
+      return logadoGoogle()
+        && hashing.sha256(request.auth.token.email.lower()).toHexString().lower() in [
+          'edc3e60dc481e945b137c839efaaf90135694890fc8967d6f013274d3c6a4dee'
+        ];
+    }
+
+    function texto(v, max) { return v is string && v.size() <= max; }
+    function hora(v) { return v is string && (v == '' || v.matches('^[0-2][0-9]:[0-5][0-9]$')); }
+    function lista(v, permitidos) { return v is list && v.size() <= permitidos.size() && v.hasOnly(permitidos); }
+    function coordenada(lat, lng) {
+      return lat is number && lng is number && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+    }
+
+    function casaValida(d) {
+      return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'criadoEm', 'atualizadoEm'])
+        && d.keys().hasAll(['numero', 'lat', 'lng', 'uid'])
+        && texto(d.numero, 20) && d.numero.size() > 0
+        && texto(d.get('rua', ''), 60)
+        && texto(d.get('familia', ''), 60)
+        && texto(d.get('obs', ''), 240)
+        && lista(d.get('oferece', []), ['doces', 'chocolate', 'brincadeira', 'decoracao', 'lembrancinha'])
+        && lista(d.get('flags', []), ['pequenos', 'cachorro', 'alergia', 'assustadora'])
+        && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
+        && coordenada(d.lat, d.lng)
+        && texto(d.uid, 128)
+        && d.get('criadoEm', 0) is number && d.get('atualizadoEm', 0) is number;
+    }
+
+    function eventoValido(d) {
+      return d.keys().hasOnly(['nome', 'data', 'horaInicio', 'horaFim', 'whatsapp', 'avisos', 'portaria'])
+        && texto(d.get('nome', ''), 80)
+        && texto(d.get('data', ''), 10)
+        && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
+        && texto(d.get('whatsapp', ''), 30)
+        && texto(d.get('avisos', ''), 160)
+        && (d.get('portaria', null) == null
+            || (d.portaria is map && d.portaria.keys().hasOnly(['lat', 'lng']) && coordenada(d.portaria.lat, d.portaria.lng)));
+    }
+
     match /casas/{id} {
       allow read: if true;
-      allow delete: if request.auth != null;
-      allow create, update: if request.auth != null
-        && request.resource.data.numero is string
-        && request.resource.data.lat is number
-        && request.resource.data.lng is number
-        && request.resource.data.size() < 20;
+
+      allow create: if casaValida(request.resource.data) && (
+        (logadoGoogle() && id == request.auth.uid && request.resource.data.uid == request.auth.uid)
+        || organizador()
+      );
+
+      allow update: if casaValida(request.resource.data) && (
+        (logadoGoogle() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid)
+        || organizador()
+      );
+
+      allow delete: if (logadoGoogle() && resource.data.uid == request.auth.uid) || organizador();
     }
-    // Dados do evento (nome, horários, portaria, avisos).
-    match /config/{id} {
+
+    match /config/evento {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if organizador() && eventoValido(request.resource.data);
+    }
+
+    // Qualquer outro caminho fica fechado.
+    match /{caminho=**} {
+      allow read, write: if false;
     }
   }
 }

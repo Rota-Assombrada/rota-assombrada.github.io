@@ -279,3 +279,17 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
   .guia-acoes .btn-grande{grid-column:auto}
   .guia-acoes #btn-navegar{grid-column:1/-1}
 }
+
+/* ===== Conta / login ===== */
+.topo-botoes{display:flex;gap:8px;align-items:center;flex:none}
+.btn-conta{min-height:48px;padding:6px 14px 6px 10px;font-size:.9rem;gap:6px}
+.btn-conta svg{width:20px;height:20px;background:#fff;border-radius:50%;padding:2px}
+.btn-conta.logado{padding:0;width:48px;border-radius:50%}
+.avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.1rem;color:var(--no-veneno);background:linear-gradient(180deg,#b4ff95,var(--veneno))}
+.gate{display:flex;flex-direction:column;gap:10px;margin-top:14px;align-items:stretch}
+.btn-google{background:#fff;color:#1f1f1f;box-shadow:0 4px 0 #b9b3c9,0 8px 18px rgba(0,0,0,.35)}
+.btn-google svg{width:24px;height:24px}
+.btn-google:active{box-shadow:0 0 0 #b9b3c9}
+.abobora-logo .rosto{animation:vela 2.6s linear infinite}
+.marca .abobora-logo{filter:drop-shadow(0 0 10px rgba(255,138,31,.55))}
+@media (max-width:380px){.btn-conta span:not(.avatar){display:none}.btn-conta{padding:0;width:48px;border-radius:50%;justify-content:center}}

@@ -3,8 +3,12 @@ export default {
   // Nome que aparece no topo. A última palavra ganha destaque laranja.
   nomeApp: 'Rota Assombrada',
 
-  // PIN para abrir a área do organizador (evento, portaria, editar/excluir casas).
-  pinOrganizador: '3110',
+  // Organizadores: hash SHA-256 do e-mail Google em minúsculas (assim o e-mail não fica público).
+  // Gere com: echo -n "email@exemplo.com" | shasum -a 256
+  // A MESMA lista precisa estar em firestore.rules; é lá que a permissão vale de verdade.
+  organizadores: [
+    'edc3e60dc481e945b137c839efaaf90135694890fc8967d6f013274d3c6a4dee'
+  ],
 
   // Centro inicial do mapa [latitude, longitude] e zoom. Troque pelo seu condomínio.
   // Dica: abra o Google Maps, clique com o botão direito no condomínio e copie as coordenadas.
@@ -12,8 +16,7 @@ export default {
   zoom: 17,
 
   // Firebase (plano Spark, gratuito). Deixe `null` para rodar em modo local (dados só neste aparelho).
-  // Para ligar: console.firebase.google.com → criar projeto → Firestore (modo produção) → Authentication → Anônimo →
-  // Configurações do projeto → "Seus apps" → Web → copie o objeto firebaseConfig e cole aqui.
+  // Esta chave é pública por natureza: quem protege os dados são as regras em firestore.rules.
   firebase: {
     apiKey: 'AIzaSyAKqra-wIMUB2ZxagKSg7I59m87cO7zVUA',
     authDomain: 'rota-assombrada.firebaseapp.com',
