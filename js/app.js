@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=54';
+import CONFIG from './config.js?v=55';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -668,7 +668,8 @@ function renderListaCasas() {
   $('#ordem-lista-casas').textContent = !lista.length ? 'Nenhuma casa passa nos filtros escolhidos.' : comGps ? 'Da mais perto para a mais longe de você. Toque para ver os detalhes.' : 'Por rua e número. Ligue o GPS para ver as mais perto primeiro.';
   $('#lista-casas-mapa').innerHTML = lista.map(c => {
     const aberta = abertaAgora(c); const vis = visitadas.has(c.id);
-    const etqs = [aberta ? 'Aberta agora' : 'Fora do horário'].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
+    const {ini, fim} = horario(c);
+    const etqs = [aberta ? (fim ? `Aberta agora · até ${fim}` : 'Aberta agora') : (ini && fim ? `Fora do horário · ${ini}–${fim}` : 'Fora do horário')].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
       <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
       <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span></span>
