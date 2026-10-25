@@ -63,7 +63,8 @@ service cloud.firestore {
 
     function condoValido(cid, d) {
       return cid.matches('^[A-HJ-NP-Z2-9]{5}$')
-        && d.keys().hasOnly(['nome', 'cidade', 'eventoNome', 'data', 'horaInicio', 'horaFim', 'avisos', 'portaria', 'centro', 'zoom', 'publico', 'listado', 'criadoPor', 'criadoEm', 'atualizadoEm'])
+        && d.keys().hasOnly(['nome', 'cidade', 'eventoNome', 'data', 'horaInicio', 'horaFim', 'avisos', 'portaria', 'centro', 'zoom', 'publico', 'listado', 'eventoAtual', 'criadoPor', 'criadoEm', 'atualizadoEm'])
+        && (d.get('eventoAtual', 2026) is int && d.get('eventoAtual', 2026) >= 2024 && d.get('eventoAtual', 2026) <= 2099)
         && d.keys().hasAll(['nome', 'centro', 'publico', 'criadoPor'])
         && texto(d.nome, 80) && d.nome.size() > 0
         && texto(d.get('eventoNome', ''), 80)
@@ -99,6 +100,16 @@ service cloud.firestore {
         && texto(d.get('cidade', ''), 60)
         && d.prefixos is list && d.prefixos.size() <= 120
         && d.publico is bool;
+    }
+
+    // Evento de um ano: nome, data, horário e aviso. As casas ficam dentro do evento.
+    function eventoValido(ano, d) {
+      return ano.matches('^20[2-9][0-9]$')
+        && d.keys().hasOnly(['nome', 'data', 'horaInicio', 'horaFim', 'avisos', 'criadoEm', 'atualizadoEm'])
+        && texto(d.get('nome', ''), 80)
+        && texto(d.get('data', ''), 10)
+        && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
+        && texto(d.get('avisos', ''), 160);
     }
 
     function casaValida(d) {
@@ -184,17 +195,31 @@ service cloud.firestore {
         allow delete: if ehAdmin(cid);
       }
 
+      // Casas do formato antigo (antes dos eventos por ano): só leitura para quem já podia ver e
+      // limpeza pelo admin depois de passar para o evento do ano. Ninguém cria casa nova aqui.
       match /casas/{casaId} {
         allow read: if ehMorador(cid) || condoPublico(cid);
-        allow create: if casaValida(request.resource.data) && (
-          ehAdmin(cid)
-          || (ehMorador(cid) && casaId == eu() && request.resource.data.uid == eu())
-        );
-        allow update: if casaValida(request.resource.data) && (
-          ehAdmin(cid)
-          || (ehMorador(cid) && resource.data.uid == eu() && request.resource.data.uid == eu())
-        );
-        allow delete: if ehAdmin(cid) || (logado() && resource.data.uid == eu());
+        allow delete: if ehAdmin(cid);
+      }
+
+      // ---------- eventos por ano ----------
+      match /eventos/{ano} {
+        allow get, list: if true;
+        allow create, update: if eventoValido(ano, request.resource.data) && (ehAdmin(cid) || criandoAgora(cid));
+        allow delete: if donoPlataforma();
+
+        match /casas/{casaId} {
+          allow read: if ehMorador(cid) || condoPublico(cid);
+          allow create: if casaValida(request.resource.data) && (
+            ehAdmin(cid)
+            || (ehMorador(cid) && casaId == eu() && request.resource.data.uid == eu())
+          );
+          allow update: if casaValida(request.resource.data) && (
+            ehAdmin(cid)
+            || (ehMorador(cid) && resource.data.uid == eu() && request.resource.data.uid == eu())
+          );
+          allow delete: if ehAdmin(cid) || (logado() && resource.data.uid == eu());
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=24';
+import CONFIG from './config.js?v=26';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -87,6 +87,12 @@ let posicao = null;             // {lat,lng,acc,heading,t}
 let rumo = null;                // bússola em graus, se disponível
 const casaPorId = id => casas.find(c => c.id === id);
 const lsc = {get: (k, d) => ls.get(`hw.${cid}.${k}`, d), set: (k, v) => ls.set(`hw.${cid}.${k}`, v)};
+// Coisas de um ano específico (casas visitadas, roteiro) ficam separadas por ano.
+const lsa = {get: (k, d) => ls.get(`hw.${cid}.${ano}.${k}`, d), set: (k, v) => ls.set(`hw.${cid}.${ano}.${k}`, v)};
+const ANO_HOJE = new Date().getFullYear();
+let ano = null, anoEscolhido = null, eventoDoc = null, eventosAnos = [], casaAnoPassado = null, migrandoAnos = false;
+const anoAtualDoCondo = () => (condo && condo.eventoAtual) || ANO_HOJE;
+const ehAnoAtual = () => ano === anoAtualDoCondo();
 const ehAdmin = () => donoPlataforma || papel === 'admin';
 const ehMorador = () => donoPlataforma || papel === 'admin' || papel === 'morador';
 const meuUid = () => usuario ? usuario.uid : null;
@@ -142,8 +148,13 @@ const fb = {
   membros: id => fb.fs.collection(fb.db, 'condominios', id, 'membros'),
   convite: (id, cod) => fb.fs.doc(fb.db, 'condominios', id, 'convites', cod),
   convites: id => fb.fs.collection(fb.db, 'condominios', id, 'convites'),
-  casa: (id, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'casas', casaId),
-  casas: id => fb.fs.collection(fb.db, 'condominios', id, 'casas'),
+  casa: (id, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'eventos', String(ano), 'casas', casaId),
+  casas: id => fb.fs.collection(fb.db, 'condominios', id, 'eventos', String(ano), 'casas'),
+  casaAno: (id, a, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'eventos', String(a), 'casas', casaId),
+  casasAno: (id, a) => fb.fs.collection(fb.db, 'condominios', id, 'eventos', String(a), 'casas'),
+  evento: (id, a) => fb.fs.doc(fb.db, 'condominios', id, 'eventos', String(a)),
+  eventos: id => fb.fs.collection(fb.db, 'condominios', id, 'eventos'),
+  casasAntigas: id => fb.fs.collection(fb.db, 'condominios', id, 'casas'),
   busca: id => fb.fs.doc(fb.db, 'busca', id),
   buscas: () => fb.fs.collection(fb.db, 'busca'),
   criador: uid => fb.fs.doc(fb.db, 'criadores', uid),
@@ -189,25 +200,71 @@ const subs = {};
 function parar(...nomes) { nomes.forEach(n => { if (subs[n]) { try { subs[n](); } catch {} delete subs[n]; } }); }
 function abrirCondo(novo) {
   if (novo === cid && subs.condo) { tentarConvite(); return; }
-  parar('condo', 'membro', 'casas', 'membros', 'convites');
+  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'evento', 'eventos');
   cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
-  visitadas = new Set(lsc.get('visitadas', [])); partida = lsc.get('partida', 'gps'); roteiro = lsc.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
+  partida = lsc.get('partida', 'gps'); ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
+  visitadas = new Set(); roteiro = null; rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid);
   mostrarCondo();
   subs.condo = fb.fs.onSnapshot(fb.condo(cid), snap => {
     condoCarregado = true; cargaFim('condo');
     if (!snap.exists()) { condo = null; renderTudoCondo(); return; }
     condo = snap.data();
-    evento = {nome: condo.eventoNome || '', data: condo.data || '', horaInicio: condo.horaInicio || '', horaFim: condo.horaFim || '', avisos: condo.avisos || '', portaria: condo.portaria || null};
+    const alvo = anoEscolhido || anoAtualDoCondo();
+    if (alvo !== ano) trocarAno(alvo);
+    montarEvento();
+    if (ehAdmin()) passarParaAnos();
     lembrarRecente(cid, condo.nome);
     if (!centrouCondo && condo.centro) { centrouCondo = true; mapa.setView([condo.centro.lat, condo.centro.lng], condo.zoom || 17); }
     renderTudoCondo();
   }, e => { console.error(e); condoCarregado = true; cargaFim('condo'); cargaFim('casas'); casasCarregadas = true; toast('Não consegui abrir este condomínio.'); renderTudoCondo(); });
+  subs.eventos = fb.fs.onSnapshot(fb.eventos(cid), s => { eventosAnos = s.docs.map(d => +d.id).filter(Boolean).sort((a, b) => b - a); renderSeletorAno(); }, e => console.error(e));
   assinarMembro();
 }
+function montarEvento() {
+  const e = eventoDoc || {}; const c = condo || {};
+  // Antes dos eventos por ano, nome, data e horário ficavam no condomínio: servem de reserva.
+  evento = {nome: e.nome ?? (ano === anoAtualDoCondo() ? c.eventoNome : '') ?? '', data: e.data ?? (ano === anoAtualDoCondo() ? c.data : '') ?? '',
+    horaInicio: e.horaInicio ?? c.horaInicio ?? '', horaFim: e.horaFim ?? c.horaFim ?? '', avisos: e.avisos ?? (ano === anoAtualDoCondo() ? c.avisos : '') ?? '', portaria: c.portaria || null};
+  if (!evento.nome) evento.nome = `Halloween ${ano || ''}`.trim();
+}
+function trocarAno(novo) {
+  ano = novo; parar('casas', 'casasAntigas', 'evento');
+  casas = []; casasCarregadas = false; podeVerCasas = false; cargaInicio('casas'); eventoDoc = null; casaAnoPassado = null;
+  visitadas = new Set(lsa.get('visitadas', [])); roteiro = lsa.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
+  jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null;
+  subs.evento = fb.fs.onSnapshot(fb.evento(cid, ano), s => { eventoDoc = s.exists() ? s.data() : null; montarEvento(); renderTudoCondo(); }, e => console.error(e));
+  montarEvento(); renderSeletorAno();
+  if (papelCarregado) assinarCasas();
+  renderTudoCondo();
+}
+function renderSeletorAno() {
+  const sel = $('#sel-ano'); if (!sel) return;
+  const anos = [...new Set([...eventosAnos, ano, anoAtualDoCondo()].filter(Boolean))].sort((a, b) => b - a);
+  sel.hidden = anos.length < 2;
+  sel.innerHTML = anos.map(a => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}${a === anoAtualDoCondo() ? '' : ' (já passou)'}</option>`).join('');
+}
+// Condomínios de antes dos eventos por ano: o admin, ao abrir, leva as casas para o evento do ano.
+async function passarParaAnos() {
+  if (migrandoAnos || !cid || !condo) return; migrandoAnos = true;
+  try {
+    const antigas = await fb.fs.getDocs(fb.casasAntigas(cid));
+    if (condo.eventoAtual && antigas.empty) return;
+    const a = condo.eventoAtual || ANO_HOJE; const agora = Date.now();
+    const b = fb.fs.writeBatch(fb.db);
+    if (!condo.eventoAtual) {
+      b.set(fb.evento(cid, a), {nome: String(condo.eventoNome || `Halloween ${a}`).slice(0, 80), data: String(condo.data || `${a}-10-31`).slice(0, 10), horaInicio: condo.horaInicio || '', horaFim: condo.horaFim || '', avisos: String(condo.avisos || '').slice(0, 160), criadoEm: agora, atualizadoEm: agora}, {merge: true});
+      b.set(fb.condo(cid), {eventoAtual: a, atualizadoEm: agora}, {merge: true});
+    }
+    antigas.docs.forEach(d => b.set(fb.casaAno(cid, a, d.id), limparCasa(d.data())));
+    await carga(b.commit());
+    if (!antigas.empty) { const apagar = fb.fs.writeBatch(fb.db); antigas.docs.forEach(d => apagar.delete(d.ref)); await carga(apagar.commit()); toast(`Casas passadas para o Halloween de ${a}.`); }
+    if (subs.casasAntigas) assinarCasas();
+  } catch (e) { console.error('Não consegui passar para eventos por ano', e); migrandoAnos = false; }
+}
 function fecharCondo() {
-  parar('condo', 'membro', 'casas', 'membros', 'convites'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
+  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'evento', 'eventos'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
   cid = null; condo = null; casas = []; papel = ''; podeVerCasas = false; membros = []; convites = []; roteiro = null;
   mostrarInicio();
 }
@@ -234,15 +291,24 @@ function aoMudarPapel() {
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
   tentarConvite();
+  if (ehAdmin() && condo) passarParaAnos();
   renderTudoCondo();
   if (abaAtual === 'organizador' && !ehAdmin()) irAba('mapa');
 }
-let tentativasCasas = 0;
+let tentativasCasas = 0, casasDoEvento = [], casasFormatoAtual = [];
+function juntarCasas() {
+  const m = new Map(casasFormatoAtual.map(c => [c.id, c])); casasDoEvento.forEach(c => m.set(c.id, c)); casas = [...m.values()];
+}
 function assinarCasas() {
-  parar('casas'); if (!cid) return;
-  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casas = s.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); },
+  parar('casas', 'casasAntigas'); if (!cid || !ano) return;
+  casasDoEvento = []; casasFormatoAtual = [];
+  // Enquanto nenhum admin passar o condomínio para eventos por ano, as casas ainda moram no lugar antigo: mostra as duas.
+  if (condo && !condo.eventoAtual && ano === anoAtualDoCondo()) {
+    subs.casasAntigas = fb.fs.onSnapshot(fb.casasAntigas(cid), s => { casasFormatoAtual = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); }, () => { casasFormatoAtual = []; });
+  }
+  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casasDoEvento = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); },
     e => {
-      podeVerCasas = false; casas = []; parar('casas');
+      podeVerCasas = false; casas = []; casasDoEvento = []; parar('casas', 'casasAntigas');
       const vaiTentar = e.code !== 'permission-denied' || (ehMorador() && tentativasCasas < 4);
       if (!vaiTentar) { casasCarregadas = true; cargaFim('casas'); }
       aoMudarDados();
@@ -323,7 +389,7 @@ function linksNav(c) {
     waze: `https://waze.com/ul?ll=${d}&navigate=yes`,
   };
 }
-const linkPrincipal = c => { const l = linksNav(c); return IOS ? l.apple : l.google; };
+const linkPrincipal = c => linksNav(c).google;   // Google Maps é o recomendado, no iPhone também
 function linkRotaCompleta() {
   if (!roteiro) return '';
   const pend = roteiro.ordem.map(casaPorId).filter(c => c && !visitadas.has(c.id)).slice(0, 10); if (!pend.length) return '';
@@ -389,6 +455,7 @@ function ligarGPS(centrar) {
   if (!('geolocation' in navigator)) { st.textContent = 'Este aparelho não tem GPS disponível.'; st.className = 'gps-status erro'; return; }
   if (gpsWatch != null) { if (centrar && posicao) mapa.setView([posicao.lat, posicao.lng], Math.max(mapa.getZoom(), 17)); return; }
   st.textContent = 'Procurando satélites…'; st.className = 'gps-status';
+  setTimeout(renderGpsCartao, 0);
   gpsWatch = navigator.geolocation.watchPosition(p => {
     posicao = {lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, heading: p.coords.heading, t: Date.now()};
     if (posicao.heading != null && !Number.isNaN(posicao.heading) && p.coords.speed > 0.7) rumo = posicao.heading;
@@ -397,11 +464,20 @@ function ligarGPS(centrar) {
     else { marcadorEu.setLatLng([posicao.lat, posicao.lng]); circuloAcc.setLatLng([posicao.lat, posicao.lng]).setRadius(posicao.acc); }
     atualizarRumoVisual();
     if ((centrar && !gpsCentrado) || modoSeguir) { mapa.setView([posicao.lat, posicao.lng], Math.max(mapa.getZoom(), 17)); gpsCentrado = true; }
-    gpsErro = null; atualizarBoasVindasGPS(); aoMoverGPS(); renderPartida(); if (!$('#guia').hidden) renderGuia();
-  }, e => { gpsErro = e.code; atualizarBoasVindasGPS(); st.textContent = e.code === 1 ? 'Localização bloqueada. Libere nas configurações do navegador para este site.' : e.code === 2 ? 'O GPS do celular parece desligado. Ligue a localização nas configurações.' : 'Não consegui pegar sua posição agora.'; st.className = 'gps-status erro'; gpsWatch = null; }, {enableHighAccuracy: true, maximumAge: 3000, timeout: 20000});
+    gpsErro = null; atualizarBoasVindasGPS(); renderGpsCartao(); aoMoverGPS(); renderPartida(); if (!$('#guia').hidden) renderGuia();
+  }, e => { gpsErro = e.code; atualizarBoasVindasGPS(); renderGpsCartao(); st.textContent = e.code === 1 ? (IOS ? 'Localização bloqueada no iPhone. Veja como liberar logo acima do mapa.' : 'Localização bloqueada. Libere nas configurações do navegador para este site.') : e.code === 2 ? 'O GPS do celular parece desligado. Ligue a localização nas configurações.' : 'Não consegui pegar sua posição agora.'; st.className = 'gps-status erro'; gpsWatch = null; }, {enableHighAccuracy: true, maximumAge: 3000, timeout: 20000});
   ligarBussola();
 }
 let modoSeguir = false;
+function renderGpsCartao() {
+  const c = $('#gps-cartao'); if (!c) return;
+  if (posicao || !('geolocation' in navigator)) { c.hidden = true; return; }
+  if (gpsErro === 1) c.innerHTML = `<b>A localização está bloqueada</b><p class="dica">${IOS ? 'No iPhone: abra Ajustes, Privacidade e Segurança, Serviços de Localização. Deixe ligado e, em <b>Sites do Safari</b>, escolha <b>Durante o Uso</b>. Depois, no Safari, toque em "aA" na barra de endereço, Ajustes do Site, Localização: Permitir. Recarregue a página.' : 'Toque no cadeado ao lado do endereço, Permissões, Localização: Permitir. Confira também se a localização do celular está ligada. Recarregue a página.'}</p><button class="btn btn-fantasma btn-p" data-ligar-gps>Tentar de novo</button>`;
+  else if (gpsErro === 2 || gpsErro === 3) c.innerHTML = `<b>Não achei o GPS</b><p class="dica">Ligue a localização do celular${IOS ? ' em Ajustes, Privacidade e Segurança, Serviços de Localização' : ''} e tente de novo. Se abriu pelo WhatsApp, abra no ${IOS ? 'Safari' : 'Chrome'}.</p><button class="btn btn-primario btn-p" data-ligar-gps>Tentar de novo</button>`;
+  else if (gpsWatch != null) c.innerHTML = `<p class="res-carregando">${SPIN} Procurando satélites… Se o celular perguntar, toque em <b>Permitir</b>.</p>`;
+  else c.innerHTML = `<b>Ligue o GPS para ver onde você está</b><p class="dica">O celular vai perguntar se pode usar sua localização: toque em <b>Permitir</b>.</p><button class="btn btn-primario" data-ligar-gps>${IC.alvo} Ligar GPS</button>`;
+  c.hidden = false;
+}
 let gpsErro = null;
 function atualizarRumoVisual() { if (!marcadorEu) return; const el = marcadorEu.getElement()?.querySelector('.eu'); if (!el) return; el.classList.toggle('com-rumo', rumo != null); if (rumo != null) el.style.setProperty('--rumo', rumo + 'deg'); }
 let bussolaOk = false;
@@ -521,7 +597,7 @@ async function montarRoteiro() {
   }
   btn.disabled = false; btn.innerHTML = txtBtn;
   roteiroAberto = false;
-  roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, criado: Date.now(), aPe: !!matriz}; lsc.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
+  roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`);
@@ -554,7 +630,7 @@ function aoMoverGPS() {
   const tr = trechoDe(c); const dRest = tr ? Math.max(d, tr.dist - distM(tr.de, posicao)) : d;
   if (vozAuto && d > 40 && Math.abs(dRest - ultimaFalaDist) >= 60 && Date.now() - ultimaFalaT > 25000 && !VOZ.falando) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); falar(tr ? `Faltam uns ${falaM(dRest)}. ${textoInstrucao(tr.passos, falaM)}` : `Faltam ${falaM(d)}, ${direcaoFala(posicao, c)}.`); }
 }
-function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsc.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
+function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsa.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
 async function cheguei() {
   const idx = proximaParada(); if (idx < 0) return; marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
   const b = $('#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
@@ -562,7 +638,13 @@ async function cheguei() {
   if (prox < 0) { toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
   else { await atualizarTrecho(true); if (vozAuto) falar('Boa! ' + falaParada(prox)); }
 }
-async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsc.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. ' + falaParada(prox)); } }
+function pararNavegacao() {
+  roteiro = null; lsa.set('roteiro', null); trecho = null; rotaTrechos = null; rotaLinha = null; rotaPernas = null; rotaChave = ''; anunciadoChegada = null; modoSeguir = false;
+  try { speechSynthesis.cancel(); } catch {} abaixarMusica(false);
+  renderRoteiro(); renderPins(); renderPlacar(); SFX.pop(); toast('Navegação encerrada. As casas visitadas continuam marcadas.');
+  $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
+}
+async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. ' + falaParada(prox)); } }
 
 /* ---------- voz ---------- */
 const VOZ = {falando: false};
@@ -710,11 +792,11 @@ function cartaoCasa(c, idx) {
 function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
   $('#folha-in').innerHTML = cartaoCasa(c) + `<div class="acoes">
-    <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar até aqui (${IOS ? 'Apple Maps' : 'Google Maps'})</a>
+    <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps (recomendado)</a>
     <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
     <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
     ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
-  </div><div class="nav-extra">${IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`}<a href="${l.waze}" target="_blank" rel="noopener">Waze</a></div>`;
+  </div><div class="nav-extra"><span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a></div>`;
   $('#folha').hidden = false; SFX.plop();
 }
 function fecharFolha() { $('#folha').hidden = true; }
@@ -732,11 +814,11 @@ function renderGuia() {
     $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = tr ? `${fmtM(d)} a pé` : `${fmtM(d)} · ${direcaoFala(de, c)}`;
     const gi = $('#guia-instrucao'); if (tr) gi.textContent = textoInstrucao(tr.passos, fmtM); else gi.innerHTML = trechoBuscando ? `${SPIN} Procurando o caminho pelas ruas…` : ''; gi.hidden = !gi.innerHTML;
     $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
-    const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no ${IOS ? 'Apple Maps' : 'Google Maps'}`;
-    const l = linksNav(c); $('#nav-extra').innerHTML = (IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`) + `<a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
+    const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small>`;
+    const l = linksNav(c); $('#nav-extra').innerHTML = `<span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
   } else {
     $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-instrucao').hidden = true; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
-    $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = '';
+    $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; $('#btn-parar').textContent = 'Fechar roteiro'; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = '';
   }
   guia.hidden = false;
 }
@@ -785,7 +867,7 @@ function renderCabecalho() {
   if (!condoCarregado) { $('#sub-evento').innerHTML = '<span class="skel skel-inline skel-largo"></span>'; return; }
   const pp = $('#pill-papel'); const rotulo = donoPlataforma ? 'Dono' : {admin: 'Admin', morador: 'Morador', pendente: 'Aguardando'}[papel] || '';
   pp.hidden = !rotulo; pp.textContent = rotulo; pp.className = 'pill papel ' + (papel || (donoPlataforma ? 'admin' : ''));
-  const partes = []; if (evento.nome) partes.push(evento.nome); if (evento.data) partes.push(fmtData(evento.data)); if (evento.horaInicio && evento.horaFim) partes.push(`${evento.horaInicio}–${evento.horaFim}`);
+  const partes = []; if (evento.nome) partes.push(evento.nome); if (evento.data) partes.push(fmtData(evento.data) + (ano && ano !== ANO_HOJE ? `/${ano}` : '')); if (evento.horaInicio && evento.horaFim) partes.push(`${evento.horaInicio}–${evento.horaFim}`);
   $('#sub-evento').textContent = partes.join(' · ') + (evento.avisos ? (partes.length ? ' · ' : '') + evento.avisos : '');
 }
 function renderConta() {
@@ -820,12 +902,24 @@ function atualizarParticipar() {
   else if (!papelCarregado) html = `<p class="res-carregando">${SPIN} Conferindo seu acesso…</p><span class="skel skel-campo"></span><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!ehMorador() && papel === 'pendente') html = `<p>Seu pedido está com o admin. Assim que aprovar, você cadastra a casa aqui.</p>`;
   else if (!ehMorador()) html = `<button type="button" class="btn btn-primario btn-grande" data-acao-acesso="pedir">Pedir para entrar no condomínio</button><p class="dica">Só moradores aprovados colocam casas no mapa.</p>`;
+  else if (!ehAnoAtual() && !ehAdmin()) html = `<p>Este é o Halloween de ${ano}, que já passou. Para cadastrar sua casa, volte para ${anoAtualDoCondo()}.</p><button type="button" class="btn btn-primario" data-ano-atual>Ir para ${anoAtualDoCondo()}</button>`;
   gate.innerHTML = html; gate.hidden = !html; form.hidden = !!html;
   $('#participar-intro').textContent = html ? (usuario ? '' : 'Para colocar sua casa no mapa, entre com sua conta Google. Assim só você consegue mexer nela.')
     : criandoOutra ? 'Cadastrando a casa de outra família. Ela fica sob sua responsabilidade de admin.'
     : 'Marque a casa no mapa (ou use o GPS na porta) e conte o que vai rolar.';
   if (!html && !editandoId && !criandoOutra && !jaAbriuMinhaCasa) { const minha = casaPorId(usuario.uid); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
+  verificarCasaAnoPassado();
   atualizarForm();
+}
+async function verificarCasaAnoPassado() {
+  const box = $('#repetir-casa');
+  const mostrar = () => { box.hidden = !(casaAnoPassado && casaAnoPassado.ano === ano - 1 && !editandoId && !criandoOutra && ehAnoAtual() && casasCarregadas && !casaPorId(usuario && usuario.uid)); if (!box.hidden) $('#btn-repetir').textContent = `Repetir minha casa de ${ano - 1}`; };
+  if (!usuario || !cid || !ano || !ehMorador()) { box.hidden = true; return; }
+  if (casaAnoPassado && casaAnoPassado.ano === ano - 1 && casaAnoPassado.cid === cid) return mostrar();
+  casaAnoPassado = {ano: ano - 1, cid, dados: null};
+  try { const s = await fb.fs.getDoc(fb.casaAno(cid, ano - 1, usuario.uid)); casaAnoPassado.dados = s.exists() ? s.data() : null; if (!casaAnoPassado.dados) casaAnoPassado = {ano: ano - 1, cid, vazio: true}; } catch (e) { casaAnoPassado = {ano: ano - 1, cid, vazio: true}; }
+  if (casaAnoPassado.vazio) { box.hidden = true; return; }
+  mostrar();
 }
 function atualizarForm() {
   const minha = editandoId && usuario && editandoId === usuario.uid;
@@ -844,7 +938,11 @@ function renderAdmin() {
   $('#link-condo').textContent = linkCondo();
   $('#btn-zap-link').href = `https://wa.me/?text=${encodeURIComponent(`Mapa do Halloween de ${condo.nome}: ${linkCondo()}`)}`;
   const set = (sel, v) => { if (campoLivre(sel)) $(sel).value = v || ''; };
-  set('#c-nome', condo.nome); set('#c-evento', condo.eventoNome); set('#c-data', condo.data); set('#c-cidade', condo.cidade); set('#c-hi', condo.horaInicio); set('#c-hf', condo.horaFim); set('#c-avisos', condo.avisos);
+  set('#c-nome', condo.nome); set('#c-evento', evento.nome); set('#c-data', evento.data); set('#c-cidade', condo.cidade); set('#c-hi', evento.horaInicio); set('#c-hf', evento.horaFim); set('#c-avisos', evento.avisos);
+  $('#titulo-evento').textContent = `Evento de ${ano}`;
+  const prox = anoAtualDoCondo() + 1; const bn = $('#btn-novo-ano');
+  $('#ano-status').textContent = ehAnoAtual() ? `O evento em andamento é o de ${ano}. Quando quiser preparar o próximo, comece o de ${prox}: as casas de ${ano} ficam guardadas.` : `Você está vendo ${ano}, que já passou. O evento em andamento é o de ${anoAtualDoCondo()}.`;
+  bn.hidden = !ehAnoAtual(); if (!bn.dataset.confirma) bn.textContent = `Começar o Halloween de ${prox}`;
   if (campoLivre('#c-publico')) $('#c-publico').checked = !!condo.publico;
   if (campoLivre('#c-listado')) $('#c-listado').checked = condo.listado !== false;
   $('#codigo-condo').textContent = cid;
@@ -871,7 +969,7 @@ function mostrarInicio() {
   $('#abas').hidden = true; $('#linha-condo').hidden = true; $('#placar').innerHTML = ''; abaAtual = 'inicio';
   renderCabecalho(); renderInicio(); window.scrollTo({top: 0});
 }
-function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
+function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); renderGpsCartao(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
 let listaCondosCarregada = false;
 function cartaoCondo(id, nome, extra = '') {
   if (!CODIGO.test(id)) return `<li><div class="resultado"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>código antigo ${h(id)}: não abre na versão nova</span></span><button class="btn btn-p btn-primario" data-migrar="${h(id)}">Atualizar código</button></div></li>`;
@@ -921,18 +1019,19 @@ async function migrarCondo(antigo) {
     let novo = null;
     for (let i = 0; i < 6 && !novo; i++) { const v = crypto.getRandomValues(new Uint8Array(5)); const c = [...v].map(x => ALFABETO_CODIGO[x % 32]).join(''); const ex = await fb.fs.getDoc(fb.condo(c)); if (!ex.exists()) novo = c; }
     if (!novo) throw new Error('sem código');
-    const [membrosS, casasS, convitesS] = await Promise.all([fb.fs.getDocs(fb.membros(antigo)), fb.fs.getDocs(fb.casas(antigo)), fb.fs.getDocs(fb.convites(antigo))]);
+    const [membrosS, casasS, convitesS] = await Promise.all([fb.fs.getDocs(fb.membros(antigo)), fb.fs.getDocs(fb.casasAntigas(antigo)), fb.fs.getDocs(fb.convites(antigo))]);
     const agora = Date.now(); const s = (v, n) => String(v ?? '').slice(0, n);
     const hora = v => /^[0-2]\d:[0-5]\d$/.test(v || '') ? v : '';
     const centro = d.centro && typeof d.centro.lat === 'number' ? {lat: d.centro.lat, lng: d.centro.lng} : {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
     const portaria = d.portaria && typeof d.portaria.lat === 'number' ? {lat: d.portaria.lat, lng: d.portaria.lng} : null;
     const nome = s(d.nome || antigo, 80), cidade = s(d.cidade, 60), publico = !!d.publico;
     const b = fb.fs.writeBatch(fb.db);
-    b.set(fb.condo(novo), {nome, cidade, eventoNome: s(d.eventoNome, 80), data: s(d.data, 10), horaInicio: hora(d.horaInicio), horaFim: hora(d.horaFim), avisos: s(d.avisos, 160), portaria, centro, zoom: Math.max(3, Math.min(20, Math.round(d.zoom || 17))), publico, listado: true, criadoPor: usuario.uid, criadoEm: d.criadoEm || agora, atualizadoEm: agora});
+    b.set(fb.condo(novo), {nome, cidade, portaria, centro, zoom: Math.max(3, Math.min(20, Math.round(d.zoom || 17))), publico, listado: true, eventoAtual: ANO_HOJE, criadoPor: usuario.uid, criadoEm: d.criadoEm || agora, atualizadoEm: agora});
+    b.set(fb.evento(novo, ANO_HOJE), {nome: s(d.eventoNome || `Halloween ${ANO_HOJE}`, 80), data: s(d.data || `${ANO_HOJE}-10-31`, 10), horaInicio: hora(d.horaInicio), horaFim: hora(d.horaFim), avisos: s(d.avisos, 160), criadoEm: agora, atualizadoEm: agora});
     b.set(fb.busca(novo), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico, atualizadoEm: agora});
     membrosS.docs.forEach(m => { const x = m.data(); b.set(fb.membro(novo, m.id), {uid: m.id, papel: ['admin', 'morador', 'pendente'].includes(x.papel) ? x.papel : 'pendente', nome: s(x.nome, 80), email: s(x.email, 160), convite: s(x.convite, 40), criadoEm: x.criadoEm || agora, atualizadoEm: agora}); });
     if (!membrosS.docs.some(m => m.id === usuario.uid)) b.set(fb.membro(novo, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: agora, atualizadoEm: agora});
-    casasS.docs.forEach(c => b.set(fb.casa(novo, c.id), limparCasa({...c.data(), uid: c.data().uid || usuario.uid})));
+    casasS.docs.forEach(c => b.set(fb.casaAno(novo, ANO_HOJE, c.id), limparCasa({...c.data(), uid: c.data().uid || usuario.uid})));
     convitesS.docs.forEach(c => { const x = c.data(); if (/^[A-Za-z0-9]{8,40}$/.test(c.id)) b.set(fb.convite(novo, c.id), {papel: 'morador', ativo: !!x.ativo, expiraEm: +x.expiraEm || agora, criadoPor: s(x.criadoPor || usuario.uid, 128), criadoEm: +x.criadoEm || agora}); });
     await b.commit();
     const apagar = fb.fs.writeBatch(fb.db);
@@ -990,7 +1089,8 @@ async function criarCondo(nome, cidade) {
   const centro = posicao ? {lat: +posicao.lat.toFixed(6), lng: +posicao.lng.toFixed(6)} : {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
   const ok = await salvarSeguro(() => {
     const b = fb.fs.writeBatch(fb.db); const agora = Date.now();
-    b.set(fb.condo(cod), {nome, cidade, eventoNome: CONFIG.evento.nome || 'Halloween', data: CONFIG.evento.data || '', horaInicio: CONFIG.evento.horaInicio || '', horaFim: CONFIG.evento.horaFim || '', avisos: '', portaria: null, centro, zoom: Math.round(CONFIG.zoom || 17), publico: false, listado: true, criadoPor: usuario.uid, criadoEm: agora, atualizadoEm: agora});
+    b.set(fb.condo(cod), {nome, cidade, portaria: null, centro, zoom: Math.round(CONFIG.zoom || 17), publico: false, listado: true, eventoAtual: ANO_HOJE, criadoPor: usuario.uid, criadoEm: agora, atualizadoEm: agora});
+    b.set(fb.evento(cod, ANO_HOJE), {nome: `Halloween ${ANO_HOJE}`, data: `${ANO_HOJE}-10-31`, horaInicio: CONFIG.evento.horaInicio || '', horaFim: CONFIG.evento.horaFim || '', avisos: '', criadoEm: agora, atualizadoEm: agora});
     if (!donoPlataforma) b.set(fb.criador(usuario.uid), {cid: cod, criadoEm: agora});
     b.set(fb.membro(cod, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: agora, atualizadoEm: agora});
     b.set(fb.busca(cod), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico: false, atualizadoEm: agora});
@@ -1050,6 +1150,7 @@ function ligarEventos() {
     b.dataset.confirma = '1'; b.innerHTML = '<span>Sair?</span>'; setTimeout(() => { if (b.dataset.confirma) renderConta(); }, 3500);
   });
   $('#btn-condo').addEventListener('click', () => { location.hash = 'inicio'; });
+  $('#sel-ano').addEventListener('change', e => { const a = +e.target.value; anoEscolhido = a === anoAtualDoCondo() ? null : a; trocarAno(a); toast(a === anoAtualDoCondo() ? `Halloween de ${a}` : `Vendo o Halloween de ${a}, que já passou.`); });
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-acao-acesso]'); if (!b) return; const a = b.dataset.acaoAcesso;
     if (a === 'entrar') fb.entrar(); if (a === 'pedir') pedirAcesso(); if (a === 'cancelar') sairDoCondo(); if (a === 'inicio') location.hash = 'inicio';
@@ -1060,6 +1161,7 @@ function ligarEventos() {
   $('#btn-centrar').addEventListener('click', () => { modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); if (modoSeguir) toast('Seguindo você no mapa.'); });
   mapa.on('dragstart', () => { modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); });
   $('#btn-ver-todas').addEventListener('click', verTodas);
+  document.addEventListener('click', e => { if (e.target.closest('[data-ligar-gps]')) { gpsErro = null; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); } });
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
   $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
   $('#mapa-vazio').addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irAba(b.dataset.ir); });
@@ -1090,12 +1192,17 @@ function ligarEventos() {
   $('#partida').addEventListener('change', e => { if (e.target.id === 'sel-casa' && e.target.value) { partida = e.target.value; lsc.set('partida', partida); renderPartida(); } });
   $('#btn-montar').addEventListener('click', montarRoteiro);
   $('#btn-cheguei').addEventListener('click', cheguei);
+  $('#btn-parar').addEventListener('click', () => {
+    const b = $('#btn-parar');
+    if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.textContent = 'Toque de novo para parar'; b.classList.add('confirmar'); setTimeout(() => { delete b.dataset.confirma; b.textContent = 'Parar navegação'; b.classList.remove('confirmar'); }, 3500); return; }
+    delete b.dataset.confirma; b.textContent = 'Parar navegação'; b.classList.remove('confirmar'); pararNavegacao();
+  });
   $('#btn-pular').addEventListener('click', pularParada);
   $('#btn-falar').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
   $('#opt-voz').addEventListener('change', e => { vozAuto = e.target.checked; ls.set('hw.voz', vozAuto); if (vozAuto) falar('Guia por voz ligado. Vamos caçar doces!'); else { try { speechSynthesis.cancel(); } catch {} } });
   $('#opt-auto-chegada').addEventListener('change', e => { autoChegada = e.target.checked; ls.set('hw.autochegada', autoChegada); if (autoChegada) ligarGPS(false); });
   $('#lista-roteiro').addEventListener('click', e => { const v = e.target.closest('[data-visitar]'); if (v) { const id = v.dataset.visitar; const sim = !visitadas.has(id); marcarVisitada(id, sim); if (sim) SFX.sucesso(); return; } const ver = e.target.closest('[data-ver]'); if (ver) abrirFolha(ver.dataset.ver); });
-  $('#btn-limpar-visitas').addEventListener('click', () => { visitadas = new Set(); lsc.set('visitadas', []); renderRoteiro(); renderPins(); renderPlacar(); toast('Casas visitadas zeradas.'); });
+  $('#btn-limpar-visitas').addEventListener('click', () => { visitadas = new Set(); lsa.set('visitadas', []); renderRoteiro(); renderPins(); renderPlacar(); toast('Casas visitadas zeradas.'); });
 
   // participar
   $('#form-casa').addEventListener('click', e => { const c = e.target.closest('.chip[data-multi]'); if (c) c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true')); });
@@ -1104,6 +1211,8 @@ function ligarEventos() {
     if (!('geolocation' in navigator)) { toast('Sem GPS neste aparelho. Marque no mapa.'); return; }
     toast('Pegando sua posição…'); navigator.geolocation.getCurrentPosition(p => { pinCasa = {lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6)}; atualizarForm(); renderPins(); SFX.plim(); toast(`Posição marcada (precisão ${Math.round(p.coords.accuracy)} m). Se não estiver na porta de casa, ajuste no mapa.`, 4000); }, () => toast('Não consegui pegar o GPS. Marque no mapa.'), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
   });
+  $('#btn-repetir').addEventListener('click', () => { if (!casaAnoPassado || !casaAnoPassado.dados) return; const {uid, criadoEm, atualizadoEm, ...dados} = casaAnoPassado.dados; preencherForm(dados); $('#repetir-casa').hidden = true; SFX.plim(); toast('Casa do ano passado copiada. Confira os horários e salve.', 4000); });
+  document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   $('#btn-cancelar-edicao').addEventListener('click', () => { criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
     const b = $('#btn-excluir-minha'); if (!editandoId) return;
@@ -1132,11 +1241,26 @@ function ligarEventos() {
     const publico = $('#c-publico').checked, listado = $('#c-listado').checked;
     salvarSeguro(() => {
       const b = fb.fs.writeBatch(fb.db); const agora = Date.now();
-      b.set(fb.condo(cid), {nome, cidade, eventoNome: $('#c-evento').value.trim().slice(0, 80), data: $('#c-data').value, horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim().slice(0, 160), publico, listado, atualizadoEm: agora}, {merge: true});
+      b.set(fb.condo(cid), {nome, cidade, publico, listado, eventoAtual: anoAtualDoCondo(), atualizadoEm: agora}, {merge: true});
+      b.set(fb.evento(cid, ano), {nome: $('#c-evento').value.trim().slice(0, 80), data: $('#c-data').value, horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim().slice(0, 160), ...(eventoDoc ? {} : {criadoEm: agora}), atualizadoEm: agora}, {merge: true});
       if (listado) b.set(fb.busca(cid), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico, atualizadoEm: agora}); else b.delete(fb.busca(cid));
       return b.commit();
     }, 'Evento salvo!');
   });
+  $('#btn-novo-ano').addEventListener('click', async () => {
+    const b = $('#btn-novo-ano'); const prox = anoAtualDoCondo() + 1;
+    if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.textContent = `Toque de novo para começar ${prox}`; setTimeout(() => { delete b.dataset.confirma; renderAdmin(); }, 4000); return; }
+    delete b.dataset.confirma;
+    const base = evento.nome && /\d{4}/.test(evento.nome) ? evento.nome.replace(/\d{4}/, String(prox)) : `Halloween ${prox}`;
+    const ok = await salvarSeguro(() => {
+      const lote = fb.fs.writeBatch(fb.db); const agora = Date.now();
+      lote.set(fb.evento(cid, prox), {nome: base.slice(0, 80), data: `${prox}-10-31`, horaInicio: evento.horaInicio || '', horaFim: evento.horaFim || '', avisos: '', criadoEm: agora, atualizadoEm: agora});
+      lote.set(fb.condo(cid), {eventoAtual: prox, atualizadoEm: agora}, {merge: true});
+      return lote.commit();
+    }, `Halloween de ${prox} começou! As casas de ${prox - 1} continuam guardadas.`);
+    if (ok) { anoEscolhido = null; SFX.festa(); }
+  });
+
   $('#btn-marcar-portaria').addEventListener('click', () => { modo = 'portaria'; modoVoltar = 'organizador'; irAba('mapa'); renderModo(); if (evento.portaria) mapa.setView([evento.portaria.lat, evento.portaria.lng], Math.max(mapa.getZoom(), 17)); setTimeout(() => $('#mapa').scrollIntoView({behavior: 'smooth', block: 'center'}), 80); });
   $('#btn-centro-mapa').addEventListener('click', () => { irAba('mapa'); const c = mapa.getCenter(); salvarSeguro(() => salvarCondo({centro: {lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6)}, zoom: Math.max(3, Math.min(20, Math.round(mapa.getZoom())))}), 'Pronto! O mapa abre assim para todo mundo.'); });
   $('#btn-novo-convite').addEventListener('click', async () => {
@@ -1158,7 +1282,7 @@ function ligarEventos() {
     if (e.target.closest('#btn-casa-outra')) { criandoOutra = true; editandoId = null; limparForm(); criandoOutra = true; irAba('participar'); return; }
     if ((b = q('data-excluir'))) { if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.className = 'btn btn-p btn-perigo'; b.textContent = 'Confirmar exclusão'; setTimeout(() => { if (b.isConnected) renderAdmin(); }, 4000); return; } const id = b.dataset.excluir; await salvarSeguro(() => fb.fs.deleteDoc(fb.casa(cid, id)), 'Casa excluída.'); return; }
   });
-  $('#btn-exportar').addEventListener('click', () => { const blob = new Blob([JSON.stringify({condominio: cid, evento, casas}, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rota-assombrada-${cid}-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
+  $('#btn-exportar').addEventListener('click', () => { const blob = new Blob([JSON.stringify({condominio: cid, ano, evento, casas}, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rota-assombrada-${cid}-${ano}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
   $('#c-importar').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return; const msg = $('#import-msg');
     try {
@@ -1200,7 +1324,7 @@ function abrirBoasVindas(perm) {
     <p>Dois ajustes rápidos para o Conde guiar você pelas casas.</p>
     <div class="passo" id="bv-som"><span class="passo-ic">${IC_SOM}</span><div><b>Ligue o som</b>
       <p class="dica">Tire o celular do silencioso e aumente o volume. O guia fala o caminho e os botões fazem barulhos divertidos.</p>
-      <button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><p class="dica" id="bv-som-resp" hidden>Ouviu a risada? Se não, aumente o volume e toque de novo.</p></div></div>
+      <div class="acoes-bv"><button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><button class="btn btn-primario" data-bv="musica" id="bv-musica">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} ${AUDIO.tocando ? 'Desligar música' : 'Ligar música'}</button></div><p class="dica" id="bv-som-resp" hidden>Ouviu a risada? Se não, aumente o volume e toque de novo.</p></div></div>
     <div class="passo" id="bv-gps"><span class="passo-ic">${IC_GPS}</span><div><b>Ligue o GPS</b>
       <p class="dica">Ele mostra onde você está no mapa e avisa quando chegar em cada casa.</p><div id="bv-gps-corpo">${passoGPS}</div></div></div>
     <div class="acoes"><button class="btn btn-primario btn-grande" data-bv="fim">Vamos lá!</button></div>
@@ -1222,6 +1346,7 @@ document.addEventListener('click', e => {
     falaDracula('Muahahaha! Bem-vindos à Rota Assombrada! Se você está me ouvindo, o som está perfeito.', () => SFX.risada());
     $('#bv-som-resp').hidden = false; $('#bv-som-resp').textContent = 'Ouviu o Drácula? Se não, tire do silencioso, aumente o volume e toque de novo.';
   }
+  if (a === 'musica') { alternarMusica(); const m = $('#bv-musica'); if (m) m.lastChild.textContent = AUDIO.tocando ? ' Desligar música' : ' Ligar música'; }
   if (a === 'gps') {
     gpsErro = null; b.disabled = true; b.textContent = 'Procurando satélites…';
     if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; }

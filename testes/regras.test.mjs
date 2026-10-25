@@ -38,21 +38,21 @@ beforeEach(async () => {
     await setDoc(doc(db, 'condominios/VALE2/convites/CONVITEVALIDO1'), {papel: 'morador', ativo: true, expiraEm: agora + 864e5, criadoPor: 'adminA', criadoEm: agora});
     await setDoc(doc(db, 'condominios/VALE2/convites/CONVITEVELHO01'), {papel: 'morador', ativo: true, expiraEm: agora - 1000, criadoPor: 'adminA', criadoEm: agora});
     await setDoc(doc(db, 'condominios/VALE2/convites/CONVITEOFF0001'), {papel: 'morador', ativo: false, expiraEm: agora + 864e5, criadoPor: 'adminA', criadoEm: agora});
-    await setDoc(doc(db, 'condominios/VALE2/casas/morM'), casaBase('morM'));
+    await setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaBase('morM'));
     await setDoc(doc(db, 'condominios/XUTR2'), condoBase('Outro', false, 'adminB'));
     await setDoc(doc(db, 'condominios/XUTR2/membros/adminB'), membro('adminB', 'admin', 'b@x.com'));
-    await setDoc(doc(db, 'condominios/XUTR2/casas/x1'), casaBase('adminB'));
+    await setDoc(doc(db, 'condominios/XUTR2/eventos/2026/casas/x1'), casaBase('adminB'));
     await setDoc(doc(db, 'condominios/ABERT'), condoBase('Aberto', true, 'adminB'));
-    await setDoc(doc(db, 'condominios/ABERT/casas/y1'), casaBase('adminB'));
+    await setDoc(doc(db, 'condominios/ABERT/eventos/2026/casas/y1'), casaBase('adminB'));
   });
 });
 
 // ---------- visitante sem login ----------
 test('visitante: lê dados básicos do condomínio pelo link', async () => { await assertSucceeds(getDoc(doc(visitante(), 'condominios/VALE2'))); });
 test('visitante: NÃO lista todos os condomínios', async () => { await assertFails(getDocs(collection(visitante(), 'condominios'))); });
-test('visitante: NÃO vê casas de condomínio fechado', async () => { await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/casas'))); });
-test('visitante: vê casas de condomínio público', async () => { await assertSucceeds(getDocs(collection(visitante(), 'condominios/ABERT/casas'))); });
-test('visitante: NÃO grava casa nem em condomínio público', async () => { await assertFails(setDoc(doc(visitante(), 'condominios/ABERT/casas/z'), casaBase('z'))); });
+test('visitante: NÃO vê casas de condomínio fechado', async () => { await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/eventos/2026/casas'))); });
+test('visitante: vê casas de condomínio público', async () => { await assertSucceeds(getDocs(collection(visitante(), 'condominios/ABERT/eventos/2026/casas'))); });
+test('visitante: NÃO grava casa nem em condomínio público', async () => { await assertFails(setDoc(doc(visitante(), 'condominios/ABERT/eventos/2026/casas/z'), casaBase('z'))); });
 test('visitante: NÃO lê convites nem membros', async () => {
   await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/convites')));
   await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/membros')));
@@ -63,7 +63,7 @@ test('visitante: NÃO acessa caminhos antigos ou desconhecidos', async () => {
 });
 
 // ---------- estranho logado com Google ----------
-test('estranho: NÃO vê casas de condomínio fechado', async () => { await assertFails(getDocs(collection(como('estr', 'e@x.com'), 'condominios/VALE2/casas'))); });
+test('estranho: NÃO vê casas de condomínio fechado', async () => { await assertFails(getDocs(collection(como('estr', 'e@x.com'), 'condominios/VALE2/eventos/2026/casas'))); });
 test('estranho: pode pedir acesso (pendente)', async () => {
   await assertSucceeds(setDoc(doc(como('estr', 'e@x.com'), 'condominios/VALE2/membros/estr'), membro('estr', 'pendente', 'e@x.com')));
 });
@@ -95,8 +95,8 @@ test('estranho: NÃO pede acesso a condomínio que não existe', async () => {
 // ---------- pendente ----------
 test('pendente: NÃO vê casas nem cadastra casa', async () => {
   const db = como('penP', 'p@x.com');
-  await assertFails(getDocs(collection(db, 'condominios/VALE2/casas')));
-  await assertFails(setDoc(doc(db, 'condominios/VALE2/casas/penP'), casaBase('penP')));
+  await assertFails(getDocs(collection(db, 'condominios/VALE2/eventos/2026/casas')));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/penP'), casaBase('penP')));
 });
 test('pendente: NÃO se aprova sozinho', async () => {
   await assertFails(updateDoc(doc(como('penP', 'p@x.com'), 'condominios/VALE2/membros/penP'), {papel: 'morador'}));
@@ -106,24 +106,24 @@ test('pendente: pode cancelar o próprio pedido', async () => {
 });
 
 // ---------- morador ----------
-test('morador: vê as casas do condomínio', async () => { await assertSucceeds(getDocs(collection(como('morM', 'm@x.com'), 'condominios/VALE2/casas'))); });
+test('morador: vê as casas do condomínio', async () => { await assertSucceeds(getDocs(collection(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas'))); });
 test('morador: edita a própria casa', async () => {
-  await assertSucceeds(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/morM'), {...casaBase('morM'), obs: 'Nova obs'}));
+  await assertSucceeds(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {...casaBase('morM'), obs: 'Nova obs'}));
 });
 test('morador: NÃO cria casa com id de outra pessoa', async () => {
-  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/outra'), casaBase('morM')));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/outra'), casaBase('morM')));
 });
 test('morador: NÃO passa a própria casa para outro dono', async () => {
-  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/morM'), casaBase('adminA')));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), casaBase('adminA')));
 });
 test('morador: NÃO edita nem apaga casa alheia', async () => {
-  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/casas/adminA'), casaBase('adminA')));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026/casas/adminA'), casaBase('adminA')));
   const db = como('morM', 'm@x.com');
-  await assertFails(setDoc(doc(db, 'condominios/VALE2/casas/adminA'), {...casaBase('adminA'), obs: 'hack'}));
-  await assertFails(deleteDoc(doc(db, 'condominios/VALE2/casas/adminA')));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/adminA'), {...casaBase('adminA'), obs: 'hack'}));
+  await assertFails(deleteDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/adminA')));
 });
 test('morador: dados inválidos são recusados', async () => {
-  const db = como('morM', 'm@x.com'); const ref = doc(db, 'condominios/VALE2/casas/morM');
+  const db = como('morM', 'm@x.com'); const ref = doc(db, 'condominios/VALE2/eventos/2026/casas/morM');
   await assertFails(setDoc(ref, {...casaBase('morM'), campoExtra: 'x'}));
   await assertFails(setDoc(ref, {...casaBase('morM'), obs: 'x'.repeat(241)}));
   await assertFails(setDoc(ref, {...casaBase('morM'), flags: ['inventada']}));
@@ -149,20 +149,20 @@ test('morador: NÃO lê o cadastro de outro membro', async () => {
   await assertFails(getDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/membros/adminA')));
 });
 test('morador de um condomínio NÃO vê casas de outro', async () => {
-  await assertFails(getDocs(collection(como('morM', 'm@x.com'), 'condominios/XUTR2/casas')));
+  await assertFails(getDocs(collection(como('morM', 'm@x.com'), 'condominios/XUTR2/eventos/2026/casas')));
 });
 
 // ---------- login que não é Google ou e-mail não verificado ----------
 test('login por senha (não Google) NÃO grava, mesmo sendo morador', async () => {
   const db = env.authenticatedContext('morM', {email: 'm@x.com', email_verified: true, firebase: {sign_in_provider: 'password'}}).firestore();
-  await assertFails(setDoc(doc(db, 'condominios/VALE2/casas/morM'), casaBase('morM')));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaBase('morM')));
 });
 test('login anônimo NÃO grava', async () => {
   const db = env.authenticatedContext('morM', {firebase: {sign_in_provider: 'anonymous'}}).firestore();
-  await assertFails(setDoc(doc(db, 'condominios/VALE2/casas/morM'), casaBase('morM')));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaBase('morM')));
 });
 test('e-mail não verificado NÃO grava', async () => {
-  await assertFails(setDoc(doc(como('morM', 'm@x.com', {email_verified: false}), 'condominios/VALE2/casas/morM'), casaBase('morM')));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com', {email_verified: false}), 'condominios/VALE2/eventos/2026/casas/morM'), casaBase('morM')));
 });
 
 // ---------- admin do condomínio ----------
@@ -192,13 +192,13 @@ test('admin: NÃO troca quem criou o condomínio nem adiciona campos', async () 
 });
 test('admin: edita e exclui casa de morador', async () => {
   const db = como('adminA', 'a@x.com');
-  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/casas/morM'), {...casaBase('morM'), obs: 'corrigido'}));
-  await assertSucceeds(deleteDoc(doc(db, 'condominios/VALE2/casas/morM')));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), {...casaBase('morM'), obs: 'corrigido'}));
+  await assertSucceeds(deleteDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM')));
 });
 test('admin de um condomínio NÃO mexe em outro', async () => {
   const db = como('adminA', 'a@x.com');
-  await assertFails(getDocs(collection(db, 'condominios/XUTR2/casas')));
-  await assertFails(setDoc(doc(db, 'condominios/XUTR2/casas/x1'), {...casaBase('adminB'), obs: 'hack'}));
+  await assertFails(getDocs(collection(db, 'condominios/XUTR2/eventos/2026/casas')));
+  await assertFails(setDoc(doc(db, 'condominios/XUTR2/eventos/2026/casas/x1'), {...casaBase('adminB'), obs: 'hack'}));
   await assertFails(setDoc(doc(db, 'condominios/XUTR2'), {publico: true}, {merge: true}));
   await assertFails(setDoc(doc(db, 'condominios/XUTR2/membros/adminA'), membro('adminA', 'admin', 'a@x.com')));
 });
@@ -234,6 +234,7 @@ function loteCriacao(db, uid, email, cid, extra = {}) {
   b.set(doc(db, 'criadores/' + uid), {cid, criadoEm: agora});
   b.set(doc(db, `condominios/${cid}/membros/${uid}`), membro(uid, 'admin', email));
   b.set(doc(db, 'busca/' + cid), buscaBase('Novo'));
+  b.set(doc(db, `condominios/${cid}/eventos/2026`), {nome: 'Halloween 2026', data: '2026-10-31', horaInicio: '', horaFim: '', avisos: '', criadoEm: agora, atualizadoEm: agora});
   return b.commit();
 }
 test('qualquer conta Google cria um condomínio e vira admin', async () => {
@@ -324,7 +325,7 @@ test('dono: migra condomínio de código antigo para o novo', async () => {
   b.set(doc(db, 'condominios/MGR22'), condoBase('Antigo', true, 'dono'));
   b.set(doc(db, 'busca/MGR22'), buscaBase('Antigo'));
   b.set(doc(db, 'condominios/MGR22/membros/morM'), membro('morM', 'morador', 'm@x.com'));
-  b.set(doc(db, 'condominios/MGR22/casas/morM'), casaBase('morM'));
+  b.set(doc(db, 'condominios/MGR22/eventos/2026/casas/morM'), casaBase('morM'));
   await assertSucceeds(b.commit());
   const apagar = writeBatch(db);
   apagar.delete(doc(db, 'condominios/csa1/membros/morM')); apagar.delete(doc(db, 'condominios/csa1/casas/morM')); apagar.delete(doc(db, 'condominios/csa1'));
@@ -335,4 +336,45 @@ test('admin comum NÃO apaga condomínio antigo nem cria com código antigo', as
   await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/csa1/membros/adminA'), membro('adminA', 'admin', 'a@x.com')));
   await assertFails(deleteDoc(doc(como('adminA', 'a@x.com'), 'condominios/csa1')));
   await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/csa1'), {avisos: 'x'}, {merge: true}));
+});
+
+// ---------- eventos por ano ----------
+const eventoBase = (nome = 'Halloween 2027') => ({nome, data: '2027-10-31', horaInicio: '18:30', horaFim: '21:00', avisos: '', criadoEm: agora, atualizadoEm: agora});
+test('evento: qualquer pessoa lê os dados do evento', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026'), eventoBase('Halloween 2026')));
+  await assertSucceeds(getDoc(doc(visitante(), 'condominios/VALE2/eventos/2026')));
+});
+test('evento: admin começa o ano seguinte', async () => {
+  await assertSucceeds(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2/eventos/2027'), eventoBase()));
+  await assertSucceeds(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2'), {eventoAtual: 2027}, {merge: true}));
+});
+test('evento: morador e estranho NÃO criam evento', async () => {
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2027'), eventoBase()));
+  await assertFails(setDoc(doc(como('estr', 'e@x.com'), 'condominios/VALE2/eventos/2027'), eventoBase()));
+});
+test('evento: admin de outro condomínio NÃO cria evento aqui', async () => {
+  await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/XUTR2/eventos/2027'), eventoBase()));
+});
+test('evento: ano inválido ou campo extra são recusados', async () => {
+  const db = como('adminA', 'a@x.com');
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/1999'), eventoBase()));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/abcd'), eventoBase()));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2027'), {...eventoBase(), telefone: '1199'}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2'), {eventoAtual: 1999}, {merge: true}));
+});
+test('evento: casa de um ano não mexe na casa de outro', async () => {
+  await assertSucceeds(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2027/casas/morM'), casaBase('morM')));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2027/casas/adminA'), casaBase('morM')));
+});
+test('formato antigo: ninguém cria casa fora de um evento', async () => {
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/morM'), casaBase('morM')));
+  await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2/casas/x9'), casaBase('adminA')));
+});
+test('formato antigo: admin lê e limpa as casas antigas ao migrar', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/casas/velha'), casaBase('morM')));
+  const db = como('adminA', 'a@x.com');
+  await assertSucceeds(getDocs(collection(db, 'condominios/VALE2/casas')));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/velha'), casaBase('morM')));
+  await assertSucceeds(deleteDoc(doc(db, 'condominios/VALE2/casas/velha')));
+  await assertFails(deleteDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/velha')));
 });

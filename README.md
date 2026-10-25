@@ -24,7 +24,8 @@ Não existe servidor próprio. O site é só arquivos estáticos no GitHub Pages
 condominios/{codigo}                 nome, evento, centro do mapa, portaria, público ou fechado
 condominios/{codigo}/membros/{uid}   papel: admin | morador | pendente
 condominios/{codigo}/convites/{cod}  convite de morador, com validade
-condominios/{codigo}/casas/{id}      casas (a do morador tem o id da conta dele)
+condominios/{codigo}/eventos/{ano}   evento do ano: nome, data, horário, aviso
+condominios/{codigo}/eventos/{ano}/casas/{id}   casas daquele ano (a do morador tem o id da conta dele)
 ```
 
 ## Papéis

@@ -485,3 +485,20 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
   .btn-conta:not(.logado){width:48px;padding:0;justify-content:center}
   .btn-conta svg{width:24px;height:24px}
 }
+
+/* ===== Eventos por ano, parar navegação, GPS, música ===== */
+.sel-ano{width:auto;min-height:40px;padding:4px 30px 4px 12px;border-radius:999px;font-weight:900;font-size:.9rem;flex:none;background:var(--superficie2);border:2px solid var(--borda);color:var(--fg)}
+.btn-parar{color:#ff8ea5;border-color:#7a2a3d}
+.btn-parar.confirmar{background:linear-gradient(180deg,#ff7a94,var(--sangue));color:#2a0010;border-color:transparent}
+.recomendado{font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;background:rgba(0,0,0,.18);padding:2px 8px;border-radius:999px;margin-left:6px}
+.nav-extra{align-items:center}
+.nav-extra .rotulo{margin-right:4px}
+.gps-cartao{margin-top:12px;border-color:var(--abobora);background:linear-gradient(180deg,rgba(255,138,31,.12),var(--superficie) 60%)}
+.gps-cartao b{font-size:1.05rem}
+.gps-cartao p{margin:6px 0 10px}
+.repetir-casa{margin-top:12px;padding:12px 14px;border-radius:var(--raio-p);border:1px solid var(--veneno-escuro);background:rgba(141,240,106,.1);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.repetir-casa p{margin:0;font-weight:800;color:var(--fg)}
+.acoes-bv{display:flex;flex-wrap:wrap;gap:10px}
+.acoes-bv .btn{min-height:44px}
+.linha-condo .sel-ano{width:auto;max-width:104px;flex:0 0 auto}
+.linha-condo .pill-btn{flex:1 1 auto}

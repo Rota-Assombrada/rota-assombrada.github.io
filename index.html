@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=24">
+<link rel="stylesheet" href="css/estilo.css?v=26">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -61,6 +61,7 @@
     <div class="linha-condo" id="linha-condo" hidden>
       <button class="pill pill-btn" id="btn-condo" aria-label="Trocar de condomínio"><span id="nome-condo"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       <span class="pill papel" id="pill-papel" hidden></span>
+      <label for="sel-ano" class="sr">Ano do evento</label><select id="sel-ano" class="sel-ano" hidden></select>
     </div>
     <p class="sub" id="sub-evento"></p>
     <div class="placar" id="placar"></div>
@@ -106,6 +107,7 @@
     <section id="painel-mapa" class="painel" hidden>
       <div id="acesso" class="cartao acesso" hidden></div>
       <div id="mapa-bloco">
+        <div class="cartao gps-cartao" id="gps-cartao" hidden role="status"></div>
         <div class="barra-mapa">
           <div class="chips" id="filtros" role="group" aria-label="Filtros do mapa"></div>
         </div>
@@ -132,6 +134,7 @@
           <button class="btn btn-sucesso btn-grande" id="btn-cheguei">Cheguei! Próxima casa</button>
         </div>
         <div class="nav-extra" id="nav-extra"></div>
+        <div class="acoes"><button class="btn btn-fantasma btn-parar" id="btn-parar">Parar navegação</button></div>
         <label class="check"><input type="checkbox" id="opt-voz"> Guia por voz automático</label>
         <label class="check"><input type="checkbox" id="opt-auto-chegada" checked> Detectar chegada pelo GPS (a 25 m da casa)</label>
         <p class="dica" id="voz-status"></p>
@@ -166,6 +169,7 @@
         <h2 id="participar-titulo">Cadastrar minha casa</h2>
         <p id="participar-intro"></p>
         <div id="gate" class="gate" hidden></div>
+        <div class="repetir-casa" id="repetir-casa" hidden><p>Você participou no ano passado.</p><button type="button" class="btn btn-sucesso" id="btn-repetir">Repetir minha casa do ano passado</button></div>
         <form id="form-casa" novalidate hidden>
           <div class="linha">
             <div class="campo"><label for="f-rua">Rua / quadra</label><input type="text" id="f-rua" autocomplete="off" placeholder="Rua das Abóboras" maxlength="60"></div>
@@ -215,8 +219,13 @@
         <div class="acoes"><button class="btn btn-primario" id="btn-novo-convite">Gerar convite</button></div>
         <ul class="lista-casas" id="lista-convites"></ul>
       </div>
+      <div class="cartao" id="card-ano">
+        <h2>Evento do ano</h2>
+        <p class="dica" id="ano-status"></p>
+        <div class="acoes"><button class="btn btn-primario" id="btn-novo-ano">Começar o próximo Halloween</button></div>
+      </div>
       <div class="cartao">
-        <h2>Evento</h2>
+        <h2 id="titulo-evento">Evento</h2>
         <div class="campo"><label for="c-nome">Nome do condomínio</label><input type="text" id="c-nome" maxlength="80"></div>
         <div class="campo"><label for="c-evento">Nome do evento</label><input type="text" id="c-evento" maxlength="80" placeholder="Halloween 2026"></div>
         <div class="linha">
@@ -264,6 +273,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=24"></script>
+<script type="module" src="js/app.js?v=26"></script>
 </body>
 </html>
