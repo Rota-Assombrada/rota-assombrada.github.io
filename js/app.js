@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=26';
+import CONFIG from './config.js?v=27';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -381,11 +381,24 @@ function filtrada(c) {
 const podeEditar = c => !!c && (ehAdmin() || (ehMorador() && !!meuUid() && c.uid === meuUid()));
 
 /* ---------- links para o app de mapas do celular ---------- */
+// De onde sai a navegação até a casa c. Partida "GPS": sem origem, o app de mapas usa a posição atual do celular.
+// Portaria ou casa escolhida: a primeira parada sai dela e as seguintes saem da casa anterior do roteiro.
+function origemNav(c) {
+  const tipo = roteiro && roteiro.partida ? roteiro.partida : partida;
+  if (tipo === 'gps') return null;
+  if (roteiro) {
+    const i = roteiro.ordem.indexOf(c.id);
+    for (let k = i - 1; k >= 0; k--) { const a = casaPorId(roteiro.ordem[k]); if (a) return a; }
+    if (i >= 0) return roteiro.de;
+  }
+  const pp = pontoPartida(); return pp && !(pp.p.lat === c.lat && pp.p.lng === c.lng) ? pp.p : null;
+}
+const coord = p => `${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`;
 function linksNav(c) {
-  const d = `${c.lat},${c.lng}`; const nome = encodeURIComponent(nomeCasaTxt(c));
+  const d = coord(c); const nome = encodeURIComponent(nomeCasaTxt(c)); const o = origemNav(c);
   return {
-    apple: `https://maps.apple.com/?daddr=${d}&dirflg=w&q=${nome}`,
-    google: `https://www.google.com/maps/dir/?api=1&destination=${d}&travelmode=walking`,
+    apple: `https://maps.apple.com/?${o ? `saddr=${coord(o)}&` : ''}daddr=${d}&dirflg=w&q=${nome}`,
+    google: `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${d}&travelmode=walking`,
     waze: `https://waze.com/ul?ll=${d}&navigate=yes`,
   };
 }
@@ -393,9 +406,11 @@ const linkPrincipal = c => linksNav(c).google;   // Google Maps é o recomendado
 function linkRotaCompleta() {
   if (!roteiro) return '';
   const pend = roteiro.ordem.map(casaPorId).filter(c => c && !visitadas.has(c.id)).slice(0, 10); if (!pend.length) return '';
-  const origem = posicao ? `${posicao.lat},${posicao.lng}` : `${roteiro.de.lat},${roteiro.de.lng}`;
-  const dest = pend[pend.length - 1]; const wps = pend.slice(0, -1).map(c => `${c.lat},${c.lng}`).join('|');
-  return `https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${dest.lat},${dest.lng}${wps ? '&waypoints=' + encodeURIComponent(wps) : ''}&travelmode=walking`;
+  // Sai do início escolhido (ou da última casa visitada); com partida "GPS", da posição atual do celular.
+  const tipo = roteiro.partida || partida; const feitas = roteiro.ordem.map(casaPorId).filter(c => c && visitadas.has(c.id));
+  const o = tipo === 'gps' ? null : (feitas.length ? feitas[feitas.length - 1] : roteiro.de);
+  const dest = pend[pend.length - 1]; const wps = pend.slice(0, -1).map(coord).join('|');
+  return `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${coord(dest)}${wps ? '&waypoints=' + encodeURIComponent(wps) : ''}&travelmode=walking`;
 }
 
 /* ---------- mapa (Leaflet + OpenStreetMap) ---------- */
@@ -597,7 +612,7 @@ async function montarRoteiro() {
   }
   btn.disabled = false; btn.innerHTML = txtBtn;
   roteiroAberto = false;
-  roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
+  roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, partida, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`);
