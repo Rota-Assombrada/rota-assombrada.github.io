@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=31';
+import CONFIG from './config.js?v=32';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);

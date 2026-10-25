@@ -523,3 +523,10 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .mini-etq{color:var(--fg3);font-size:.8rem;font-weight:700;margin-top:2px}
 .casa-visitada{width:32px;height:32px;border-radius:50%;background:var(--veneno);color:var(--no-veneno);display:flex;align-items:center;justify-content:center;flex:none}
 .casa-visitada svg{width:18px;height:18px}
+
+/* ===== Créditos ===== */
+.creditos{display:flex;flex-direction:column;align-items:center;gap:2px;margin:36px 0 8px;padding-top:18px;border-top:1px solid var(--borda);text-align:center;color:var(--fg3)}
+.creditos svg{width:34px;height:34px;filter:drop-shadow(0 0 10px rgba(255,138,31,.5));animation:balancar 3s ease-in-out infinite;transform-origin:50% 90%}
+.creditos p{margin:0;font-weight:700;font-size:.9rem}
+.creditos b{color:var(--abobora);font-weight:900}
+.creditos-sub{font-size:.75rem!important;opacity:.8}
