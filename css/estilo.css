@@ -800,3 +800,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .placa-pronta{text-align:center}
 .placa-pronta img{display:block;width:100%;max-width:360px;margin:12px auto;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .placa-pronta .acoes{justify-content:center}
+
+/* splash que continua o da página de redirecionamento: sem animação de entrada */
+.splash.continua .splash-drac .dracula{animation:flutuar 4s ease-in-out infinite}
+.splash.continua .splash-titulo{animation:none}

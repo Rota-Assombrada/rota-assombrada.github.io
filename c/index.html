@@ -23,10 +23,56 @@
 <meta name="twitter:image" content="https://rota-assombrada.github.io/img/preview.jpg?v=3">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="https://rota-assombrada.github.io/img/favicon-32.png">
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0a16;color:#f7f1ff;font:700 18px system-ui,sans-serif;text-align:center;padding:24px}a{color:#ff8a1f}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@700;800;900&display=swap">
+<style>:root{--fg:#f7f1ff;--fg2:#cdc2e6;--abobora:#ff8a1f;--abobora2:#ff6a00;--f-titulo:'Creepster','Impact','Arial Black',sans-serif}
+html,body{margin:0;background:#0d0a16;color:#f7f1ff;font-family:Nunito,'Segoe UI',system-ui,sans-serif}
+@keyframes flutuar{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-16px) rotate(3deg)}}
+/* ---------- tela de abertura (some sozinha quando o app fica pronto) ---------- */
+.splash{position:fixed;inset:0;z-index:5000;overflow:hidden;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(120% 80% at 50% 110%,#3a1d5e 0%,#15102a 55%,#0d0a16 100%);transition:opacity .45s ease,visibility .45s}
+.splash.saindo{opacity:0;visibility:hidden}
+.splash-lua{position:absolute;top:7%;right:9%;width:min(26vw,150px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fffbe6,#fff3c4 55%,#e9d58b);box-shadow:0 0 70px 24px rgba(255,243,196,.3);animation:splash-lua 4s ease-in-out infinite}
+.splash-centro{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 24px}
+.splash-drac .dracula{width:min(42vw,190px);animation:splash-drac .8s cubic-bezier(.34,1.56,.64,1) both,flutuar 4s ease-in-out .8s infinite}
+.splash-titulo{font-family:var(--f-titulo);font-size:clamp(2.4rem,11vw,4rem);line-height:1;margin-top:8px;color:var(--fg);text-shadow:0 0 24px rgba(255,138,31,.55),0 3px 0 #4a1d00;animation:splash-sobe .5s .1s ease-out both}
+.splash-titulo span{color:var(--abobora)}
+.splash-barra{width:min(60vw,240px);height:8px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:18px}
+.splash-barra i{display:block;height:100%;width:40%;border-radius:999px;background:linear-gradient(90deg,var(--abobora),var(--abobora2));animation:splash-barra 1.3s ease-in-out infinite}
+.splash-txt{margin:12px 0 0;color:var(--fg2);font-weight:800;min-height:1.5em}
+.splash-bat{position:absolute;width:52px;filter:drop-shadow(0 0 8px rgba(214,190,255,.8));animation:splash-voo 5s linear infinite}
+.splash-bat svg{animation:splash-asa .25s ease-in-out infinite alternate;transform-origin:center}
+.splash-bat.b1{top:18%;animation-delay:-1s}.splash-bat.b2{top:30%;width:36px;animation-duration:6.5s;animation-delay:-3.5s}.splash-bat.b3{top:62%;width:42px;animation-duration:7s;animation-delay:-5s}
+.splash-fantasma{position:absolute;width:64px;opacity:.85;filter:drop-shadow(0 0 16px rgba(255,255,255,.45));animation:splash-fantasma 3.2s ease-in-out infinite}
+.splash-fantasma.f1{left:7%;bottom:22%}.splash-fantasma.f2{right:10%;bottom:15%;width:48px;animation-delay:-1.4s}
+.splash-abo{position:absolute;bottom:5%;left:50%;width:min(24vw,110px);transform:translateX(-50%);filter:drop-shadow(0 0 24px rgba(255,138,31,.6));animation:splash-abo 1.8s ease-in-out infinite}
+@keyframes splash-drac{0%{transform:translateY(40px) scale(.6);opacity:0}100%{transform:none;opacity:1}}
+@keyframes splash-sobe{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@keyframes splash-barra{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+@keyframes splash-voo{0%{left:-15%;transform:translateY(0)}25%{transform:translateY(-18px)}50%{transform:translateY(10px)}75%{transform:translateY(-12px)}100%{left:110%;transform:translateY(0)}}
+@keyframes splash-asa{from{transform:scaleY(1)}to{transform:scaleY(.45)}}
+@keyframes splash-fantasma{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-16px) rotate(4deg)}}
+@keyframes splash-abo{0%,100%{transform:translateX(-50%) rotate(-5deg)}50%{transform:translateX(-50%) rotate(5deg) scale(1.05)}}
+@keyframes splash-lua{0%,100%{box-shadow:0 0 70px 24px rgba(255,243,196,.3)}50%{box-shadow:0 0 90px 34px rgba(255,243,196,.42)}}
+@media (prefers-reduced-motion:reduce){.splash *{animation:none!important}.splash-bat.b1{left:20%}.splash-bat.b2{left:70%}.splash-bat.b3{left:12%}}
+
+.splash-fallback{position:fixed;left:0;right:0;bottom:24px;z-index:5001;text-align:center;font-weight:800;opacity:0;animation:aparece .3s 4s forwards}
+.splash-fallback a{color:#ff8a1f}
+@keyframes aparece{to{opacity:1}}</style>
 </head>
 <body>
-<p>Abrindo a Rota Assombrada… <a id="ir" href="https://rota-assombrada.github.io/">toque aqui se não abrir</a></p>
-<script>var c=location.hash.slice(1).toUpperCase(),d='https://rota-assombrada.github.io/'+(/^[A-HJ-NP-Z2-9]{5}$/.test(c)?'#'+c:'#inicio');document.getElementById('ir').href=d;location.replace(d);</script>
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="splash-lua"></div>
+  <div class="splash-bat b1"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b2"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b3"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div>
+  <div class="splash-fantasma f1"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div><div class="splash-fantasma f2"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div>
+  <div class="splash-centro">
+    <div class="splash-drac"><svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><ellipse cx="80" cy="164" rx="46" ry="5" fill="#000" opacity=".35"/><g class="capa"><path d="M18 74 L80 58 L142 74 L150 162 L10 162 Z" fill="#1a0f2e"/><path d="M30 80 L80 66 L130 80 L136 160 L24 160 Z" fill="#b3123b"/></g><path d="M44 100 L80 88 L116 100 L118 160 L42 160 Z" fill="#1a0f2e"/><path d="M66 96 L80 108 L94 96 L94 160 L66 160 Z" fill="#f4f1fb"/><path d="M74 104 l6 10 6-10 z" fill="#b3123b"/><path d="M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z" fill="#b3123b"/><path d="M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z" fill="#2a1846"/><ellipse cx="80" cy="56" rx="30" ry="34" fill="#dcd6f0"/><path d="M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z" fill="#14091f"/><path d="M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z" fill="#dcd6f0"/><g class="olhos"><ellipse cx="68" cy="56" rx="6" ry="7" fill="#fff"/><ellipse cx="92" cy="56" rx="6" ry="7" fill="#fff"/><circle cx="69" cy="57" r="3.4" fill="#b3123b"/><circle cx="93" cy="57" r="3.4" fill="#b3123b"/><circle cx="70" cy="55.5" r="1.1" fill="#fff"/><circle cx="94" cy="55.5" r="1.1" fill="#fff"/></g><path d="M60 46 l14 4 M100 46 l-14 4" stroke="#14091f" stroke-width="3" stroke-linecap="round"/><ellipse cx="62" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><ellipse cx="98" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><g class="boca"><path d="M68 72 Q80 82 92 72 Q80 78 68 72 Z" fill="#4a0d1e"/><path d="M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z" fill="#fff"/></g></svg></div>
+    <div class="splash-titulo">Rota <span>Assombrada</span></div>
+    <div class="splash-barra"><i></i></div>
+    <p class="splash-txt" id="splash-txt">Abrindo a Rota Assombrada…</p>
+  </div>
+  <div class="splash-abo"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg></div>
+</div>
+<p class="splash-fallback"><a id="ir" href="https://rota-assombrada.github.io/">Não abriu? Toque aqui</a></p>
+<script>try{sessionStorage.setItem('hw.splash',String(Date.now()))}catch(e){}var c=location.hash.slice(1).toUpperCase(),d='https://rota-assombrada.github.io/'+(/^[A-HJ-NP-Z2-9]{5}$/.test(c)?'#'+c:'#inicio');document.getElementById('ir').href=d;location.replace(d);</script>
 </body>
 </html>

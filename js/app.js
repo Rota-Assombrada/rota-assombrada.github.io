@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=68';
+import CONFIG from './config.js?v=69';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2372,12 +2372,15 @@ setTimeout(conferirVersao, 20000);
 const splashInicio = Date.now();
 (function vigiarSplash() {
   const sp = document.getElementById('splash'); if (!sp) return;
+  // veio de uma página /c/CODIGO/ que já mostrava este splash: continua sem recomeçar animação nem tempo mínimo
+  let continua = false; try { continua = Date.now() - +(sessionStorage.getItem('hw.splash') || 0) < 15000; sessionStorage.removeItem('hw.splash'); } catch {}
+  if (continua) sp.classList.add('continua');
   const frases = ['Acordando o Drácula…', 'Soltando os morcegos…', 'Acendendo as abóboras…', 'Chamando os fantasmas…', 'Contando os doces…'];
   let i = 0; const tf = setInterval(() => { const t = document.getElementById('splash-txt'); if (t) t.textContent = frases[++i % frases.length]; }, 1100);
   const sair = () => { clearInterval(tf); clearInterval(tv); window.__splashMs = Date.now() - splashInicio; sp.classList.add('saindo'); setTimeout(() => sp.remove(), 500); };
   sp.addEventListener('click', sair);
   const pronto = () => authPronto && (!cid || (condoCarregado && papelCarregado));
-  const tv = setInterval(() => { const t = Date.now() - splashInicio; if ((pronto() && t > 1200) || t > 8000) sair(); }, 120);
+  const tv = setInterval(() => { const t = Date.now() - splashInicio; if ((pronto() && t > (continua ? 0 : 1200)) || t > 8000) sair(); }, 120);
 })();
 
 /* ---------- início ---------- */

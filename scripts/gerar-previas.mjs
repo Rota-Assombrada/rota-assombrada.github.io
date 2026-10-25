@@ -63,6 +63,30 @@ function capa(pasta, valores) {
   return `capa.jpg?v=${versao}`;
 }
 
+// ---------- splash das páginas de redirecionamento: a mesma tela de abertura do app ----------
+// Quem abre /c/CODIGO/ vê o splash daqui e o app continua o mesmo splash (sem "tela antes da tela").
+const raizSite = new URL('../', import.meta.url).pathname;
+const CSS_APP = readFileSync(`${raizSite}css/estilo.css`, 'utf8'), HTML_APP = readFileSync(`${raizSite}index.html`, 'utf8');
+const cssSplash = CSS_APP.slice(CSS_APP.indexOf('/* ---------- tela de abertura'), CSS_APP.indexOf('/* páginas sem app (privacidade)'));
+const mSplash = HTML_APP.match(/<div id="splash"[\s\S]*?<div class="splash-abo">[\s\S]*?<\/svg><\/div>\n<\/div>/);
+const HTML_SPLASH = mSplash ? mSplash[0].replace('Acordando o Drácula…', 'Abrindo a Rota Assombrada…') : '';
+const ESTILO_SPLASH = `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@700;800;900&display=swap">
+<style>:root{--fg:#f7f1ff;--fg2:#cdc2e6;--abobora:#ff8a1f;--abobora2:#ff6a00;--f-titulo:'Creepster','Impact','Arial Black',sans-serif}
+html,body{margin:0;background:#0d0a16;color:#f7f1ff;font-family:Nunito,'Segoe UI',system-ui,sans-serif}
+@keyframes flutuar{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-16px) rotate(3deg)}}
+${cssSplash}
+.splash-fallback{position:fixed;left:0;right:0;bottom:24px;z-index:5001;text-align:center;font-weight:800;opacity:0;animation:aparece .3s 4s forwards}
+.splash-fallback a{color:#ff8a1f}
+@keyframes aparece{to{opacity:1}}</style>`;
+const CORPO_SPLASH = `${HTML_SPLASH}\n<p class="splash-fallback"><a id="ir" href="${BASE}">Não abriu? Toque aqui</a></p>`;
+const MARCA_SPLASH = "try{sessionStorage.setItem('hw.splash',String(Date.now()))}catch(e){}";
+// Troca o visual antigo ("Abrindo…") pelo splash numa página de redirecionamento já pronta (c/, convite/, 404).
+function comSplash(html) {
+  html = html.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\n?/g, '').replace(/<style>[\s\S]*?<\/style>/, ESTILO_SPLASH);
+  html = html.replace(/<body>[\s\S]*?<script>/, `<body>\n${CORPO_SPLASH}\n<script>`);
+  if (!html.includes(MARCA_SPLASH)) html = html.replace('<script>', `<script>${MARCA_SPLASH}`);
+  return html;
+}
 function pagina({titulo, descricao, url, imagem, alt, destino}) {
   return `<!doctype html>
 <html lang="pt-BR">
@@ -135,7 +159,9 @@ for (const it of itens) {
   mkdirSync(`${pastaC}/${it.cid}/convite`, {recursive: true});
   const imgCondo = capa(`${pastaC}/${it.cid}`, {nome: it.nome, sub: 'O mapa das casas que dão doces no Halloween', chip: 'Veja as casas e monte o roteiro'});
   const imgConvite = capa(`${pastaC}/${it.cid}/convite`, CAPA_CONVITE(it.nome));
-  writeFileSync(`${pastaC}/${it.cid}/index.html`, paginaCondo(it, imgCondo));
-  writeFileSync(`${pastaC}/${it.cid}/convite/index.html`, paginaConvite(it, imgConvite));
+  writeFileSync(`${pastaC}/${it.cid}/index.html`, comSplash(paginaCondo(it, imgCondo)));
+  writeFileSync(`${pastaC}/${it.cid}/convite/index.html`, comSplash(paginaConvite(it, imgConvite)));
 }
+// páginas fixas de redirecionamento também usam o splash do app
+for (const f of ['c/index.html', 'convite/index.html', '404.html']) { const arq = `${raiz}${f}`; if (existsSync(arq)) writeFileSync(arq, comSplash(readFileSync(arq, 'utf8'))); }
 console.log(`Prévias geradas para ${itens.length} condomínio(s): ${itens.map(i => i.cid).join(', ') || 'nenhum'}${CHROME ? '' : ' (sem Chrome: capas genéricas)'}`);
