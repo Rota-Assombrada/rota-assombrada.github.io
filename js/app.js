@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=10';
+import CONFIG from './config.js?v=14';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -32,7 +32,7 @@ const IC = {
   copiar: svg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
   google: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>',
 };
-const PIN_SVG = `<svg viewBox="0 0 46 52" aria-hidden="true"><path d="M23 50c-2-6-6-9-6-9h12s-4 3-6 9z" fill="#2a0d00"/><path d="M22 6c2 1 3 4 3 7" stroke="#5a8a2a" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse class="corpo" cx="23" cy="26" rx="21" ry="17" fill="#ff8a1f"/><ellipse cx="12" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><ellipse cx="34" cy="26" rx="7" ry="16" fill="#e86a00" opacity=".55"/><path d="M13 20l4 5h-8zM33 20l4 5h-8z" fill="#2a0d00"/><path d="M12 32q11 8 22 0l-3 2-3-2-3 2-3-2-3 2-3-2-2 2z" fill="#2a0d00"/></svg>`;
+const PIN_SVG = `<svg viewBox="0 0 46 52" aria-hidden="true"><path d="M23 50c-2-6-6-9-6-9h12s-4 3-6 9z" fill="#2a0d00"/><path d="M22 6c2 1 3 4 3 7" stroke="#4f7a24" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M25 8c4-3 9-2 11 1-4 2-8 2-11-1z" fill="#6fa83a"/><ellipse class="corpo" cx="12" cy="26" rx="10" ry="16" fill="#ff8a1f"/><ellipse class="corpo" cx="34" cy="26" rx="10" ry="16" fill="#ff8a1f"/><ellipse class="corpo" cx="23" cy="26" rx="15" ry="17" fill="#ff8a1f"/></svg>`;
 const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg><span class="fantasminha"><svg viewBox="0 0 40 46" aria-hidden="true"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="currentColor"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></span></div>`;
 
 const OFERECE = [['doces','Doces e balas'],['chocolate','Chocolate'],['brincadeira','Brincadeira ou susto'],['decoracao','Casa decorada'],['lembrancinha','Lembrancinha']];
@@ -44,7 +44,7 @@ let cid = null;                 // código do condomínio aberto
 let condo = null;               // dados do condomínio aberto
 let condoCarregado = false;
 let casas = [];
-let evento = {nome: '', data: '', horaInicio: '', horaFim: '', whatsapp: '', avisos: '', portaria: null};
+let evento = {nome: '', data: '', horaInicio: '', horaFim: '', avisos: '', portaria: null};
 let usuario = null;             // {uid, nome, email, emailToken} quando logado com Google
 let donoPlataforma = false;     // decidido pelo hash do e-mail; as regras do Firestore conferem de novo no servidor
 let papel = '';                 // '' | 'pendente' | 'morador' | 'admin' no condomínio aberto
@@ -73,8 +73,15 @@ const lsc = {get: (k, d) => ls.get(`hw.${cid}.${k}`, d), set: (k, v) => ls.set(`
 const ehAdmin = () => donoPlataforma || papel === 'admin';
 const ehMorador = () => donoPlataforma || papel === 'admin' || papel === 'morador';
 const meuUid = () => usuario ? usuario.uid : null;
-const SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
-const RESERVADOS = ['inicio', 'admin', 'plataforma'];
+const CODIGO = /^[A-HJ-NP-Z2-9]{5}$/;   // 5 caracteres, sem I, O, 0 e 1
+const ALFABETO_CODIGO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const normalizarCodigo = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const semAcento = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function prefixosBusca(...textos) {
+  const set = new Set();
+  semAcento(textos.join(' ')).split(/[^a-z0-9]+/).filter(w => w.length >= 2).forEach(w => { for (let i = 2; i <= Math.min(w.length, 15); i++) set.add(w.slice(0, i)); });
+  return [...set].slice(0, 120);
+}
 
 /* ---------- Firebase (login Google + Firestore) ---------- */
 const fb = {
@@ -87,6 +94,11 @@ const fb = {
     ]);
     const app = initializeApp(CONFIG.firebase);
     this.fs = fs; this.db = fs.getFirestore(app); this.auth = auth; this.a = auth.getAuth(app); this.a.languageCode = 'pt';
+    // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
+    if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).has('emu')) {
+      fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento})};
+    }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
     auth.onAuthStateChanged(this.a, async u => {
@@ -104,6 +116,9 @@ const fb = {
   convites: id => fb.fs.collection(fb.db, 'condominios', id, 'convites'),
   casa: (id, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'casas', casaId),
   casas: id => fb.fs.collection(fb.db, 'condominios', id, 'casas'),
+  busca: id => fb.fs.doc(fb.db, 'busca', id),
+  buscas: () => fb.fs.collection(fb.db, 'busca'),
+  criador: uid => fb.fs.doc(fb.db, 'criadores', uid),
   async entrar() {
     if (!this.pronto) return;
     const prov = new this.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt: 'select_account'});
@@ -156,7 +171,7 @@ function abrirCondo(novo) {
     condoCarregado = true;
     if (!snap.exists()) { condo = null; renderTudoCondo(); return; }
     condo = snap.data();
-    evento = {nome: condo.eventoNome || '', data: condo.data || '', horaInicio: condo.horaInicio || '', horaFim: condo.horaFim || '', whatsapp: condo.whatsapp || '', avisos: condo.avisos || '', portaria: condo.portaria || null};
+    evento = {nome: condo.eventoNome || '', data: condo.data || '', horaInicio: condo.horaInicio || '', horaFim: condo.horaFim || '', avisos: condo.avisos || '', portaria: condo.portaria || null};
     lembrarRecente(cid, condo.nome);
     if (!centrouCondo && condo.centro) { centrouCondo = true; mapa.setView([condo.centro.lat, condo.centro.lng], condo.zoom || 17); }
     renderTudoCondo();
@@ -173,7 +188,13 @@ function assinarMembro() {
   if (!cid) return;
   if (!usuario) { papel = ''; papelCarregado = true; aoMudarPapel(); return; }
   papelCarregado = false;
-  subs.membro = fb.fs.onSnapshot(fb.membro(cid, usuario.uid), snap => { papel = snap.exists() ? snap.data().papel : ''; papelCarregado = true; aoMudarPapel(); },
+  // Espera o servidor confirmar (sem gravação pendente): as regras só enxergam o papel depois disso.
+  subs.membro = fb.fs.onSnapshot(fb.membro(cid, usuario.uid), {includeMetadataChanges: true}, snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    const novo = snap.exists() ? snap.data().papel : '';
+    if (papelCarregado && novo === papel && !snap.metadata.fromCache) { if (!podeVerCasas && ehMorador()) assinarCasas(); return; }
+    papel = novo; papelCarregado = true; aoMudarPapel();
+  },
     e => { console.error(e); papel = ''; papelCarregado = true; aoMudarPapel(); });
 }
 function aoMudarPapel() {
@@ -188,12 +209,14 @@ function aoMudarPapel() {
   renderTudoCondo();
   if (abaAtual === 'organizador' && !ehAdmin()) irAba('mapa');
 }
+let tentativasCasas = 0;
 function assinarCasas() {
   parar('casas'); if (!cid) return;
-  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { podeVerCasas = true; casas = s.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); },
+  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casas = s.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); },
     e => {
       podeVerCasas = false; casas = []; parar('casas'); aoMudarDados();
       if (e.code !== 'permission-denied') { console.error(e); setTimeout(() => { if (cid && !subs.casas) assinarCasas(); }, 5000); }
+      else if (ehMorador() && tentativasCasas < 4) { tentativasCasas++; setTimeout(() => { if (cid && !subs.casas) assinarCasas(); }, 1200 * tentativasCasas); }
     });
 }
 function aoMudarDados() {
@@ -303,8 +326,9 @@ function renderPins() {
   const vis = casas.filter(c => typeof c.lat === 'number' && filtrada(c));
   vis.forEach(c => { const m = L.marker([c.lat, c.lng], {icon: iconePin(c, {atual: c.id === atualId, ordem: ordemDe[c.id]}), title: nomeCasaTxt(c), zIndexOffset: c.id === atualId ? 1000 : 0}); m.on('click', () => { if (modo) return; abrirFolha(c.id); }); camadaPins.addLayer(m); });
   camadaExtras.clearLayers();
-  if (evento.portaria) camadaExtras.addLayer(L.marker([evento.portaria.lat, evento.portaria.lng], {icon: iconeMarcador(IC.porta), title: 'Portaria', interactive: false}));
-  if (pinCasa) camadaExtras.addLayer(L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeMarcador(IC.casa, 'pin-temp'), interactive: false}));
+  if (evento.portaria) camadaExtras.addLayer(L.marker([evento.portaria.lat, evento.portaria.lng], {icon: iconeMarcador(IC.porta, 'portaria'), title: 'Portaria', interactive: false, zIndexOffset: -100}));
+  const salva = editandoId && casaPorId(editandoId); const mudouPin = pinCasa && (!salva || salva.lat !== pinCasa.lat || salva.lng !== pinCasa.lng);
+  if (pinCasa && (modo === 'casa' || (abaAtual === 'participar' && mudouPin))) camadaExtras.addLayer(L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeMarcador(IC.casa, 'pin-temp'), interactive: false}));
   if (roteiro) {
     const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng]));
     if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8}));
@@ -471,7 +495,12 @@ function ligarVento() {
   const lfo = ctx.createOscillator(); const lg = ctx.createGain(); lfo.frequency.value = .11; lg.gain.value = 300; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
   const g = ctx.createGain(); g.gain.value = .07; src.connect(bp); bp.connect(g); g.connect(AUDIO.musicaGain); src.start(); AUDIO.ruido = src;
 }
+function mostrarDicaMusica() {
+  const d = $('#dica-musica'); if (!d || AUDIO.tocando) return;
+  d.hidden = false; clearTimeout(d._t); d._t = setTimeout(() => { d.hidden = true; }, 9000);
+}
 function alternarMusica(forcar) {
+  const dm = $('#dica-musica'); if (dm) dm.hidden = true;
   const ctx = ctxAudio(); if (!ctx) { toast('Seu navegador não permite áudio aqui.'); return; }
   const ligar = forcar ?? !AUDIO.tocando; AUDIO.tocando = ligar; ls.set('hw.musica', ligar);
   const b = $('#btn-musica'); b.setAttribute('aria-pressed', String(ligar)); b.setAttribute('aria-label', ligar ? 'Desligar música de fundo' : 'Ligar música de fundo');
@@ -502,6 +531,7 @@ Object.assign(SFX, {
   lua() { const c = ctxAudio(); if (!c) return; [659, 784, 988, 1319].forEach((f, i) => tocarTom(c.currentTime + i * .12, f, .9, 'sine', .08, AUDIO.master, {ataque: .01})); },
   aranha() { const c = ctxAudio(); if (!c) return; for (let i = 0; i < 6; i++) tocarTom(c.currentTime + i * .045, 300 + Math.random() * 400, .04, 'square', .05, AUDIO.master, {filtro: 1800, ataque: .002}); },
   festa() { SFX.sucesso(); setTimeout(() => SFX.risada(), 380); },
+  dracula() { SFX.risada(); const frases = ['Muahahaha!', 'Eu quero doces! Muahaha!', 'Boa noite, pequenos mortais!', 'Doces ou travessuras?']; setTimeout(() => falaDracula(frases[Math.floor(Math.random() * frases.length)]), 550); },
 });
 function somDoBotao(b) {
   if (b.classList.contains('btn-primario')) return SFX.boing();
@@ -510,7 +540,7 @@ function somDoBotao(b) {
   if (b.classList.contains('aba') || b.classList.contains('chip') || b.classList.contains('opcao')) return SFX.tique();
   return SFX.pop();
 }
-const ASSUSTAVEIS = [['.fantasma', 'fantasma'], ['.morcego', 'morcego'], ['.lua', 'lua'], ['.aranha', 'aranha'], ['.abobora-logo', 'risada'], ['.abobora-vazia', 'risada'], ['.fantasminha', 'fantasma']];
+const ASSUSTAVEIS = [['.dracula', 'dracula'], ['.fantasma', 'fantasma'], ['.morcego', 'morcego'], ['.lua', 'lua'], ['.aranha', 'aranha'], ['.abobora-logo', 'risada'], ['.abobora-vazia', 'risada'], ['.fantasminha', 'fantasma']];
 function tocarCenario(x, y, alvo) {
   for (const [sel, som] of ASSUSTAVEIS) {
     const el = alvo && alvo.closest(sel) || $$(sel).find(e => { const r = e.getBoundingClientRect(); return r.width && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8; });
@@ -617,6 +647,7 @@ function renderCabecalho() {
   $('#sub-evento').textContent = partes.join(' · ') + (evento.avisos ? (partes.length ? ' · ' : '') + evento.avisos : '');
 }
 function renderConta() {
+  if (!$('#folha').hidden && $('#folha-in [data-criar]') && !$('#form-criar') && usuario) abrirCriarCondo();
   const b = $('#btn-conta'); delete b.dataset.confirma;
   if (usuario) { const ini = (usuario.nome || usuario.email || '?').trim().charAt(0).toUpperCase(); b.innerHTML = `<span class="avatar">${h(ini)}</span>`; b.setAttribute('aria-label', `Conectado como ${usuario.nome || usuario.email}. Toque para sair.`); b.title = 'Sair'; b.classList.add('logado'); }
   else { b.innerHTML = `${IC.google}<span>Entrar</span>`; b.setAttribute('aria-label', 'Entrar com Google'); b.title = 'Entrar com Google'; b.classList.remove('logado'); }
@@ -668,8 +699,10 @@ function renderAdmin() {
   $('#link-condo').textContent = linkCondo();
   $('#btn-zap-link').href = `https://wa.me/?text=${encodeURIComponent(`Mapa do Halloween de ${condo.nome}: ${linkCondo()}`)}`;
   const set = (sel, v) => { if (campoLivre(sel)) $(sel).value = v || ''; };
-  set('#c-nome', condo.nome); set('#c-evento', condo.eventoNome); set('#c-data', condo.data); set('#c-zap', condo.whatsapp); set('#c-hi', condo.horaInicio); set('#c-hf', condo.horaFim); set('#c-avisos', condo.avisos);
+  set('#c-nome', condo.nome); set('#c-evento', condo.eventoNome); set('#c-data', condo.data); set('#c-cidade', condo.cidade); set('#c-hi', condo.horaInicio); set('#c-hf', condo.horaFim); set('#c-avisos', condo.avisos);
   if (campoLivre('#c-publico')) $('#c-publico').checked = !!condo.publico;
+  if (campoLivre('#c-listado')) $('#c-listado').checked = condo.listado !== false;
+  $('#codigo-condo').textContent = cid;
   $('#portaria-status').textContent = condo.portaria ? 'Portaria marcada no mapa.' : 'Portaria ainda não marcada. Ela vira o ponto de partida de quem está sem GPS.';
   const pend = membros.filter(m => m.papel === 'pendente'), ativos = membros.filter(m => m.papel !== 'pendente');
   $('#total-pendentes').textContent = pend.length; const bolha = $('#bolha-admin'); bolha.hidden = !pend.length; bolha.textContent = pend.length;
@@ -693,18 +726,74 @@ function mostrarInicio() {
 }
 function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
 let listaCondosCarregada = false;
+function cartaoCondo(id, nome, extra = '') { return `<li><a class="resultado" href="#${h(id)}"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>${extra ? h(extra) + ' · ' : ''}código ${h(id)}</span></span><span class="res-seta" aria-hidden="true">›</span></a></li>`; }
 async function renderInicio() {
   if (cid) return;
   $('#inicio-abobora').innerHTML = PUMPKIN_BIG;
-  const rec = ls.get('hw.recentes', []);
+  const rec = ls.get('hw.recentes', []).filter(r => CODIGO.test(r.cid));
   $('#card-recentes').hidden = !rec.length;
-  $('#lista-recentes').innerHTML = rec.map(r => `<li><div class="info"><b>${h(r.nome)}</b><span>${h(r.cid)}</span></div><div class="acoes"><a class="btn btn-p btn-primario" href="#${h(r.cid)}">Abrir</a></div></li>`).join('');
+  $('#lista-recentes').innerHTML = rec.map(r => cartaoCondo(r.cid, r.nome)).join('');
   $('#card-plataforma').hidden = !donoPlataforma;
   if (donoPlataforma && !listaCondosCarregada) {
     listaCondosCarregada = true;
-    try { const s = await fb.fs.getDocs(fb.condos()); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => `<li><div class="info"><b>${h(d.data().nome)}</b><span>${h(d.id)} · ${d.data().publico ? 'público' : 'fechado'}</span></div><div class="acoes"><a class="btn btn-p btn-primario" href="#${h(d.id)}">Abrir</a></div></li>`).join('') : '<li><div class="info"><span>Nenhum condomínio ainda.</span></div></li>'; }
+    try { const s = await fb.fs.getDocs(fb.condos()); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => cartaoCondo(d.id, d.data().nome, `${d.data().cidade || ''} ${d.data().publico ? '· público' : '· fechado'}`.trim())).join('') : '<li><div class="info"><span>Nenhum condomínio ainda.</span></div></li>'; }
     catch (e) { console.error(e); listaCondosCarregada = false; $('#lista-condos').innerHTML = '<li><div class="info"><span>Não consegui carregar a lista.</span></div></li>'; }
   }
+}
+let buscaTimer = null, buscaSeq = 0;
+async function buscarCondos(txt) {
+  const el = $('#resultados'); const palavras = semAcento(txt).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+  if (!palavras.length) { el.innerHTML = ''; return; }
+  const termo = palavras.reduce((a, b) => b.length > a.length ? b : a).slice(0, 15); const seq = ++buscaSeq;
+  el.innerHTML = '<li class="res-info">Procurando nas sombras…</li>';
+  try {
+    const s = await fb.fs.getDocs(fb.fs.query(fb.buscas(), fb.fs.where('prefixos', 'array-contains', termo), fb.fs.limit(20)));
+    if (seq !== buscaSeq) return;
+    const achados = s.docs.map(d => ({id: d.id, ...d.data()})).filter(d => palavras.every(w => (d.prefixos || []).some(p => p === w.slice(0, 15) || p.startsWith(w.slice(0, 15)))));
+    el.innerHTML = achados.length ? achados.slice(0, 10).map(d => cartaoCondo(d.id, d.nome, d.cidade)).join('')
+      : `<li class="res-info">Não achei nenhum condomínio com "${h(txt)}". Confira o nome ou peça o código ao organizador.</li>`;
+    if (achados.length) SFX.plim();
+  } catch (e) { console.error(e); if (seq === buscaSeq) el.innerHTML = '<li class="res-info">A busca não respondeu. Tente de novo.</li>'; }
+}
+
+/* ---------- criar condomínio (self-service) ---------- */
+function abrirCriarCondo() {
+  const corpo = !usuario
+    ? `<p>Para criar o condomínio do seu evento, entre com sua conta Google. Você vira o admin dele.</p><div class="acoes"><button class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button></div>`
+    : `<form id="form-criar" novalidate>
+        <div class="campo"><label for="n-nome">Nome do condomínio</label><input type="text" id="n-nome" maxlength="80" placeholder="Condomínio Vale Verde" autocomplete="off"></div>
+        <div class="campo"><label for="n-cidade">Cidade</label><input type="text" id="n-cidade" maxlength="60" placeholder="São Paulo" autocomplete="off"></div>
+        <p class="dica">O condomínio começa fechado: só moradores convidados ou aprovados veem as casas. Cada conta cria um condomínio.</p>
+        <p class="erro-msg" id="criar-erro" hidden></p>
+        <div class="acoes"><button class="btn btn-primario btn-grande" type="submit">Criar condomínio</button></div>
+      </form>`;
+  $('#folha-in').innerHTML = `<div class="boas-vindas" data-criar><h3>Organizar um condomínio</h3>${corpo}</div>`;
+  $('#folha').hidden = false;
+}
+async function criarCondo(nome, cidade) {
+  const err = $('#criar-erro'); const falha = m => { if (err) { err.textContent = m; err.hidden = false; } SFX.boo(); };
+  if (!usuario) { fb.entrar(); return; }
+  if (!nome) return falha('Dê um nome ao condomínio.');
+  if (!donoPlataforma) {
+    try { const c = await fb.fs.getDoc(fb.criador(usuario.uid)); if (c.exists()) { const id = c.data().cid; return falha(`Você já criou um condomínio (código ${id}). Abra ele pela busca ou pelo código.`); } } catch (e) { console.error(e); }
+  }
+  let cod = null;
+  for (let i = 0; i < 6 && !cod; i++) { const v = crypto.getRandomValues(new Uint8Array(5)); const c = [...v].map(x => ALFABETO_CODIGO[x % 32]).join(''); try { const ex = await fb.fs.getDoc(fb.condo(c)); if (!ex.exists()) cod = c; } catch (e) { console.error(e); } }
+  if (!cod) return falha('Não consegui gerar um código agora. Tente de novo.');
+  const centro = posicao ? {lat: +posicao.lat.toFixed(6), lng: +posicao.lng.toFixed(6)} : {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
+  const ok = await salvarSeguro(() => {
+    const b = fb.fs.writeBatch(fb.db); const agora = Date.now();
+    b.set(fb.condo(cod), {nome, cidade, eventoNome: CONFIG.evento.nome || 'Halloween', data: CONFIG.evento.data || '', horaInicio: CONFIG.evento.horaInicio || '', horaFim: CONFIG.evento.horaFim || '', avisos: '', portaria: null, centro, zoom: Math.round(CONFIG.zoom || 17), publico: false, listado: true, criadoPor: usuario.uid, criadoEm: agora, atualizadoEm: agora});
+    if (!donoPlataforma) b.set(fb.criador(usuario.uid), {cid: cod, criadoEm: agora});
+    b.set(fb.membro(cod, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: agora, atualizadoEm: agora});
+    b.set(fb.busca(cod), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico: false, atualizadoEm: agora});
+    return b.commit();
+  }, 'Condomínio criado!');
+  if (!ok) return;
+  listaCondosCarregada = false; SFX.festa();
+  $('#folha-in').innerHTML = `<div class="boas-vindas">${PUMPKIN_BIG}<h3>${h(nome)} está no mapa!</h3><p>Este é o código do seu condomínio:</p><div class="codigo-grande">${cod}</div>
+    <p class="dica">Ajuste o início do mapa e gere convites na aba Admin.</p><div class="acoes"><a class="btn btn-primario btn-grande" href="#${cod}" data-fechar-folha>Abrir meu condomínio</a></div></div>`;
+  ls.set('hw.aba', 'organizador');
 }
 function renderTudoCondo() {
   if (!cid) return;
@@ -717,7 +806,7 @@ function irAba(nome) {
   if (nome === 'organizador' && !ehAdmin()) nome = 'mapa';
   abaAtual = nome; ls.set('hw.aba', nome);
   ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
-  if (nome === 'mapa') setTimeout(() => mapa && mapa.invalidateSize(), 50);
+  if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
   if (nome === 'roteiro') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') atualizarParticipar();
   window.scrollTo({top: 0, behavior: 'auto'});
 }
@@ -736,6 +825,7 @@ function ligarEventos() {
     ctxAudio();
     const b = e.target.closest('.btn, .aba, .chip, .opcao');
     if (b) { somDoBotao(b); if (!reduzMovimento && b.classList.contains('btn')) { b.classList.remove('tremendo'); void b.offsetWidth; b.classList.add('tremendo'); } return; }
+    if (e.target.closest('.dracula')) { tocarCenario(e.clientX, e.clientY, e.target); return; }
     if (e.target.closest('input, textarea, select, label, a, .leaflet-container, .folha-in')) return;
     tocarCenario(e.clientX, e.clientY, e.target);
   }, {passive: true});
@@ -771,30 +861,18 @@ function ligarEventos() {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharFolha(); if (modo) { modo = null; renderModo(); } } });
 
   // início
+  $('#i-busca').addEventListener('input', e => { clearTimeout(buscaTimer); const v = e.target.value; buscaTimer = setTimeout(() => buscarCondos(v), 350); });
+  $('#i-busca').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(buscaTimer); buscarCondos(e.target.value); } });
   $('#form-ir-condo').addEventListener('submit', e => {
-    e.preventDefault(); const raw = $('#i-codigo').value.trim(); const m = raw.match(/#([a-z0-9-]+)(?:\/convite\/([A-Za-z0-9]+))?/i);
-    const cod = (m ? m[1] : raw).toLowerCase(); const err = $('#inicio-erro');
-    if (!SLUG.test(cod)) { err.textContent = 'Digite o código do condomínio, por exemplo: vale-verde.'; err.hidden = false; SFX.boo(); return; }
+    e.preventDefault(); const raw = $('#i-codigo').value.trim(); const m = raw.match(/#([A-Za-z0-9]{5})(?:\/convite\/([A-Za-z0-9]{8,40}))?/);
+    const cod = normalizarCodigo(m ? m[1] : raw); const err = $('#inicio-erro');
+    if (!CODIGO.test(cod)) { err.textContent = 'O código tem 5 letras e números, como K7QPX.'; err.hidden = false; SFX.boo(); return; }
     err.hidden = true; location.hash = m && m[2] ? `${cod}/convite/${m[2]}` : cod;
   });
-  const slugDe = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/^condom[ií]nio\s+/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-  $('#n-nome').addEventListener('input', () => { const c = $('#n-codigo'); if (!c.dataset.mexeu) c.value = slugDe($('#n-nome').value); $('#n-link').textContent = c.value ? `Link: ${location.origin}${location.pathname}#${c.value}` : ''; });
-  $('#n-codigo').addEventListener('input', () => { const c = $('#n-codigo'); c.dataset.mexeu = '1'; c.value = slugDe(c.value); $('#n-link').textContent = c.value ? `Link: ${location.origin}${location.pathname}#${c.value}` : ''; });
-  $('#form-novo-condo').addEventListener('submit', async e => {
-    e.preventDefault(); const err = $('#novo-erro'); const nome = $('#n-nome').value.trim().slice(0, 80); const cod = $('#n-codigo').value.trim();
-    const falha = msg => { err.textContent = msg; err.hidden = false; SFX.boo(); };
-    if (!donoPlataforma) return falha('Só o dono da plataforma cria condomínios.');
-    if (!nome) return falha('Dê um nome ao condomínio.');
-    if (!SLUG.test(cod) || RESERVADOS.includes(cod)) return falha('O código precisa ter de 3 a 40 letras minúsculas, números ou hífens.');
-    err.hidden = true;
-    try { const ex = await fb.fs.getDoc(fb.condo(cod)); if (ex.exists()) return falha('Esse código já está em uso. Escolha outro.'); } catch (e2) { console.error(e2); }
-    const centro = posicao ? {lat: +posicao.lat.toFixed(6), lng: +posicao.lng.toFixed(6)} : {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
-    const ok = await salvarSeguro(async () => {
-      await fb.fs.setDoc(fb.condo(cod), {nome, eventoNome: CONFIG.evento.nome || 'Halloween', data: CONFIG.evento.data || '', horaInicio: CONFIG.evento.horaInicio || '', horaFim: CONFIG.evento.horaFim || '', whatsapp: '', avisos: '', portaria: null, centro, zoom: Math.round(CONFIG.zoom || 17), publico: false, criadoPor: usuario.uid, criadoEm: Date.now(), atualizadoEm: Date.now()});
-      await fb.fs.setDoc(fb.membro(cod, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: Date.now(), atualizadoEm: Date.now()});
-    }, 'Condomínio criado! Ajuste o início do mapa na aba Admin.');
-    if (ok) { listaCondosCarregada = false; $('#form-novo-condo').reset(); delete $('#n-codigo').dataset.mexeu; ls.set('hw.aba', 'organizador'); location.hash = cod; }
-  });
+  $('#i-codigo').addEventListener('input', e => { const v = normalizarCodigo(e.target.value); if (v.length <= 5) e.target.value = v; });
+  $('#btn-sou-org').addEventListener('click', abrirCriarCondo);
+  document.addEventListener('submit', e => { if (e.target.id !== 'form-criar') return; e.preventDefault(); criarCondo($('#n-nome').value.trim().slice(0, 80), $('#n-cidade').value.trim().slice(0, 60)); });
+  document.addEventListener('click', e => { if (e.target.closest('[data-fechar-folha]')) fecharFolha(); });
 
   // roteiro
   $('#partida').addEventListener('click', e => { const b = e.target.closest('[data-partida]'); if (!b) return; partida = b.dataset.partida; lsc.set('partida', partida); if (partida === 'gps') ligarGPS(false); renderPartida(); });
@@ -838,8 +916,17 @@ function ligarEventos() {
 
   // admin
   $('#btn-copiar-link').addEventListener('click', () => copiar(linkCondo()));
-  $('#btn-salvar-config').addEventListener('click', () => salvarSeguro(() => salvarCondo({nome: $('#c-nome').value.trim().slice(0, 80) || condo.nome, eventoNome: $('#c-evento').value.trim().slice(0, 80), data: $('#c-data').value, whatsapp: $('#c-zap').value.trim().slice(0, 30), horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim().slice(0, 160), publico: $('#c-publico').checked}), 'Evento salvo!'));
-  $('#btn-marcar-portaria').addEventListener('click', () => { modo = 'portaria'; modoVoltar = 'organizador'; irAba('mapa'); renderModo(); });
+  $('#btn-salvar-config').addEventListener('click', () => {
+    const nome = $('#c-nome').value.trim().slice(0, 80) || condo.nome, cidade = $('#c-cidade').value.trim().slice(0, 60);
+    const publico = $('#c-publico').checked, listado = $('#c-listado').checked;
+    salvarSeguro(() => {
+      const b = fb.fs.writeBatch(fb.db); const agora = Date.now();
+      b.set(fb.condo(cid), {nome, cidade, eventoNome: $('#c-evento').value.trim().slice(0, 80), data: $('#c-data').value, horaInicio: $('#c-hi').value, horaFim: $('#c-hf').value, avisos: $('#c-avisos').value.trim().slice(0, 160), publico, listado, atualizadoEm: agora}, {merge: true});
+      if (listado) b.set(fb.busca(cid), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico, atualizadoEm: agora}); else b.delete(fb.busca(cid));
+      return b.commit();
+    }, 'Evento salvo!');
+  });
+  $('#btn-marcar-portaria').addEventListener('click', () => { modo = 'portaria'; modoVoltar = 'organizador'; irAba('mapa'); renderModo(); if (evento.portaria) mapa.setView([evento.portaria.lat, evento.portaria.lng], Math.max(mapa.getZoom(), 17)); setTimeout(() => $('#mapa').scrollIntoView({behavior: 'smooth', block: 'center'}), 80); });
   $('#btn-centro-mapa').addEventListener('click', () => { irAba('mapa'); const c = mapa.getCenter(); salvarSeguro(() => salvarCondo({centro: {lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6)}, zoom: Math.max(3, Math.min(20, Math.round(mapa.getZoom())))}), 'Pronto! O mapa abre assim para todo mundo.'); });
   $('#btn-novo-convite').addEventListener('click', async () => {
     const cod = codigoAleatorio(12);
@@ -930,19 +1017,20 @@ document.addEventListener('click', e => {
     ligarGPS(true);
     setTimeout(() => { if (!posicao && gpsErro == null) { gpsErro = 3; atualizarBoasVindasGPS(); } }, 20000);
   }
-  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); if (vozAuto) setTimeout(() => falaDracula('Boa caçada! E não esqueçam de dizer: doces ou travessuras!'), 500); }
+  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); setTimeout(mostrarDicaMusica, 2500); if (vozAuto) setTimeout(() => falaDracula('Boa caçada! E não esqueçam de dizer: doces ou travessuras!'), 500); }
 });
 function lerRota() {
   let s = location.hash.replace(/^#\/?/, ''); try { s = decodeURIComponent(s); } catch {}
-  const [c, tipo, cod] = s.split('/');
-  return {c: c && SLUG.test(c) && !RESERVADOS.includes(c) ? c : null, inicio: c === 'inicio', convite: tipo === 'convite' && /^[A-Za-z0-9]{8,40}$/.test(cod || '') ? cod : null};
+  const [c, tipo, codConvite] = s.split('/');
+  const cod = normalizarCodigo(c);
+  return {c: c && c.toLowerCase() !== 'inicio' && CODIGO.test(cod) ? cod : null, inicio: (c || '').toLowerCase() === 'inicio', convite: tipo === 'convite' && /^[A-Za-z0-9]{8,40}$/.test(codConvite || '') ? codConvite : null};
 }
 function aplicarRota() {
   const r = lerRota();
   if (r.convite) conviteDaRota = r.convite;
   if (!r.c) {
     const ultimo = ls.get('hw.ultimo', null);
-    if (!r.inicio && ultimo && SLUG.test(ultimo)) { location.replace('#' + ultimo); return; }
+    if (!r.inicio && ultimo && CODIGO.test(ultimo)) { location.replace('#' + ultimo); return; }
     fecharCondo(); return;
   }
   abrirCondo(r.c);
@@ -957,6 +1045,6 @@ async function iniciar() {
   const perm = await estadoPermissaoGPS();
   if (perm === 'granted') ligarGPS(false);
   if (!ls.get('hw.boasvindas', false)) setTimeout(() => abrirBoasVindas(perm), 600);
-  if (ls.get('hw.musica', false)) toast('Toque no alto-falante para religar a música.', 3500);
+  if (ls.get('hw.boasvindas', false)) setTimeout(mostrarDicaMusica, 1200);
 }
 iniciar();

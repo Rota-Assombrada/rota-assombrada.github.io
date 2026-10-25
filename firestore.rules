@@ -7,8 +7,9 @@ rules_version = '2';
 //   morador  -> cadastra e edita só a própria casa (documento com o id da própria conta)
 //   pendente -> pediu acesso, aguarda aprovação; não grava casas
 // Visitante (sem papel) só lê as casas se o condomínio estiver marcado como público.
-// Dono da plataforma: reconhecido pelo hash SHA-256 do e-mail Google (o e-mail não fica público).
-// Cria condomínios e é admin de todos.
+// Qualquer pessoa logada com Google pode criar UM condomínio (vira admin dele). O dono da plataforma,
+// reconhecido pelo hash SHA-256 do e-mail Google (o e-mail não fica público), cria quantos quiser e é admin de todos.
+// Código do condomínio: 5 caracteres sem I, O, 0 e 1 (ex.: K7QPX).
 //
 // Tudo que não está liberado aqui é negado.
 service cloud.firestore {
@@ -38,6 +39,12 @@ service cloud.firestore {
     function condoPublico(cid) {
       return get(/databases/$(database)/documents/condominios/$(cid)).data.publico == true;
     }
+    function caminhoCondo(cid) { return /databases/$(database)/documents/condominios/$(cid); }
+    // Verdadeiro só na mesma gravação em lote que cria o condomínio, feita por quem o criou.
+    function criandoAgora(cid) {
+      return logado() && !exists(caminhoCondo(cid)) && existsAfter(caminhoCondo(cid))
+        && getAfter(caminhoCondo(cid)).data.criadoPor == eu();
+    }
     function conviteValido(cid, codigo) {
       let caminho = /databases/$(database)/documents/condominios/$(cid)/convites/$(codigo);
       return codigo is string && exists(caminho)
@@ -55,15 +62,16 @@ service cloud.firestore {
     }
 
     function condoValido(cid, d) {
-      return cid.matches('^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$')
-        && d.keys().hasOnly(['nome', 'eventoNome', 'data', 'horaInicio', 'horaFim', 'whatsapp', 'avisos', 'portaria', 'centro', 'zoom', 'publico', 'criadoPor', 'criadoEm', 'atualizadoEm'])
+      return cid.matches('^[A-HJ-NP-Z2-9]{5}$')
+        && d.keys().hasOnly(['nome', 'cidade', 'eventoNome', 'data', 'horaInicio', 'horaFim', 'avisos', 'portaria', 'centro', 'zoom', 'publico', 'listado', 'criadoPor', 'criadoEm', 'atualizadoEm'])
         && d.keys().hasAll(['nome', 'centro', 'publico', 'criadoPor'])
         && texto(d.nome, 80) && d.nome.size() > 0
         && texto(d.get('eventoNome', ''), 80)
         && texto(d.get('data', ''), 10)
         && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
-        && texto(d.get('whatsapp', ''), 30)
+        && texto(d.get('cidade', ''), 60)
         && texto(d.get('avisos', ''), 160)
+        && d.get('listado', true) is bool
         && (d.get('portaria', null) == null || coordenada(d.portaria))
         && coordenada(d.centro)
         && d.get('zoom', 17) is int && d.get('zoom', 17) >= 3 && d.get('zoom', 17) <= 20
@@ -85,6 +93,14 @@ service cloud.firestore {
         && d.papel == 'morador' && d.ativo is bool && d.expiraEm is number && texto(d.criadoPor, 128);
     }
 
+    function buscaValida(d) {
+      return d.keys().hasOnly(['nome', 'cidade', 'prefixos', 'publico', 'atualizadoEm'])
+        && texto(d.nome, 80) && d.nome.size() > 0
+        && texto(d.get('cidade', ''), 60)
+        && d.prefixos is list && d.prefixos.size() <= 120
+        && d.publico is bool;
+    }
+
     function casaValida(d) {
       return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'criadoEm', 'atualizadoEm'])
         && d.keys().hasAll(['numero', 'lat', 'lng', 'uid'])
@@ -100,13 +116,36 @@ service cloud.firestore {
         && d.get('criadoEm', 0) is number && d.get('atualizadoEm', 0) is number;
     }
 
+    // ---------- busca pública (só nome, cidade e código) ----------
+    match /busca/{cid} {
+      allow get: if true;
+      allow list: if request.query.limit <= 20;
+      allow create, update: if buscaValida(request.resource.data) && (ehAdmin(cid) || criandoAgora(cid));
+      allow delete: if ehAdmin(cid);
+    }
+
+    // ---------- quem já criou um condomínio (limite de um por conta) ----------
+    match /criadores/{uid} {
+      allow get: if logado() && uid == eu();
+      allow create: if logado() && uid == eu()
+        && request.resource.data.keys().hasOnly(['cid', 'criadoEm'])
+        && request.resource.data.cid is string
+        && criandoAgora(request.resource.data.cid);
+    }
+
     // ---------- condomínios ----------
     match /condominios/{cid} {
       // Abrir um condomínio pelo link mostra nome, horário e centro do mapa. Listar todos é só do dono da plataforma.
       allow get: if true;
       allow list: if donoPlataforma();
-      allow create: if donoPlataforma() && condoValido(cid, request.resource.data)
-        && request.resource.data.criadoPor == eu();
+      // Criar: dono da plataforma à vontade; qualquer outra conta Google só um, registrando em criadores/{uid}
+      // na mesma gravação em lote.
+      allow create: if logado() && condoValido(cid, request.resource.data)
+        && request.resource.data.criadoPor == eu()
+        && (donoPlataforma()
+            || (!exists(/databases/$(database)/documents/criadores/$(eu()))
+                && existsAfter(/databases/$(database)/documents/criadores/$(eu()))
+                && getAfter(/databases/$(database)/documents/criadores/$(eu())).data.cid == cid));
       allow update: if ehAdmin(cid) && condoValido(cid, request.resource.data)
         && request.resource.data.criadoPor == resource.data.criadoPor;
       allow delete: if donoPlataforma();
@@ -118,6 +157,9 @@ service cloud.firestore {
         // Entrar: com convite válido vira morador; sem convite fica pendente. Admin pode adicionar qualquer papel.
         allow create: if membroValido(mid, request.resource.data) && (
           ehAdmin(cid)
+          // quem cria o condomínio entra como admin na mesma gravação
+          || (logado() && mid == eu() && request.resource.data.papel == 'admin'
+              && request.resource.data.email == request.auth.token.email && criandoAgora(cid))
           || (logado() && mid == eu()
               && exists(/databases/$(database)/documents/condominios/$(cid))
               && request.resource.data.email == request.auth.token.email

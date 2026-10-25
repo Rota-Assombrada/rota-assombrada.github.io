@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0a16">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://cdnjs.cloudflare.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://rota-assombrada.firebaseapp.com https://accounts.google.com https://apis.google.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://cdnjs.cloudflare.com; connect-src 'self' http://127.0.0.1:8080 http://127.0.0.1:9099 https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src http://127.0.0.1:9099 https://rota-assombrada.firebaseapp.com https://accounts.google.com https://apis.google.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=10">
+<link rel="stylesheet" href="css/estilo.css?v=14">
 </head>
 <body>
 <div class="cenario" aria-hidden="true">
@@ -35,6 +35,7 @@
         <h1 class="titulo">Rota <span>Assombrada</span></h1>
       </div>
       <div class="topo-botoes"><button id="btn-conta" class="btn btn-conta" aria-label="Entrar com Google">Entrar</button>
+      <div class="dica-musica" id="dica-musica" hidden role="status">Toque aqui para ligar a música!</div>
       <button id="btn-musica" class="btn btn-icone" aria-pressed="false" aria-label="Ligar música de fundo" title="Música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button></div>
     </div>
     <div class="linha-condo" id="linha-condo" hidden>
@@ -47,33 +48,34 @@
 
   <main>
     <section id="painel-inicio" class="painel" hidden>
-      <div class="cartao vazio vazio-casas">
+      <div class="cartao vazio vazio-casas inicio-hero">
         <div id="inicio-abobora"></div>
-        <h3>Escolha seu condomínio</h3>
-        <p>Abra o link que o organizador mandou, ou digite o código do condomínio.</p>
+        <h3>Qual é o seu condomínio?</h3>
+        <p>Escreva o nome dele ou da cidade.</p>
+        <label class="busca" for="i-busca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="sr">Buscar condomínio</span>
+          <input type="search" id="i-busca" placeholder="Ex.: Vale Verde" autocomplete="off" enterkeyhint="search" maxlength="60"></label>
+        <ul class="resultados" id="resultados" aria-live="polite"></ul>
+      </div>
+      <div class="cartao" id="card-recentes" hidden>
+        <h2>Seus condomínios</h2>
+        <ul class="resultados" id="lista-recentes"></ul>
+      </div>
+      <div class="cartao">
+        <h2>Tem um código?</h2>
+        <p class="dica">São 5 letras e números, como K7QPX. O organizador manda no grupo.</p>
         <form id="form-ir-condo" class="ir-condo" novalidate>
           <label for="i-codigo" class="sr">Código do condomínio</label>
-          <input type="text" id="i-codigo" placeholder="vale-verde" autocomplete="off" autocapitalize="none" spellcheck="false">
-          <button class="btn btn-primario" type="submit">Abrir</button>
+          <input type="text" id="i-codigo" class="input-codigo" placeholder="K7QPX" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="btn btn-primario" type="submit">Entrar</button>
         </form>
         <p class="erro-msg" id="inicio-erro" hidden></p>
       </div>
-      <div class="cartao" id="card-recentes" hidden>
-        <h2>Abertos recentemente</h2>
-        <ul class="lista-casas" id="lista-recentes"></ul>
-      </div>
       <div class="cartao" id="card-plataforma" hidden>
-        <h2>Dono da plataforma</h2>
-        <p class="dica">Crie um condomínio. Você vira admin dele e pode passar a administração para outras pessoas.</p>
-        <form id="form-novo-condo" novalidate>
-          <div class="campo"><label for="n-nome">Nome do condomínio</label><input type="text" id="n-nome" placeholder="Condomínio Vale Verde" maxlength="80"></div>
-          <div class="campo"><label for="n-codigo">Código (vai no link)</label><input type="text" id="n-codigo" placeholder="vale-verde" maxlength="40" autocapitalize="none" spellcheck="false"><span class="ajuda" id="n-link"></span></div>
-          <p class="erro-msg" id="novo-erro" hidden></p>
-          <div class="acoes"><button class="btn btn-primario" type="submit">Criar condomínio</button></div>
-        </form>
-        <h3 class="sub-titulo">Todos os condomínios</h3>
+        <h2>Todos os condomínios</h2>
+        <p class="dica">Só você vê esta lista, como dono da plataforma.</p>
         <ul class="lista-casas" id="lista-condos"></ul>
       </div>
+      <p class="rodape-org"><button type="button" class="link-discreto" id="btn-sou-org">Sou organizador: criar um condomínio</button></p>
     </section>
 
     <section id="painel-mapa" class="painel" hidden>
@@ -168,8 +170,9 @@
 
     <section id="painel-organizador" class="painel" hidden>
       <div class="cartao">
-        <h2>Link do condomínio</h2>
-        <p class="dica">Mande este link no grupo. Quem abrir vê o mapa (se ele for público) e pode pedir para entrar.</p>
+        <h2>Código do condomínio</h2>
+        <div class="codigo-grande" id="codigo-condo"></div>
+        <p class="dica">Mande o código ou o link no grupo. Quem abrir pode pedir para entrar; quem usar um convite entra direto.</p>
         <div class="codigo-link" id="link-condo"></div>
         <div class="acoes"><button class="btn btn-fantasma" id="btn-copiar-link">Copiar link</button><a class="btn btn-sucesso" id="btn-zap-link" target="_blank" rel="noopener">Enviar no WhatsApp</a></div>
       </div>
@@ -188,14 +191,15 @@
         <div class="campo"><label for="c-nome">Nome do condomínio</label><input type="text" id="c-nome" maxlength="80"></div>
         <div class="campo"><label for="c-evento">Nome do evento</label><input type="text" id="c-evento" maxlength="80" placeholder="Halloween 2026"></div>
         <div class="linha">
+          <div class="campo"><label for="c-cidade">Cidade</label><input type="text" id="c-cidade" maxlength="60" placeholder="São Paulo"></div>
           <div class="campo"><label for="c-data">Data</label><input type="date" id="c-data"></div>
-          <div class="campo"><label for="c-zap">WhatsApp do organizador</label><input type="tel" id="c-zap" placeholder="11 99999-9999" maxlength="30"></div>
         </div>
         <div class="linha">
           <div class="campo"><label for="c-hi">Começa às</label><input type="time" id="c-hi"></div>
           <div class="campo"><label for="c-hf">Termina às</label><input type="time" id="c-hf"></div>
         </div>
         <div class="campo"><label for="c-avisos">Aviso geral (aparece no topo)</label><input type="text" id="c-avisos" maxlength="160" placeholder="Levem lanterna! Portaria fecha às 21h."></div>
+        <label class="check"><input type="checkbox" id="c-listado"> Aparecer na busca (mostra só nome, cidade e código)</label>
         <label class="check"><input type="checkbox" id="c-publico"> Mapa público: quem tiver o link vê as casas sem entrar</label>
         <div class="acoes"><button class="btn btn-primario" id="btn-salvar-config">Salvar evento</button></div>
         <div class="acoes">
@@ -232,6 +236,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=10"></script>
+<script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

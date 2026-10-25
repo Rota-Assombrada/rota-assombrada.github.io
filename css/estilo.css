@@ -354,3 +354,48 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
   .passo{padding:10px}
   .passo .dica{font-size:.85rem;margin:2px 0 6px}
 }
+
+/* ===== Tela inicial: busca e código ===== */
+.inicio-hero h3{font-size:1.4rem}
+.busca{display:flex;align-items:center;gap:10px;width:100%;max-width:460px;margin-top:14px;background:var(--bg2);border:3px solid var(--abobora);border-radius:999px;padding:4px 8px 4px 16px;box-shadow:0 0 0 6px rgba(255,138,31,.12),0 10px 24px rgba(0,0,0,.35)}
+.busca svg{width:26px;height:26px;color:var(--abobora);flex:none}
+.busca input{border:0;background:transparent;min-height:52px;font-size:1.15rem;font-weight:800;padding:0;box-shadow:none!important}
+.busca input:focus{outline:none}
+.busca:focus-within{border-color:var(--veneno);box-shadow:0 0 0 6px rgba(141,240,106,.18)}
+.resultados{list-style:none;margin:12px 0 0;padding:0;width:100%;max-width:460px;display:flex;flex-direction:column;gap:8px;text-align:left}
+.resultado{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:64px;border-radius:16px;background:var(--superficie2);border:2px solid var(--borda);color:var(--fg);text-decoration:none;transition:transform .15s var(--mola),border-color .2s}
+.resultado:hover,.resultado:focus-visible{border-color:var(--abobora)}
+.resultado:active{transform:scale(.97)}
+.res-ic{width:44px;height:44px;flex:none;border-radius:50%;background:rgba(255,138,31,.16);color:var(--abobora);display:flex;align-items:center;justify-content:center}
+.res-ic svg{width:24px;height:24px}
+.res-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.res-txt b{font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-txt span{color:var(--fg3);font-size:.85rem;font-weight:700}
+.res-seta{font-size:2rem;color:var(--abobora);line-height:1}
+.res-info{color:var(--fg2);font-weight:700;text-align:center;padding:10px}
+.input-codigo{text-transform:uppercase;letter-spacing:.3em;font-size:1.3rem!important;font-weight:900!important;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.input-codigo::placeholder{letter-spacing:.3em;opacity:.45}
+.codigo-grande{margin:10px auto 4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:2.4rem;font-weight:900;letter-spacing:.25em;color:var(--abobora);text-shadow:0 0 18px rgba(255,138,31,.5);text-align:center;user-select:all}
+.rodape-org{text-align:center;margin:28px 0 8px}
+.link-discreto{background:none;border:0;color:var(--fg3);font-size:.85rem;font-weight:700;text-decoration:underline;text-underline-offset:3px;min-height:44px;padding:8px 12px;cursor:pointer;opacity:.75}
+.link-discreto:hover{opacity:1;color:var(--fg2)}
+[data-criar] form{width:100%;text-align:left}
+/* ===== Balão da música ===== */
+.topo-botoes{position:relative}
+.dica-musica{position:absolute;top:calc(100% + 12px);right:0;z-index:40;width:max-content;max-width:200px;background:var(--fg);color:#1a0d2a;font-weight:900;font-size:.9rem;padding:10px 14px;border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.45);animation:balaoMusica 1.4s ease-in-out infinite;pointer-events:none}
+.dica-musica::before{content:"";position:absolute;top:-10px;right:16px;border:10px solid transparent;border-bottom-color:var(--fg);border-top:0}
+@keyframes balaoMusica{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+/* ===== Mais contraste na aranha e nos morcegos ===== */
+.morcego{color:#6b4aa8;filter:drop-shadow(0 0 4px rgba(214,190,255,.85)) drop-shadow(0 0 12px rgba(155,107,255,.6))}
+.aranha{color:#7b5cc0;filter:drop-shadow(0 0 4px rgba(214,190,255,.85)) drop-shadow(0 0 10px rgba(155,107,255,.55))}
+.aranha::before{background:rgba(230,220,255,.75);width:1.5px}
+
+/* ===== Pin: abóbora com o número grande e nada atrás dele ===== */
+.pin{width:46px;height:52px}
+.pin svg{height:100%}
+.pin .num{top:50%;font-size:1rem;letter-spacing:-.01em;color:#2a0d00;text-shadow:none}
+.pin.visitada{opacity:1;filter:grayscale(.85) drop-shadow(0 4px 4px rgba(0,0,0,.5))}
+.pin.atual .num{color:#06200a}
+/* ===== Portaria: selo fixo, sem animação ===== */
+.marcador.portaria{width:36px;height:36px;margin:4px;border-radius:50%;background:var(--lua);color:#2a1846;border:3px solid #2a1846;box-shadow:0 0 0 3px rgba(255,243,196,.35),0 4px 10px rgba(0,0,0,.6);filter:none}
+.marcador.portaria svg{width:20px;height:20px}
