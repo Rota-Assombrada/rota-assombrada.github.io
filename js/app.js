@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=38';
+import CONFIG from './config.js?v=39';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -983,9 +983,37 @@ function renderParticipar() {
   $('#f-flags').innerHTML = FLAGS.map(([k, r]) => `<button type="button" class="chip" data-multi="flags" data-k="${k}" aria-pressed="false">${k === 'cachorro' ? IC.cachorro : k === 'pequenos' ? IC.crianca : IC.susto}${r}</button>`).join('');
   atualizarForm();
 }
-function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hi').value, horaFim: $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
+// Seletor de horário: -15 / +15 minutos nos botões e a lista do celular ao tocar na hora.
+const OPC_HORAS = Array.from({length: 96}, (_, i) => `${String(i / 4 | 0).padStart(2, '0')}:${String(i % 4 * 15).padStart(2, '0')}`);
+const fmtHm = m => `${String((m / 60 | 0) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+function renderHora(box) {
+  const inp = $('#' + box.dataset.hora), sel = box.querySelector('select'); if (!sel || document.activeElement === sel) return;
+  const v = inp.value, ops = [...(box.dataset.vazio ? [''] : []), ...OPC_HORAS];
+  if (v && !ops.includes(v)) { ops.push(v); ops.sort(); }
+  sel.innerHTML = ops.map(o => `<option value="${o}">${o || '--:--'}</option>`).join(''); sel.value = v;
+}
+function renderHoras() { $$('.hora-sel').forEach(renderHora); }
+function montarSeletoresHora() {
+  $$('.hora-sel').forEach(box => {
+    const inp = $('#' + box.dataset.hora), rot = box.dataset.rotulo || 'Horário';
+    box.innerHTML = `<button type="button" class="hora-btn" data-passo="-15" aria-label="${rot}: 15 minutos mais cedo">−</button><select class="hora-val" aria-label="${rot}"></select><button type="button" class="hora-btn" data-passo="15" aria-label="${rot}: 15 minutos mais tarde">+</button>`;
+    box.querySelector('select').addEventListener('change', e => { inp.value = e.target.value; });
+    box.querySelectorAll('.hora-btn').forEach(b => b.addEventListener('click', () => {
+      const m = hm(inp.value);
+      inp.value = m == null ? (box.dataset.padrao || '18:00') : fmtHm(((Math.round((m + +b.dataset.passo) / 15) * 15) % 1440 + 1440) % 1440);
+      renderHora(box);
+    }));
+    renderHora(box);
+  });
+}
+function mostrarHorasCasa() {
+  const todo = $('#f-hora-evento').checked; $('#f-horas').hidden = todo;
+  $('#f-hora-evento-txt').textContent = evento.horaInicio && evento.horaFim ? `Das ${evento.horaInicio} às ${evento.horaFim}, o mesmo horário do evento.` : 'Segue o horário que o admin definir para o evento.';
+  renderHoras();
+}
+function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hora-evento').checked ? '' : $('#f-hi').value, horaFim: $('#f-hora-evento').checked ? '' : $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
 function preencherForm(c) {
-  $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hi').value = c.horaInicio || ''; $('#f-hf').value = c.horaFim || ''; $('#f-obs').value = c.obs || '';
+  $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hora-evento').checked = !(c.horaInicio || c.horaFim); $('#f-hi').value = c.horaInicio || evento.horaInicio || '18:00'; $('#f-hf').value = c.horaFim || evento.horaFim || '21:00'; mostrarHorasCasa(); $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
   pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa); travarMapaCasa(true); confirmouLonge = '';
@@ -1136,7 +1164,7 @@ function atualizarParticipar() {
   gate.innerHTML = html; gate.hidden = !html; form.hidden = !!html;
   if (!html && abaAtual === 'participar') setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80);
   $('#participar-intro').textContent = html ? (usuario ? '' : 'Para colocar sua casa no mapa, entre com sua conta Google. Assim só você consegue mexer nela.')
-    : criandoOutra ? 'Cadastrando a casa de outra família. Ela fica sob sua responsabilidade de admin.'
+    : criandoOutra ? 'Ela fica sob sua responsabilidade de admin.'
     : 'Marque a casa no mapa (ou use o GPS na porta) e conte o que vai rolar.';
   if (!html && !editandoId && !criandoOutra && !jaAbriuMinhaCasa) { const minha = minhaCasa(); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
   verificarCasaAnoPassado();
@@ -1165,7 +1193,13 @@ function atualizarForm() {
   $('#ajuda-email-dono').textContent = (dono ? dono + ' ' : '') + 'Preencha o e-mail só para passar a casa para outra pessoa: quem entrar com ele no Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa, só admins veem.';
   if (ehAdmin() && document.activeElement !== $('#f-email-dono')) $('#f-email-dono').value = editandoId ? (atribuicoes[editandoId] || '') : (campo.dataset.reter || '');
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
-  $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Editar casa' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
+  $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Casa de outra família' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
+  // Faixa laranja: deixa claro que não é a sua casa e oferece o caminho de volta.
+  const outra = !!((editandoId && !minha) || criandoOutra), fx = $('#faixa-edicao');
+  fx.hidden = !outra; $('#painel-participar .cartao').classList.toggle('editando-outra', outra);
+  if (outra) fx.innerHTML = `${IC.editar}<div><b>${criandoOutra ? 'Cadastrando a casa de outra família' : `Editando ${casaEd ? h(casaEd.familia || nomeCasaTxt(casaEd)) : 'outra casa'}`}</b><span>Isso não mexe na sua casa.</span></div><button type="button" class="btn btn-p btn-fantasma" data-sair-edicao>${minhaCasa() ? 'Voltar para a minha casa' : 'Cancelar'}</button>`;
+  $('#aba-participar span').textContent = minhaCasa() ? 'Minha casa' : 'Participar';
+  mostrarHorasCasa();
   $('#btn-cancelar-edicao').hidden = !(editandoId && !minha) && !criandoOutra;
   $('#btn-excluir-minha').hidden = !editandoId || !casaPorId(editandoId);
   $('#btn-excluir-minha').textContent = minha ? 'Tirar minha casa do mapa' : 'Excluir esta casa';
@@ -1189,7 +1223,7 @@ function renderAdmin() {
   $('#link-condo').textContent = linkCondo();
   $('#btn-zap-link').href = `https://wa.me/?text=${encodeURIComponent(`Mapa do Halloween de ${condo.nome}: ${linkCondo()}`)}`;
   const set = (sel, v) => { if (campoLivre(sel)) $(sel).value = v || ''; };
-  set('#c-nome', condo.nome); set('#c-evento', evento.nome); set('#c-data', evento.data); set('#c-cidade', condo.cidade); set('#c-hi', evento.horaInicio); set('#c-hf', evento.horaFim); set('#c-avisos', evento.avisos);
+  set('#c-nome', condo.nome); set('#c-evento', evento.nome); set('#c-data', evento.data); set('#c-cidade', condo.cidade); set('#c-hi', evento.horaInicio); set('#c-hf', evento.horaFim); set('#c-avisos', evento.avisos); renderHoras();
   $('#titulo-evento').textContent = `Evento de ${ano}`;
   const prox = anoAtualDoCondo() + 1; const bn = $('#btn-novo-ano');
   $('#ano-status').textContent = ehAnoAtual() ? `O evento em andamento é o de ${ano}. Quando quiser preparar o próximo, comece o de ${prox}: as casas de ${ano} ficam guardadas.` : `Você está vendo ${ano}, que já passou. O evento em andamento é o de ${anoAtualDoCondo()}.`;
@@ -1230,7 +1264,7 @@ async function conferirEnderecos() {
 }
 function mostrarInicio() {
   contarTela('inicio'); setTimeout(renderSino, 0);
-  $('#painel-inicio').hidden = false; ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { $('#painel-' + a).hidden = true; });
+  $('#painel-inicio').hidden = false; ['mapa', 'participar', 'organizador'].forEach(a => { $('#painel-' + a).hidden = true; });
   $('#abas').hidden = true; $('#linha-condo').hidden = true; $('#placar').innerHTML = ''; abaAtual = 'inicio';
   renderCabecalho(); renderInicio(); window.scrollTo({top: 0});
 }
@@ -1373,6 +1407,12 @@ function renderTudoCondo() {
   $('#aba-organizador').hidden = !ehAdmin();
   if (abaAtual === 'organizador') renderAdmin();
 }
+// Tocar em "Participar" sempre leva à SUA casa; editar a casa de outra família só acontece pelos botões "Editar".
+function voltarParaMinhaCasa() {
+  const c = editandoId && casaPorId(editandoId);
+  const minhaEd = editandoId && usuario && (editandoId === usuario.uid || (c && souResponsavel(c)));
+  if (criandoOutra || (editandoId && !minhaEd)) { criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; }
+}
 function irAba(nome) {
   if (!cid) return;
   if (nome === 'organizador' && !ehAdmin()) nome = 'mapa';
@@ -1424,7 +1464,7 @@ function ligarEventos() {
   $('#btn-musica').addEventListener('click', () => alternarMusica());
   $('#btn-avisos').addEventListener('click', abrirAvisos);
   document.addEventListener('click', async e => {
-    const ir = e.target.closest('[data-aviso-ir]'); if (ir) { fecharFolha(); irAba(ir.dataset.avisoIr); return; }
+    const ir = e.target.closest('[data-aviso-ir]'); if (ir) { fecharFolha(); if (ir.dataset.avisoIr === 'participar') voltarParaMinhaCasa(); irAba(ir.dataset.avisoIr); return; }
     if (e.target.closest('[data-aviso-sistema]')) { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Pronto! O celular também vai avisar.' : 'Tudo bem, os avisos ficam só no sininho.'); if (r === 'granted') abrirAvisos(); } catch { toast('Este navegador não deixa avisar fora do app.'); } }
   });
   $('#btn-conta').addEventListener('click', async () => {
@@ -1439,7 +1479,8 @@ function ligarEventos() {
     const b = e.target.closest('[data-acao-acesso]'); if (!b) return; const a = b.dataset.acaoAcesso;
     if (a === 'entrar') fb.entrar(); if (a === 'pedir') pedirAcesso(); if (a === 'cancelar') sairDoCondo(); if (a === 'inicio') location.hash = 'inicio';
   });
-  $$('.aba').forEach(b => b.addEventListener('click', () => irAba(b.dataset.aba)));
+  montarSeletoresHora();
+  $$('.aba').forEach(b => b.addEventListener('click', () => { if (b.dataset.aba === 'participar') voltarParaMinhaCasa(); irAba(b.dataset.aba); }));
   $('#filtros').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; filtros[c.dataset.filtro] = !filtros[c.dataset.filtro]; ls.set('hw.filtros', filtros); renderFiltros(); renderPins(); });
   $('#aviso-cancelar').addEventListener('click', () => { modo = null; renderModo(); if (modoVoltar !== 'mapa') irAba(modoVoltar); modoVoltar = 'mapa'; });
   $('#btn-centrar').addEventListener('click', () => { modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); if (modoSeguir) toast('Seguindo você no mapa.'); });
@@ -1447,7 +1488,7 @@ function ligarEventos() {
   $('#btn-ver-todas').addEventListener('click', verTodas);
   document.addEventListener('click', e => { if (e.target.closest('[data-ligar-gps]')) { gpsErro = null; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); } });
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
-  $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
+  $('#btn-ir-participar').addEventListener('click', () => { voltarParaMinhaCasa(); irAba('participar'); });
   $('#btn-compartilhar').addEventListener('click', abrirCompartilhar);
   $('#lista-casas-mapa').addEventListener('click', e => {
     const b = e.target.closest('[data-ver-casa]'); if (!b) return; const c = casaPorId(b.dataset.verCasa); if (!c) return;
@@ -1509,7 +1550,10 @@ function ligarEventos() {
   $('#btn-trava-mapa').addEventListener('click', () => { travarMapaCasa(!mapaCasaTravado); if (!mapaCasaTravado) $('#dica-mapa-casa').textContent = 'Mapa destravado: toque onde fica a casa ou arraste a abóbora. Depois toque em "Pronto, travar posição".'; });
   $('#btn-repetir').addEventListener('click', () => { if (!casaAnoPassado || !casaAnoPassado.dados) return; const {uid, criadoEm, atualizadoEm, ...dados} = casaAnoPassado.dados; preencherForm(dados); $('#repetir-casa').hidden = true; SFX.plim(); toast('Casa do ano passado copiada. Confira os horários e salve.', 4000); });
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
-  $('#btn-cancelar-edicao').addEventListener('click', () => { criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); });
+  const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
+  $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
+  $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
+  $('#f-hora-evento').addEventListener('change', e => { if (!e.target.checked) { if (hm($('#f-hi').value) == null) $('#f-hi').value = evento.horaInicio || '18:00'; if (hm($('#f-hf').value) == null) $('#f-hf').value = evento.horaFim || '21:00'; } mostrarHorasCasa(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
     const b = $('#btn-excluir-minha'); if (!editandoId) return;
     if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.className = 'btn btn-perigo'; b.textContent = 'Toque de novo para confirmar'; setTimeout(() => { delete b.dataset.confirma; b.className = 'btn btn-fantasma'; atualizarForm(); }, 4000); return; }

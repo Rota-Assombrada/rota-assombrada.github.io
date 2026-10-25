@@ -559,3 +559,24 @@ input::placeholder,textarea::placeholder{color:var(--fg3);opacity:.8}
 .mapa.travado{cursor:default}
 .mapa.travado .pin-arrastar{cursor:default;filter:drop-shadow(0 6px 6px rgba(0,0,0,.55))}
 #conferencia{margin-top:10px}
+
+/* Seletor de horário: botões grandes de -15/+15 minutos e a hora no meio (toque abre a lista do celular) */
+.campo .rotulo-campo{font-weight:800;font-size:.9rem;color:var(--fg2)}
+.hora-sel{display:grid;grid-template-columns:52px 1fr 52px;gap:8px;align-items:center}
+.hora-btn{min-height:52px;border-radius:var(--raio-p);border:2px solid var(--borda);background:var(--superficie2);color:var(--fg);font:900 1.6rem/1 var(--f-corpo);cursor:pointer;transition:transform .15s var(--mola),border-color .2s}
+.hora-btn:hover{border-color:var(--abobora)}
+.hora-btn:active{transform:scale(.92)}
+.hora-sel select.hora-val{min-height:52px;text-align:center;text-align-last:center;font-size:1.35rem;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:.04em;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:none;padding:8px}
+.check-grande{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--raio-p);border:2px solid var(--borda);background:var(--superficie2);cursor:pointer;min-height:56px;transition:border-color .2s}
+.check-grande:has(input:checked){border-color:var(--veneno);background:rgba(141,240,106,.1)}
+.check-grande input{width:24px;height:24px;accent-color:var(--veneno);flex:none;margin:0}
+.check-grande b{display:block;color:var(--fg)}
+.check-grande small{display:block;color:var(--fg3);font-weight:600;margin-top:2px}
+#f-horas{margin-top:4px}
+/* Faixa que deixa claro quando o admin está mexendo na casa de outra família */
+.faixa-edicao{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 4px;padding:12px 14px;border-radius:var(--raio-p);border:2px solid var(--abobora);background:rgba(255,138,31,.12)}
+.faixa-edicao>svg{width:26px;height:26px;color:var(--abobora);flex:none}
+.faixa-edicao>div{flex:1 1 180px;min-width:0}
+.faixa-edicao b{display:block;color:var(--fg)}
+.faixa-edicao span{display:block;color:var(--fg2);font-size:.88rem;font-weight:600}
+#painel-participar .cartao.editando-outra{border-color:var(--abobora);box-shadow:0 0 0 3px rgba(255,138,31,.18)}

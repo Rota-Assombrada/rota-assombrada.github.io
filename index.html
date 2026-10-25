@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=38">
+<link rel="stylesheet" href="css/estilo.css?v=39">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -175,6 +175,7 @@
       <div class="cartao">
         <h2 id="participar-titulo">Cadastrar minha casa</h2>
         <p id="participar-intro"></p>
+        <div class="faixa-edicao" id="faixa-edicao" hidden></div>
         <div id="gate" class="gate" hidden></div>
         <div class="repetir-casa" id="repetir-casa" hidden><p>Você participou no ano passado.</p><button type="button" class="btn btn-sucesso" id="btn-repetir">Repetir minha casa do ano passado</button></div>
         <form id="form-casa" novalidate hidden>
@@ -186,9 +187,13 @@
           <div class="campo"><label for="f-familia">Família / nome</label><input type="text" id="f-familia" placeholder="Família Souza" maxlength="60"></div>
           <div class="campo"><span class="rotulo">O que a casa oferece</span><div class="multi" id="f-oferece"></div></div>
           <div class="campo"><span class="rotulo">Avisos</span><div class="multi" id="f-flags"></div></div>
-          <div class="linha">
-            <div class="campo"><label for="f-hi">Abre às</label><input type="time" id="f-hi"></div>
-            <div class="campo"><label for="f-hf">Fecha às</label><input type="time" id="f-hf"></div>
+          <div class="campo">
+            <span class="rotulo">Horário da casa</span>
+            <label class="check-grande"><input type="checkbox" id="f-hora-evento" checked><span><b>Período do evento completo</b><small id="f-hora-evento-txt">Segue o horário do evento.</small></span></label>
+            <div class="linha" id="f-horas" hidden>
+              <div class="campo"><span class="rotulo-campo" id="r-hi">Abre às</span><input type="hidden" id="f-hi"><div class="hora-sel" data-hora="f-hi" data-rotulo="Abre às"></div></div>
+              <div class="campo"><span class="rotulo-campo" id="r-hf">Fecha às</span><input type="hidden" id="f-hf"><div class="hora-sel" data-hora="f-hf" data-rotulo="Fecha às"></div></div>
+            </div>
           </div>
           <div class="campo"><label for="f-obs">Observações</label><textarea id="f-obs" maxlength="240" placeholder="Toque a campainha duas vezes; a abóbora gigante fica na garagem."></textarea></div>
           <div class="campo">
@@ -245,8 +250,8 @@
           <div class="campo"><label for="c-data">Data</label><input type="date" id="c-data"></div>
         </div>
         <div class="linha">
-          <div class="campo"><label for="c-hi">Começa às</label><input type="time" id="c-hi"></div>
-          <div class="campo"><label for="c-hf">Termina às</label><input type="time" id="c-hf"></div>
+          <div class="campo"><span class="rotulo-campo">Começa às</span><input type="hidden" id="c-hi"><div class="hora-sel" data-hora="c-hi" data-rotulo="Começa às" data-vazio="1" data-padrao="18:00"></div></div>
+          <div class="campo"><span class="rotulo-campo">Termina às</span><input type="hidden" id="c-hf"><div class="hora-sel" data-hora="c-hf" data-rotulo="Termina às" data-vazio="1" data-padrao="21:00"></div></div>
         </div>
         <div class="campo"><label for="c-avisos">Aviso geral (aparece no topo)</label><input type="text" id="c-avisos" maxlength="160" placeholder="Levem lanterna! Portaria fecha às 21h."></div>
         <label class="check"><input type="checkbox" id="c-listado"> Aparecer na busca (mostra só nome, cidade e código)</label>
@@ -294,6 +299,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=38"></script>
+<script type="module" src="js/app.js?v=39"></script>
 </body>
 </html>
