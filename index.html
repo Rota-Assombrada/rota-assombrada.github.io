@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0a16">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com https://www.google.com/recaptcha/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://cdnjs.cloudflare.com; connect-src 'self' https://nominatim.openstreetmap.org https://routing.openstreetmap.de https://content-firebaseappcheck.googleapis.com https://www.google.com/recaptcha/ http://127.0.0.1:8080 http://127.0.0.1:9099 https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/ http://127.0.0.1:9099 https://rota-assombrada.firebaseapp.com https://accounts.google.com https://apis.google.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://www.googletagmanager.com https://apis.google.com https://www.google.com/recaptcha/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.google-analytics.com https://www.googletagmanager.com https://tile.openstreetmap.org https://server.arcgisonline.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com https://nominatim.openstreetmap.org https://routing.openstreetmap.de https://content-firebaseappcheck.googleapis.com https://www.google.com/recaptcha/ http://127.0.0.1:8080 http://127.0.0.1:9099 https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/ http://127.0.0.1:9099 https://rota-assombrada.firebaseapp.com https://accounts.google.com https://apis.google.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=32">
+<link rel="stylesheet" href="css/estilo.css?v=34">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -181,7 +181,7 @@
             <div class="campo"><label for="f-rua">Rua / quadra</label><input type="text" id="f-rua" autocomplete="off" placeholder="Rua das Abóboras" maxlength="60"></div>
             <div class="campo"><label for="f-numero">Número / lote *</label><input type="text" id="f-numero" required inputmode="numeric" placeholder="12" maxlength="20"></div>
           </div>
-          <div class="campo campo-admin" id="campo-email-dono" hidden><label for="f-email-dono">E-mail do responsável (opcional)</label><input type="email" id="f-email-dono" maxlength="160" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="familia@gmail.com"><span class="ajuda">Quem entrar com este e-mail do Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa: só admins veem.</span></div>
+          <div class="campo campo-admin" id="campo-email-dono" hidden><label for="f-email-dono">E-mail do responsável (opcional)</label><input type="email" id="f-email-dono" maxlength="160" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="familia@gmail.com"><span class="ajuda" id="ajuda-email-dono">Quem entrar com este e-mail do Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa: só admins veem.</span></div>
           <div class="campo"><label for="f-familia">Família / nome</label><input type="text" id="f-familia" placeholder="Família Souza" maxlength="60"></div>
           <div class="campo"><span class="rotulo">O que a casa oferece</span><div class="multi" id="f-oferece"></div></div>
           <div class="campo"><span class="rotulo">Avisos</span><div class="multi" id="f-flags"></div></div>
@@ -275,6 +275,7 @@
     <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M30 6c3 2 4 6 4 10" stroke="#4f7a24" stroke-width="5" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="46" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="32" cy="38" rx="17" ry="22" fill="#ff8a1f"/><path d="M20 32l6 7h-10zM44 32l-6 7h10z" fill="#ffd84a"/><path d="M18 46q14 12 28 0l-5 2-4-3-5 3-5-3-4 3z" fill="#ffd84a"/></svg>
     <p>Feito com carinho por <b>Bruno Couto</b></p>
     <p class="creditos-sub">Rota Assombrada · mapas © OpenStreetMap</p>
+    <p class="creditos-sub">O site conta visitas e erros de forma anônima, sem anúncios, para melhorar o app.</p>
   </footer>
 
   <nav class="abas" id="abas" aria-label="Seções" hidden>
@@ -288,6 +289,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=32"></script>
+<script type="module" src="js/app.js?v=34"></script>
 </body>
 </html>

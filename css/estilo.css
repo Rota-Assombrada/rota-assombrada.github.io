@@ -530,3 +530,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .creditos p{margin:0;font-weight:700;font-size:.9rem}
 .creditos b{color:var(--abobora);font-weight:900}
 .creditos-sub{font-size:.75rem!important;opacity:.8}
+
+/* campos de e-mail com o mesmo visual dos outros */
+input[type=email],input[type=url]{width:100%;min-height:48px;border-radius:var(--raio-p);border:2px solid var(--borda);background:var(--bg2);color:var(--fg);padding:10px 12px;font:inherit;font-weight:600}
+input[type=email]:focus,input[type=url]:focus{border-color:var(--roxo);outline:none;box-shadow:0 0 0 3px rgba(155,107,255,.3)}
+input::placeholder,textarea::placeholder{color:var(--fg3);opacity:.8}

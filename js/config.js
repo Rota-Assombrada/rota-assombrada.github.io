@@ -23,8 +23,12 @@ export default {
     projectId: 'rota-assombrada',
     storageBucket: 'rota-assombrada.firebasestorage.app',
     messagingSenderId: '990414708349',
-    appId: '1:990414708349:web:990aa8e58be7c28e011b14'
+    appId: '1:990414708349:web:990aa8e58be7c28e011b14',
+    measurementId: 'G-V1JJFJ5VED'
   },
+
+  // Contagem anônima de telas, ações e erros pelo Google Analytics do Firebase (grátis). false desliga.
+  analytics: true,
 
   // App Check com reCAPTCHA v3 (gratuito): prova que o pedido veio deste site, e não de um robô.
   // É a "chave do site" do reCAPTCHA, pública por natureza. Vazio = App Check desligado.

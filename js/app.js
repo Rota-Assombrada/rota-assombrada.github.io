@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=32';
+import CONFIG from './config.js?v=34';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -38,6 +38,29 @@ const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox=
 const OFERECE = [['doces','Doces e balas'],['chocolate','Chocolate'],['brincadeira','Brincadeira ou susto'],['decoracao','Casa decorada'],['lembrancinha','Lembrancinha']];
 const FLAGS = [['pequenos','Amigável para pequenos'],['cachorro','Tem cachorro'],['alergia','Opção sem açúcar/alergia'],['assustadora','Bem assustadora']];
 const rotuloDe = (lista, k) => (lista.find(o => o[0] === k) || [k, k])[1];
+
+/* ---------- métricas e erros (Google Analytics do Firebase) ---------- */
+// Só contagens anônimas: nome da tela e da ação, nunca código de condomínio, convite, e-mail ou nome.
+const metrica = {an: null, fila: [], erros: 0, vistos: new Set()};
+function limparTexto(s) {
+  return String(s || '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '[email]').replace(/https?:\/\/\S+/g, '[link]')
+    .replace(/#[A-Za-z0-9/_-]+/g, '#[rota]').replace(/\b[A-Za-z0-9_-]{20,}\b/g, '[id]').replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+function evento_(nome, params = {}) {
+  // page_location é montado aqui mesmo (origem + nome da tela), então não passa pela limpeza.
+  const limpo = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, typeof v === 'number' || k === 'page_location' ? v : limparTexto(v)]));
+  if (metrica.an) { try { metrica.an.logEvent(metrica.inst, nome, limpo); } catch {} } else if (metrica.fila.length < 30) metrica.fila.push([nome, limpo]);
+}
+function registrarErro(msg, fatal) {
+  const d = limparTexto(msg); if (!d || metrica.vistos.has(d) || metrica.erros >= 10) return;
+  metrica.vistos.add(d); metrica.erros++; evento_('exception', {description: d, fatal: fatal ? 1 : 0});
+}
+window.addEventListener('error', e => registrarErro((e.error && e.error.message) || e.message, true));
+window.addEventListener('unhandledrejection', e => registrarErro((e.reason && (e.reason.code || e.reason.message)) || e.reason, false));
+const consoleErro = console.error.bind(console);
+console.error = (...a) => { consoleErro(...a); registrarErro(a.map(x => (x && (x.code || x.message)) || x).join(' '), false); };
+let ultimaTela = '';
+function contarTela(nome) { if (nome === ultimaTela) return; ultimaTela = nome; evento_('page_view', {page_title: nome, page_location: `${location.origin}/${nome}`}); }
 
 /* ---------- carregamentos: barra no topo, esqueletos e spinners ---------- */
 let cargas = 0, barraTimer = null;
@@ -130,6 +153,14 @@ const fb = {
         if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
         ac.initializeAppCheck(app, {provider: new ac.ReCaptchaV3Provider(CONFIG.appCheckSiteKey), isTokenAutoRefreshEnabled: true});
       } catch (e) { console.error('App Check não iniciou', e); }
+    }
+    if (CONFIG.analytics && CONFIG.firebase.measurementId && !emu) {
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js').then(async an => {
+        if (!(await an.isSupported())) return;
+        an.setConsent({analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied'});
+        metrica.inst = an.initializeAnalytics(app, {config: {send_page_view: false, page_location: `${location.origin}/`, cookie_expires: 0, allow_google_signals: false, allow_ad_personalization_signals: false}});
+        metrica.an = an; metrica.fila.splice(0).forEach(([n, p]) => evento_(n, p));
+      }).catch(e => consoleErro('Analytics não iniciou', e));
     }
     this.fs = fs; this.db = fs.getFirestore(app); this.auth = auth; this.a = auth.getAuth(app); this.a.languageCode = 'pt';
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
@@ -341,7 +372,7 @@ async function tentarConvite() {
   try {
     if (papel === 'pendente') await fb.fs.deleteDoc(fb.membro(cid, usuario.uid));
     await fb.fs.setDoc(fb.membro(cid, usuario.uid), {uid: usuario.uid, papel: 'morador', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: cod, criadoEm: Date.now(), atualizadoEm: Date.now()});
-    SFX.festa(); toast('Convite aceito! Agora você pode cadastrar sua casa.', 4000); limparRota();
+    SFX.festa(); toast('Convite aceito! Agora você pode cadastrar sua casa.', 4000); limparRota(); evento_('convite_aceito');
   } catch (e) {
     console.error(e); limparRota();
     toast('Este convite expirou ou foi desativado. Peça um novo ao admin.', 5000);
@@ -646,7 +677,7 @@ async function montarRoteiro() {
   roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, partida, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
-  const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`);
+  const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
   if (vozAuto) { const idx = proximaParada(); falar(`Roteiro montado com ${n} casa${n > 1 ? 's' : ''}, saindo de ${pp.nome}. ` + (idx >= 0 ? falaParada(idx) : '')); }
   if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
@@ -678,13 +709,14 @@ function aoMoverGPS() {
 }
 function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsa.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
 async function cheguei() {
-  const idx = proximaParada(); if (idx < 0) return; marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
+  const idx = proximaParada(); if (idx < 0) return; evento_('chegou_na_casa'); marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
   const b = $('#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
   const prox = proximaParada();
   if (prox < 0) { toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
   else { await atualizarTrecho(true); if (vozAuto) falar('Boa! ' + falaParada(prox)); }
 }
 function pararNavegacao() {
+  evento_('navegacao_parada');
   roteiro = null; lsa.set('roteiro', null); trecho = null; rotaTrechos = null; rotaLinha = null; rotaPernas = null; rotaChave = ''; anunciadoChegada = null; modoSeguir = false;
   try { speechSynthesis.cancel(); } catch {} abaixarMusica(false);
   renderRoteiro(); renderPins(); renderPlacar(); SFX.pop(); toast('Navegação encerrada. As casas visitadas continuam marcadas.');
@@ -1021,6 +1053,8 @@ async function verificarCasaAnoPassado() {
 function atualizarForm() {
   const minha = editandoId && usuario && (editandoId === usuario.uid || souResponsavel(casaPorId(editandoId)));
   const campo = $('#campo-email-dono'); campo.hidden = !ehAdmin();
+  const daMinhaConta = editandoId && usuario && casaPorId(editandoId) && casaPorId(editandoId).uid === usuario.uid;
+  $('#ajuda-email-dono').textContent = (daMinhaConta ? 'Hoje esta casa é da sua conta Google. Preencha só se quiser passar a casa para outra pessoa. ' : '') + 'Quem entrar com este e-mail do Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa: só admins veem.';
   if (ehAdmin() && document.activeElement !== $('#f-email-dono')) $('#f-email-dono').value = editandoId ? (atribuicoes[editandoId] || '') : (campo.dataset.reter || '');
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
   $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Editar casa' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
@@ -1064,6 +1098,7 @@ function renderAdmin() {
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 function mostrarInicio() {
+  contarTela('inicio');
   $('#painel-inicio').hidden = false; ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { $('#painel-' + a).hidden = true; });
   $('#abas').hidden = true; $('#linha-condo').hidden = true; $('#placar').innerHTML = ''; abaAtual = 'inicio';
   renderCabecalho(); renderInicio(); window.scrollTo({top: 0});
@@ -1196,7 +1231,7 @@ async function criarCondo(nome, cidade) {
     return b.commit();
   }, 'Condomínio criado!');
   if (!ok) return;
-  listaCondosCarregada = false; SFX.festa();
+  listaCondosCarregada = false; SFX.festa(); evento_('condominio_criado');
   $('#folha-in').innerHTML = `<div class="boas-vindas">${PUMPKIN_BIG}<h3>${h(nome)} está no mapa!</h3><p>Este é o código do seu condomínio:</p><div class="codigo-grande">${cod}</div>
     <p class="dica">Ajuste o início do mapa e gere convites na aba Admin.</p><div class="acoes"><a class="btn btn-primario btn-grande" href="#${cod}" data-fechar-folha>Abrir meu condomínio</a></div></div>`;
   ls.set('hw.aba', 'organizador');
@@ -1212,7 +1247,7 @@ function irAba(nome) {
   if (nome === 'organizador' && !ehAdmin()) nome = 'mapa';
   // O roteiro mora embaixo do mapa: "ir ao roteiro" abre o mapa e rola até ele.
   const rolarRoteiro = nome === 'roteiro'; if (rolarRoteiro) nome = 'mapa';
-  abaAtual = nome; ls.set('hw.aba', nome);
+  abaAtual = nome; ls.set('hw.aba', nome); contarTela(nome === 'organizador' ? 'admin' : nome);
   if (rolarRoteiro) setTimeout(() => $(roteiro ? '#guia' : '#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}), 120);
   ['mapa', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
   if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
@@ -1251,6 +1286,7 @@ function ligarEventos() {
     if (e.target.closest('input, textarea, select, label, a, .leaflet-container, .folha-in')) return;
     tocarCenario(e.clientX, e.clientY, e.target);
   }, {passive: true});
+  document.addEventListener('click', e => { const nav = e.target.closest('a[href*="google.com/maps"], a[href*="maps.apple.com"], a[href*="waze.com"]'); if (nav) evento_('navegar', {app: nav.href.includes('google') ? 'google' : nav.href.includes('apple') ? 'apple' : 'waze'}); });
   document.addEventListener('click', e => { const b = e.target.closest('.btn-primario, .btn-sucesso'); if (b && !b.disabled) { const r = b.getBoundingClientRect(); explodir(e.clientX || r.left + r.width / 2, e.clientY || r.top + r.height / 2); } });
   window.addEventListener('hashchange', aplicarRota);
 
@@ -1366,6 +1402,7 @@ function ligarEventos() {
       if (emailDono) b.set(fb.atribuicao(cid, id), {email: emailDono, ano, atualizadoEm: Date.now()}); else if (atribuicoes[id]) b.delete(fb.atribuicao(cid, id));
       return b.commit();
     }, emailDono ? `Casa salva e atribuída a ${emailDono}.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
+    if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, atribuida: emailDono ? 1 : 0});
     if (ok && emailDono && !membros.some(m => (m.email || '').toLowerCase() === emailDono)) setTimeout(() => toast('Essa pessoa ainda não está no condomínio. Mande um convite para ela entrar e ver a casa.', 6000), 3000);
     if (ok) { $('#campo-email-dono').dataset.reter = ''; const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
   });
