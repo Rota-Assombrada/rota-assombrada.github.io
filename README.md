@@ -1,64 +1,82 @@
 # Rota Assombrada
 
-Mapa das casas participantes do Halloween do condomínio, com cadastro pelos moradores, roteiro otimizado e guia por voz. Tudo gratuito: GitHub Pages (site), Firebase Firestore no plano Spark (dados), OpenStreetMap + Leaflet (mapa) e o app de mapas do próprio celular (navegação).
+Mapa das casas participantes do Halloween de condomínios, com cadastro pelos moradores, roteiro otimizado e guia por voz. Site: <https://rota-assombrada.github.io>
+
+Tudo gratuito: GitHub Pages (site), Firebase Auth com Google e Firestore no plano Spark (login e dados), OpenStreetMap + Leaflet (mapa) e o app de mapas do próprio celular (navegação).
 
 ## Como funciona
 
-- **Mapa**: pins de abóbora nas casas, filtros, sua posição pelo GPS, camadas Noite / Ruas / Satélite.
-- **Participar**: o morador marca a casa (GPS na porta ou toque no mapa), diz o que oferece e salva. Quem cadastrou pode editar.
-- **Roteiro**: ordem mais curta a partir de onde você está (ou da portaria), lista com check de visitadas, botão **Navegar** que abre Apple Maps / Google Maps / Waze a pé, e guia por voz que avisa distância e chegada.
-- **Organizar**: aparece só para organizadores (e-mail Google listado). Edita o evento, marca a portaria, edita/exclui qualquer casa, exporta/importa backup.
+- Cada condomínio tem um link próprio: `https://rota-assombrada.github.io/#codigo-do-condominio`.
+- **Mapa**: pins de abóbora nas casas, filtros, posição pelo GPS, camadas Noite / Ruas / Satélite.
+- **Participar**: o morador entra com Google, marca a casa (GPS na porta ou toque no mapa) e diz o que oferece.
+- **Roteiro**: ordem mais curta a partir de onde você está, botão Navegar (Apple Maps, Google Maps, Waze) e guia por voz que avisa distância e chegada.
+- **Admin**: link do condomínio, convites, aprovação de pedidos, papéis, evento, portaria, privacidade e casas.
 
-## Publicar no GitHub Pages (grátis)
+## Arquitetura
 
-1. Crie um repositório no GitHub e envie estes arquivos (ou use o repositório já criado).
-2. Em **Settings → Pages**, escolha **Deploy from a branch**, branch `main`, pasta `/ (root)`.
-3. O site fica em `https://rota-assombrada.github.io/`.
+Não existe servidor próprio. O site é só arquivos estáticos no GitHub Pages; o backend é o Firebase:
 
-O GPS só funciona em `https://`, e o GitHub Pages já entrega isso.
+1. **Login (Firebase Auth + Google)**: o Google confere quem é a pessoa e o Firebase entrega ao navegador um token assinado com `uid`, e-mail e se o e-mail é verificado. Ninguém consegue forjar esse token.
+2. **Banco (Firestore)**: guarda condomínios, membros, convites e casas.
+3. **Autorização (`firestore.rules`)**: roda nos servidores do Google a cada leitura e gravação, olhando o token e os dados. É aqui que a segurança vale; o código do navegador é público e pode ser alterado à vontade sem ganhar acesso a nada.
 
-## Ligar o Firebase (grátis, ~5 minutos)
+```
+condominios/{codigo}                 nome, evento, centro do mapa, portaria, público ou fechado
+condominios/{codigo}/membros/{uid}   papel: admin | morador | pendente
+condominios/{codigo}/convites/{cod}  convite de morador, com validade
+condominios/{codigo}/casas/{id}      casas (a do morador tem o id da conta dele)
+```
 
-Sem isso o app funciona em **modo local** (cada celular vê só o que cadastrou). Com o Firebase, todo mundo vê as mesmas casas em tempo real.
+## Papéis
 
-1. Acesse <https://console.firebase.google.com> e clique em **Adicionar projeto** (pode desligar o Analytics).
-2. **Build → Firestore Database → Criar banco de dados** → modo de produção → região `southamerica-east1` (São Paulo).
-3. Na aba **Regras** do Firestore, cole o conteúdo de [`firestore.rules`](firestore.rules) e publique.
-4. **Build → Authentication → Começar → Google → Ativar** (escolha um e-mail de suporte).
-5. **Configurações do projeto (engrenagem) → Seus apps → ícone Web `</>`** → registre o app (sem Hosting) e copie o objeto `firebaseConfig`.
-6. Cole o objeto em [`js/config.js`](js/config.js) no campo `firebase`, ajuste `centro` (coordenadas do condomínio), `organizadores` e `nomeApp`, e envie para o GitHub.
-7. Em **Authentication → Settings → Domínios autorizados**, adicione `rota-assombrada.github.io`.
+| Papel | Pode |
+|---|---|
+| Visitante | Ver o mapa só se o condomínio for público |
+| Pendente | Pediu para entrar; espera aprovação |
+| Morador | Ver o mapa e cadastrar/editar só a própria casa |
+| Admin do condomínio | Tudo naquele condomínio: evento, convites, aprovar, promover, editar qualquer casa |
+| Dono da plataforma | Criar condomínios; é admin de todos |
 
-Limites do plano gratuito (50 mil leituras e 20 mil gravações por dia) são mais do que suficientes para um condomínio inteiro na noite do evento.
+O dono da plataforma é reconhecido pelo **hash SHA-256 do e-mail Google**, listado em `firestore.rules` (vale de verdade) e em `js/config.js` (só para a tela). O e-mail em si não é publicado. Para gerar o hash:
+
+```bash
+echo -n "email@exemplo.com" | shasum -a 256
+```
+
+Admins de cada condomínio são definidos no próprio app, pela aba Admin, sem mexer em código.
+
+## Segurança
+
+- Gravar exige login com Google e e-mail verificado. Login anônimo ou por senha é recusado.
+- Entrar como morador só com convite válido (ativo e no prazo); sem convite, o pedido fica pendente.
+- Ninguém se promove: só admin muda papéis. Convites só criam moradores.
+- Um condomínio não enxerga nem altera outro.
+- Todo campo é validado no servidor: lista de campos permitidos, tipos, tamanhos e valores.
+- No navegador, textos de usuários são escapados antes de ir para a tela, e há Content-Security-Policy limitando de onde vêm scripts e conexões.
+- Testes automáticos das regras em [`testes/regras.test.mjs`](testes/regras.test.mjs) simulam cada papel tentando o que não pode.
+
+Rodar os testes (precisa de Java):
+
+```bash
+cd testes && npm install && npm test
+```
+
+Publicar mudanças nas regras:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## Configuração do Firebase (uma vez)
+
+1. Authentication → Sign-in method → **Google** → Ativar.
+2. Authentication → Settings → **Authorized domains** → adicionar `rota-assombrada.github.io`.
+3. Firestore e regras já são publicados com `firebase deploy --only firestore:rules`.
 
 ## Rodar local
-
-Qualquer servidor estático serve, por exemplo:
 
 ```bash
 python3 -m http.server 8080
 ```
 
-Abra `http://localhost:8080`. O GPS funciona em `localhost` mesmo sem https.
-
-## Estrutura
-
-```
-index.html        marcação da página
-css/estilo.css    tema e animações
-js/app.js         mapa, GPS, roteiro, voz, música e dados
-js/config.js      nome, PIN, centro do mapa e configuração do Firebase
-firestore.rules   regras de segurança do Firestore
-```
-
-## Segurança
-
-Não existe servidor próprio: o site é só arquivos estáticos. Quem decide o que pode ser gravado são as regras do Firestore ([`firestore.rules`](firestore.rules)), que rodam nos servidores do Google a cada leitura e gravação. Mexer no código do navegador não dá acesso a nada.
-
-- Ler o mapa é público. Gravar exige login com Google (e-mail verificado).
-- Cada conta tem uma casa, salva com o id da própria conta. Só o dono edita ou exclui.
-- Organizadores são reconhecidos pelo hash SHA-256 do e-mail, que fica nas regras e em `js/config.js`. O e-mail não é publicado.
-- Todo campo é validado no servidor: tipo, tamanho máximo e valores permitidos. Caminhos desconhecidos são negados.
-- No navegador, textos de usuários são escapados antes de ir para a tela, e há Content-Security-Policy limitando de onde scripts e conexões podem vir.
-
-Para publicar mudanças nas regras: `firebase deploy --only firestore:rules`.
+Abra `http://localhost:8080`. O GPS e o login funcionam em `localhost`.

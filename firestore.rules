@@ -1,32 +1,88 @@
 rules_version = '2';
 
-// Regras de segurança da Rota Assombrada.
-// - Qualquer pessoa vê o mapa (casas e dados do evento).
-// - Para cadastrar, é preciso entrar com Google. Cada conta tem UMA casa, cujo documento tem o id da própria conta.
-// - Só o dono da casa edita ou exclui a própria casa.
-// - Organizadores (lista de hashes SHA-256 do e-mail Google, para não publicar e-mails) editam tudo e o evento.
-// - Todo campo é validado: tipos, tamanhos máximos e valores permitidos.
+// Regras de segurança da Rota Assombrada (vários condomínios, controle por papéis).
+//
+// Papéis por condomínio (condominios/{cid}/membros/{uid}.papel):
+//   admin    -> edita o condomínio, convites, membros e qualquer casa daquele condomínio
+//   morador  -> cadastra e edita só a própria casa (documento com o id da própria conta)
+//   pendente -> pediu acesso, aguarda aprovação; não grava casas
+// Visitante (sem papel) só lê as casas se o condomínio estiver marcado como público.
+// Dono da plataforma: reconhecido pelo hash SHA-256 do e-mail Google (o e-mail não fica público).
+// Cria condomínios e é admin de todos.
+//
+// Tudo que não está liberado aqui é negado.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function logadoGoogle() {
+    // ---------- identidade ----------
+    function logado() {
       return request.auth != null
         && request.auth.token.firebase.sign_in_provider == 'google.com'
         && request.auth.token.email_verified == true;
     }
-
-    function organizador() {
-      return logadoGoogle()
+    function eu() { return request.auth.uid; }
+    function donoPlataforma() {
+      return logado()
         && hashing.sha256(request.auth.token.email.lower()).toHexString().lower() in [
           'edc3e60dc481e945b137c839efaaf90135694890fc8967d6f013274d3c6a4dee'
         ];
     }
 
+    // ---------- papéis ----------
+    function caminhoMembro(cid) { return /databases/$(database)/documents/condominios/$(cid)/membros/$(request.auth.uid); }
+    function papelEh(cid, papeis) {
+      return logado() && exists(caminhoMembro(cid)) && get(caminhoMembro(cid)).data.papel in papeis;
+    }
+    function ehAdmin(cid) { return donoPlataforma() || papelEh(cid, ['admin']); }
+    function ehMorador(cid) { return donoPlataforma() || papelEh(cid, ['admin', 'morador']); }
+    function condoPublico(cid) {
+      return get(/databases/$(database)/documents/condominios/$(cid)).data.publico == true;
+    }
+    function conviteValido(cid, codigo) {
+      let caminho = /databases/$(database)/documents/condominios/$(cid)/convites/$(codigo);
+      return codigo is string && exists(caminho)
+        && get(caminho).data.ativo == true
+        && get(caminho).data.expiraEm > request.time.toMillis();
+    }
+
+    // ---------- validação ----------
     function texto(v, max) { return v is string && v.size() <= max; }
     function hora(v) { return v is string && (v == '' || v.matches('^[0-2][0-9]:[0-5][0-9]$')); }
     function lista(v, permitidos) { return v is list && v.size() <= permitidos.size() && v.hasOnly(permitidos); }
-    function coordenada(lat, lng) {
-      return lat is number && lng is number && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+    function coordenada(p) {
+      return p is map && p.keys().hasOnly(['lat', 'lng']) && p.lat is number && p.lng is number
+        && p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180;
+    }
+
+    function condoValido(cid, d) {
+      return cid.matches('^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$')
+        && d.keys().hasOnly(['nome', 'eventoNome', 'data', 'horaInicio', 'horaFim', 'whatsapp', 'avisos', 'portaria', 'centro', 'zoom', 'publico', 'criadoPor', 'criadoEm', 'atualizadoEm'])
+        && d.keys().hasAll(['nome', 'centro', 'publico', 'criadoPor'])
+        && texto(d.nome, 80) && d.nome.size() > 0
+        && texto(d.get('eventoNome', ''), 80)
+        && texto(d.get('data', ''), 10)
+        && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
+        && texto(d.get('whatsapp', ''), 30)
+        && texto(d.get('avisos', ''), 160)
+        && (d.get('portaria', null) == null || coordenada(d.portaria))
+        && coordenada(d.centro)
+        && d.get('zoom', 17) is int && d.get('zoom', 17) >= 3 && d.get('zoom', 17) <= 20
+        && d.publico is bool
+        && texto(d.criadoPor, 128);
+    }
+
+    function membroValido(mid, d) {
+      return d.keys().hasOnly(['uid', 'papel', 'nome', 'email', 'convite', 'criadoEm', 'atualizadoEm'])
+        && d.uid == mid
+        && d.papel in ['admin', 'morador', 'pendente']
+        && texto(d.get('nome', ''), 80)
+        && texto(d.get('email', ''), 160)
+        && texto(d.get('convite', ''), 40);
+    }
+
+    function conviteDocValido(d) {
+      return d.keys().hasOnly(['papel', 'ativo', 'expiraEm', 'criadoPor', 'criadoEm'])
+        && d.papel == 'morador' && d.ativo is bool && d.expiraEm is number && texto(d.criadoPor, 128);
     }
 
     function casaValida(d) {
@@ -39,46 +95,60 @@ service cloud.firestore {
         && lista(d.get('oferece', []), ['doces', 'chocolate', 'brincadeira', 'decoracao', 'lembrancinha'])
         && lista(d.get('flags', []), ['pequenos', 'cachorro', 'alergia', 'assustadora'])
         && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
-        && coordenada(d.lat, d.lng)
+        && coordenada({'lat': d.lat, 'lng': d.lng})
         && texto(d.uid, 128)
         && d.get('criadoEm', 0) is number && d.get('atualizadoEm', 0) is number;
     }
 
-    function eventoValido(d) {
-      return d.keys().hasOnly(['nome', 'data', 'horaInicio', 'horaFim', 'whatsapp', 'avisos', 'portaria'])
-        && texto(d.get('nome', ''), 80)
-        && texto(d.get('data', ''), 10)
-        && hora(d.get('horaInicio', '')) && hora(d.get('horaFim', ''))
-        && texto(d.get('whatsapp', ''), 30)
-        && texto(d.get('avisos', ''), 160)
-        && (d.get('portaria', null) == null
-            || (d.portaria is map && d.portaria.keys().hasOnly(['lat', 'lng']) && coordenada(d.portaria.lat, d.portaria.lng)));
-    }
+    // ---------- condomínios ----------
+    match /condominios/{cid} {
+      // Abrir um condomínio pelo link mostra nome, horário e centro do mapa. Listar todos é só do dono da plataforma.
+      allow get: if true;
+      allow list: if donoPlataforma();
+      allow create: if donoPlataforma() && condoValido(cid, request.resource.data)
+        && request.resource.data.criadoPor == eu();
+      allow update: if ehAdmin(cid) && condoValido(cid, request.resource.data)
+        && request.resource.data.criadoPor == resource.data.criadoPor;
+      allow delete: if donoPlataforma();
 
-    match /casas/{id} {
-      allow read: if true;
+      match /membros/{mid} {
+        allow get: if logado() && (mid == eu() || ehAdmin(cid));
+        allow list: if ehAdmin(cid);
 
-      allow create: if casaValida(request.resource.data) && (
-        (logadoGoogle() && id == request.auth.uid && request.resource.data.uid == request.auth.uid)
-        || organizador()
-      );
+        // Entrar: com convite válido vira morador; sem convite fica pendente. Admin pode adicionar qualquer papel.
+        allow create: if membroValido(mid, request.resource.data) && (
+          ehAdmin(cid)
+          || (logado() && mid == eu()
+              && exists(/databases/$(database)/documents/condominios/$(cid))
+              && request.resource.data.email == request.auth.token.email
+              && (request.resource.data.papel == 'pendente'
+                  || (request.resource.data.papel == 'morador' && conviteValido(cid, request.resource.data.convite))))
+        );
+        // Só admin muda papel (aprovar, promover, rebaixar).
+        allow update: if ehAdmin(cid) && membroValido(mid, request.resource.data);
+        // Admin remove; a própria pessoa pode sair.
+        allow delete: if ehAdmin(cid) || (logado() && mid == eu());
+      }
 
-      allow update: if casaValida(request.resource.data) && (
-        (logadoGoogle() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid)
-        || organizador()
-      );
+      match /convites/{codigo} {
+        allow read: if ehAdmin(cid);
+        allow create, update: if ehAdmin(cid) && codigo.matches('^[A-Za-z0-9]{8,40}$')
+          && conviteDocValido(request.resource.data);
+        allow delete: if ehAdmin(cid);
+      }
 
-      allow delete: if (logadoGoogle() && resource.data.uid == request.auth.uid) || organizador();
-    }
-
-    match /config/evento {
-      allow read: if true;
-      allow write: if organizador() && eventoValido(request.resource.data);
-    }
-
-    // Qualquer outro caminho fica fechado.
-    match /{caminho=**} {
-      allow read, write: if false;
+      match /casas/{casaId} {
+        allow read: if ehMorador(cid) || condoPublico(cid);
+        allow create: if casaValida(request.resource.data) && (
+          ehAdmin(cid)
+          || (ehMorador(cid) && casaId == eu() && request.resource.data.uid == eu())
+        );
+        allow update: if casaValida(request.resource.data) && (
+          ehAdmin(cid)
+          || (ehMorador(cid) && resource.data.uid == eu() && request.resource.data.uid == eu())
+        );
+        allow delete: if ehAdmin(cid) || (logado() && resource.data.uid == eu());
+      }
     }
   }
 }

@@ -3,10 +3,10 @@ export default {
   // Nome que aparece no topo. A última palavra ganha destaque laranja.
   nomeApp: 'Rota Assombrada',
 
-  // Organizadores: hash SHA-256 do e-mail Google em minúsculas (assim o e-mail não fica público).
+  // Donos da plataforma (criam condomínios): hash SHA-256 do e-mail Google em minúsculas, para o e-mail não ficar público.
   // Gere com: echo -n "email@exemplo.com" | shasum -a 256
-  // A MESMA lista precisa estar em firestore.rules; é lá que a permissão vale de verdade.
-  organizadores: [
+  // A MESMA lista precisa estar em firestore.rules; esta aqui só decide o que aparece na tela.
+  donosPlataforma: [
     'edc3e60dc481e945b137c839efaaf90135694890fc8967d6f013274d3c6a4dee'
   ],
 
