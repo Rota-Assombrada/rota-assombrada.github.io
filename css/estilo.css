@@ -510,3 +510,16 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .mapa-casa{height:min(46vh,380px);min-height:260px}
 .pin-arrastar{animation:none;cursor:grab;filter:drop-shadow(0 0 10px rgba(141,240,106,.8)) drop-shadow(0 6px 6px rgba(0,0,0,.55))}
 .leaflet-marker-dragging .pin-arrastar{cursor:grabbing}
+
+/* ===== Lista de casas na tela do mapa ===== */
+.lista-casas-mapa{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.casa-item{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;padding:10px 14px;border-radius:16px;border:2px solid var(--borda);background:var(--superficie2);color:var(--fg);font:inherit;text-align:left;cursor:pointer;transition:transform .15s var(--mola),border-color .2s}
+.casa-item:hover,.casa-item:focus-visible{border-color:var(--abobora)}
+.casa-item:active{transform:scale(.98)}
+.casa-num{flex:none;min-width:48px;height:44px;padding:0 8px;border-radius:22px 22px 18px 18px;background:radial-gradient(circle at 50% 35%,#ffa348,var(--abobora) 60%,#e86f0c);color:#2a0d00;font-weight:900;font-size:.95rem;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
+.casa-item.fechada .casa-num{background:#9a6c3c}
+.casa-item.visitada{opacity:.7}
+.casa-item.visitada .casa-num{filter:grayscale(.8)}
+.mini-etq{color:var(--fg3);font-size:.8rem;font-weight:700;margin-top:2px}
+.casa-visitada{width:32px;height:32px;border-radius:50%;background:var(--veneno);color:var(--no-veneno);display:flex;align-items:center;justify-content:center;flex:none}
+.casa-visitada svg{width:18px;height:18px}

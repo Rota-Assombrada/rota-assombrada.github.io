@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=30';
+import CONFIG from './config.js?v=31';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -466,10 +466,30 @@ function renderPins() {
   }
   const vazio = $('#mapa-vazio');
   const mc = $('#mapa-carregando'); if (mc) mc.hidden = casasCarregadas;
-  if (!casasCarregadas) { vazio.innerHTML = ''; return; }
+  if (!casasCarregadas) { vazio.innerHTML = ''; renderListaCasas(); return; }
   $('#btn-ir-participar').hidden = !casas.length; $('#btn-compartilhar').hidden = !condo;
+  renderListaCasas();
   if (!casas.length) vazio.innerHTML = `<div class="cartao vazio vazio-casas">${PUMPKIN_BIG}<h3>Nenhuma abóbora acesa ainda</h3><p>As casas participantes aparecem aqui assim que os moradores se cadastram. Que tal começar pela sua?</p><button class="btn btn-primario" data-ir="participar">Cadastrar minha casa</button></div>`;
   else if (!vis.length) vazio.innerHTML = `<p class="vazio">Nenhuma casa passa nos filtros escolhidos.</p>`; else vazio.innerHTML = '';
+}
+function renderListaCasas() {
+  const card = $('#card-lista-casas'); if (!card) return;
+  if (!casasCarregadas || !casas.length) { card.hidden = true; return; }
+  const lista = casas.filter(c => typeof c.lat === 'number' && filtrada(c));
+  const comGps = posicao && Date.now() - posicao.t < 120000;
+  lista.sort(comGps ? (a, b) => distM(posicao, a) - distM(posicao, b) : (a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true}));
+  card.hidden = false;
+  $('#total-lista-casas').textContent = lista.length === casas.length ? casas.length : `${lista.length} de ${casas.length}`;
+  $('#ordem-lista-casas').textContent = !lista.length ? 'Nenhuma casa passa nos filtros escolhidos.' : comGps ? 'Da mais perto para a mais longe de você. Toque para ver os detalhes.' : 'Por rua e número. Ligue o GPS para ver as mais perto primeiro.';
+  $('#lista-casas-mapa').innerHTML = lista.map(c => {
+    const aberta = abertaAgora(c); const vis = visitadas.has(c.id);
+    const etqs = [aberta ? 'Aberta agora' : 'Fora do horário'].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
+    return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
+      <span class="casa-num" aria-hidden="true">${h(c.numero)}</span>
+      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span></span>
+      ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
+    </button></li>`;
+  }).join('');
 }
 function verTodas() { const pts = casas.filter(c => typeof c.lat === 'number').map(c => [c.lat, c.lng]); if (posicao) pts.push([posicao.lat, posicao.lng]); if (evento.portaria) pts.push([evento.portaria.lat, evento.portaria.lng]); if (pts.length) mapa.fitBounds(pts, {padding: [40, 40], maxZoom: 18}); }
 
@@ -489,7 +509,8 @@ function ligarGPS(centrar) {
     else { marcadorEu.setLatLng([posicao.lat, posicao.lng]); circuloAcc.setLatLng([posicao.lat, posicao.lng]).setRadius(posicao.acc); }
     atualizarRumoVisual();
     if ((centrar && !gpsCentrado) || modoSeguir) { mapa.setView([posicao.lat, posicao.lng], Math.max(mapa.getZoom(), 17)); gpsCentrado = true; }
-    gpsErro = null; atualizarBoasVindasGPS(); renderGpsCartao(); aoMoverGPS(); renderPartida(); if (!$('#guia').hidden) renderGuia();
+    gpsErro = null; atualizarBoasVindasGPS(); renderGpsCartao(); aoMoverGPS();
+    if (Date.now() - (window.__listaT || 0) > 15000) { window.__listaT = Date.now(); renderListaCasas(); } renderPartida(); if (!$('#guia').hidden) renderGuia();
   }, e => { gpsErro = e.code; atualizarBoasVindasGPS(); renderGpsCartao(); st.textContent = e.code === 1 ? (IOS ? 'Localização bloqueada no iPhone. Veja como liberar logo acima do mapa.' : 'Localização bloqueada. Libere nas configurações do navegador para este site.') : e.code === 2 ? 'O GPS do celular parece desligado. Ligue a localização nas configurações.' : 'Não consegui pegar sua posição agora.'; st.className = 'gps-status erro'; gpsWatch = null; }, {enableHighAccuracy: true, maximumAge: 3000, timeout: 20000});
   ligarBussola();
 }
@@ -1256,6 +1277,10 @@ function ligarEventos() {
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
   $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
   $('#btn-compartilhar').addEventListener('click', abrirCompartilhar);
+  $('#lista-casas-mapa').addEventListener('click', e => {
+    const b = e.target.closest('[data-ver-casa]'); if (!b) return; const c = casaPorId(b.dataset.verCasa); if (!c) return;
+    mapa.setView([c.lat, c.lng], Math.max(mapa.getZoom(), 18)); abrirFolha(c.id);
+  });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-comp]'); if (!b) return; const f = $('#folha-in');
     if (b.dataset.comp === 'copiar') copiar(f.dataset.linkComp);
