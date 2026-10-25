@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=18';
+import CONFIG from './config.js?v=21';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -173,7 +173,7 @@ function abrirCondo(novo) {
   parar('condo', 'membro', 'casas', 'membros', 'convites');
   cid = novo; condo = null; condoCarregado = false; casas = []; papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
-  visitadas = new Set(lsc.get('visitadas', [])); partida = lsc.get('partida', 'gps'); roteiro = lsc.get('roteiro', null);
+  visitadas = new Set(lsc.get('visitadas', [])); partida = lsc.get('partida', 'gps'); roteiro = lsc.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid);
   mostrarCondo();
   subs.condo = fb.fs.onSnapshot(fb.condo(cid), snap => {
@@ -229,6 +229,7 @@ function assinarCasas() {
     });
 }
 function aoMudarDados() {
+  if (roteiro && podeVerCasas && rotaChave !== chaveRoteiro()) { carregarRotaLinha(); if (!trecho) atualizarTrecho(false); }
   renderCabecalho(); renderPlacar(); renderPins(); renderRoteiro(); renderAcesso(); atualizarParticipar();
   if (abaAtual === 'organizador') renderAdmin();
 }
@@ -271,8 +272,8 @@ function direcaoFala(de, para) {
   if (rumo != null) { const rel = ((b - rumo) + 540) % 360 - 180; const a = Math.abs(rel); if (a < 25) return 'bem à sua frente'; if (a > 155) return 'atrás de você'; if (a < 70) return rel > 0 ? 'à sua frente, um pouco à direita' : 'à sua frente, um pouco à esquerda'; if (a < 110) return rel > 0 ? 'à sua direita' : 'à sua esquerda'; return rel > 0 ? 'atrás, à direita' : 'atrás, à esquerda'; }
   return 'na direção ' + CARDEAIS[Math.round(b / 45) % 8];
 }
-const fmtM = m => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1)} km`;
-const falaM = m => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} metros` : `${(m / 1000).toFixed(1).replace('.', ' vírgula ')} quilômetros`;
+const fmtM = m => m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`;
+const falaM = m => m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} metros` : `${(m / 1000).toFixed(1).replace('.', ' vírgula ')} quilômetros`;
 
 /* ---------- regras do evento ---------- */
 const hm = s => { if (!s || !/^\d{1,2}:\d{2}$/.test(s)) return null; const [a, b] = s.split(':').map(Number); return a * 60 + b; };
@@ -318,6 +319,7 @@ function iniciarMapa() {
   const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Imagens &copy; Esri'});
   noite.addTo(mapa);
   L.control.layers({'Noite': noite, 'Ruas': ruas, 'Satélite': satelite}, null, {position: 'topright'}).addTo(mapa);
+  mapa.attributionControl.addAttribution('Rotas a pé: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS/OSRM</a>');
   camadaPins = L.layerGroup().addTo(mapa); camadaExtras = L.layerGroup().addTo(mapa);
   mapa.on('click', e => toqueMapa(e.latlng));
   setTimeout(() => mapa.invalidateSize(), 300);
@@ -339,8 +341,13 @@ function renderPins() {
   const salva = editandoId && casaPorId(editandoId); const mudouPin = pinCasa && (!salva || salva.lat !== pinCasa.lat || salva.lng !== pinCasa.lng);
   if (pinCasa && (modo === 'casa' || (abaAtual === 'participar' && mudouPin))) camadaExtras.addLayer(L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeMarcador(IC.casa, 'pin-temp'), interactive: false}));
   if (roteiro) {
-    const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng]));
-    if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8}));
+    if (rotaLinha && rotaChave === chaveRoteiro()) {
+      camadaExtras.addLayer(L.polyline(rotaLinha, {color: '#06200a', weight: 9, opacity: .55, interactive: false, lineJoin: 'round'}));
+      camadaExtras.addLayer(L.polyline(rotaLinha, {color: '#8df06a', weight: 5, opacity: .95, interactive: false, lineJoin: 'round'}));
+    } else {
+      const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng]));
+      if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8, interactive: false}));
+    }
   }
   const vazio = $('#mapa-vazio');
   $('#btn-ir-participar').hidden = !casas.length;
@@ -388,35 +395,101 @@ function pontoPartida() {
   if (evento.portaria) return {p: evento.portaria, nome: 'a portaria'};
   return null;
 }
-function otimizar(de, lista) {
-  if (!lista.length) return [];
-  const resto = lista.slice(); const ordem = []; let atual = de;
-  while (resto.length) { let bi = 0, bd = Infinity; resto.forEach((c, i) => { const d = distM(atual, c); if (d < bd) { bd = d; bi = i; } }); atual = resto[bi]; ordem.push(atual); resto.splice(bi, 1); }
-  const pts = [de, ...ordem]; const n = pts.length; let melhorou = true, iter = 0; const custo = (i, j) => distM(pts[i], pts[j]);
-  while (melhorou && iter++ < 80) { melhorou = false; for (let i = 1; i < n - 1; i++) for (let j = i + 1; j < n; j++) { const antes = custo(i - 1, i) + (j < n - 1 ? custo(j, j + 1) : 0); const depois = custo(i - 1, j) + (j < n - 1 ? custo(i, j + 1) : 0); if (depois + 1e-6 < antes) { const seg = pts.slice(i, j + 1).reverse(); pts.splice(i, seg.length, ...seg); melhorou = true; } } }
-  return pts.slice(1).map(c => c.id);
+/* ---------- rotas a pé pelas ruas (OSRM do OpenStreetMap via FOSSGIS, gratuito) ---------- */
+const ROTEADOR = 'https://routing.openstreetmap.de/routed-foot';
+async function osrm(servico, pts, params) {
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const coords = pts.map(p => `${(+p.lng).toFixed(6)},${(+p.lat).toFixed(6)}`).join(';');
+    const r = await fetch(`${ROTEADOR}/${servico}/v1/driving/${coords}?${params}`, {signal: ctl.signal, referrerPolicy: 'strict-origin'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json(); if (d.code !== 'Ok') throw new Error(d.code); return d;
+  } finally { clearTimeout(tm); }
 }
-function montarRoteiro() {
+let rotaLinha = null, rotaPernas = null, rotaChave = '', rotaCarregando = false;
+let roteiroAberto = false;   // true enquanto a pessoa reabriu as opções para montar outro roteiro
+let trecho = null, trechoBuscando = false, trechoT = 0;
+const chaveRoteiro = () => roteiro ? roteiro.criado + ':' + roteiro.ordem.join(',') : '';
+async function carregarRotaLinha() {
+  if (!roteiro || rotaCarregando) return; const chave = chaveRoteiro(); if (chave === rotaChave && rotaLinha) return;
+  const pts = [roteiro.de].concat(roteiro.ordem.map(casaPorId).filter(Boolean));
+  if (pts.length < 2 || pts.length > 90) return;
+  rotaCarregando = true;
+  try {
+    const d = await osrm('route', pts, 'overview=full&geometries=geojson');
+    if (chave !== chaveRoteiro()) return;
+    rotaLinha = d.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]); rotaPernas = d.routes[0].legs.map(l => l.distance); rotaChave = chave;
+    renderPins(); renderRoteiro();
+  } catch (e) { console.warn('Rota pelas ruas indisponível, usando linha reta.', e); rotaLinha = null; rotaPernas = null; rotaChave = chave; }
+  finally { rotaCarregando = false; }
+}
+const MANOBRA = {left: 'vire à esquerda', right: 'vire à direita', 'slight left': 'siga levemente à esquerda', 'slight right': 'siga levemente à direita', 'sharp left': 'vire bem à esquerda', 'sharp right': 'vire bem à direita', straight: 'siga em frente', uturn: 'faça o retorno'};
+function textoInstrucao(passos, fmt) {
+  if (!passos || !passos.length) return '';
+  let i = 0; while (i < passos.length - 1 && passos[i].distance < 8) i++;
+  const ini = passos[i]; const prox = passos.slice(i + 1).find(s => !['arrive', 'new name', 'continue', 'depart'].includes(s.maneuver.type));
+  let txt = `Siga${ini.name ? ' pela ' + ini.name : ''} por ${fmt(ini.distance)}`;
+  if (prox) txt += ` e ${MANOBRA[prox.maneuver.modifier] || 'siga'}${prox.name ? ' na ' + prox.name : ''}`; else txt += ' até chegar';
+  return txt + '.';
+}
+async function atualizarTrecho(forcar) {
+  if (!roteiro) return null; const idx = proximaParada(); if (idx < 0) return null; const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx);
+  if (!forcar && trecho && trecho.casaId === c.id && distM(trecho.de, de) < 30) return trecho;
+  if (trechoBuscando || (!forcar && Date.now() - trechoT < 15000 && trecho && trecho.casaId === c.id)) return trecho;
+  trechoBuscando = true; trechoT = Date.now();
+  try {
+    const d = await osrm('route', [de, c], 'overview=false&steps=true');
+    const r = d.routes[0];
+    trecho = {casaId: c.id, de, dist: r.distance, passos: r.legs[0].steps};
+  } catch (e) { console.warn('Trecho a pé indisponível.', e); if (!trecho || trecho.casaId !== c.id) trecho = null; }
+  finally { trechoBuscando = false; }
+  if (!$('#guia').hidden) renderGuia();
+  return trecho;
+}
+function rotaLinhaBounds() { if (!roteiro) return null; const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng])); return pts.length > 1 ? pts : null; }
+const trechoDe = c => trecho && c && trecho.casaId === c.id ? trecho : null;
+
+function otimizar(de, lista, matriz) {
+  const pts = [de, ...lista]; const n = pts.length; if (n < 2) return [];
+  // Distância a pé da matriz quando existe; senão linha reta com um acréscimo pelas curvas das ruas.
+  const dist = (a, b) => { const v = matriz && matriz[a] && matriz[a][b]; return typeof v === 'number' ? v : distM(pts[a], pts[b]) * 1.4; };
+  const resto = []; for (let i = 1; i < n; i++) resto.push(i);
+  const ordem = [0]; let atual = 0;
+  while (resto.length) { let bi = 0, bd = Infinity; resto.forEach((k, i) => { const d = dist(atual, k); if (d < bd) { bd = d; bi = i; } }); atual = resto[bi]; ordem.push(atual); resto.splice(bi, 1); }
+  const c = (i, j) => dist(ordem[i], ordem[j]); let melhorou = true, iter = 0;
+  while (melhorou && iter++ < 80) { melhorou = false; for (let i = 1; i < n - 1; i++) for (let j = i + 1; j < n; j++) { const antes = c(i - 1, i) + (j < n - 1 ? c(j, j + 1) : 0); const depois = c(i - 1, j) + (j < n - 1 ? c(i, j + 1) : 0); if (depois + 1e-6 < antes) { const seg = ordem.slice(i, j + 1).reverse(); ordem.splice(i, seg.length, ...seg); melhorou = true; } } }
+  return ordem.slice(1).map(k => pts[k].id);
+}
+async function montarRoteiro() {
   if (partida === 'gps' && !posicao) { ligarGPS(true); toast('Ligando o GPS… toque de novo em alguns segundos, ou escolha a portaria.'); return; }
   const pp = pontoPartida(); if (!pp) { toast('Sem ponto de partida: ligue o GPS ou peça ao admin para marcar a portaria.'); return; }
   let lista = casas.filter(c => typeof c.lat === 'number' && 'casa:' + c.id !== partida);
   if ($('#opt-pular-visitadas').checked) lista = lista.filter(c => !visitadas.has(c.id));
   if ($('#opt-so-abertas').checked) lista = lista.filter(abertaAgora);
   if (!lista.length) { toast('Nenhuma casa para incluir com esses filtros.'); return; }
-  roteiro = {ordem: otimizar(pp.p, lista), de: pp.p, criado: Date.now()}; lsc.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
+  const btn = $('#btn-montar'); btn.disabled = true; const txtBtn = btn.textContent; btn.textContent = 'Calculando o caminho pelas ruas…';
+  let matriz = null;
+  if (lista.length + 1 <= 80) { try { matriz = (await osrm('table', [pp.p, ...lista], 'annotations=distance')).distances; } catch (e) { console.warn('Distâncias a pé indisponíveis, usando linha reta.', e); } }
+  btn.disabled = false; btn.textContent = txtBtn;
+  roteiroAberto = false;
+  roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, criado: Date.now(), aPe: !!matriz}; lsc.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
+  rotaLinha = null; rotaPernas = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`);
+  carregarRotaLinha(); await atualizarTrecho(true);
   if (vozAuto) { const idx = proximaParada(); falar(`Roteiro montado com ${n} casa${n > 1 ? 's' : ''}, saindo de ${pp.nome}. ` + (idx >= 0 ? falaParada(idx) : '')); }
-  $('#guia')?.scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
+  if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
+  $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
 }
 function proximaParada() { if (!roteiro) return -1; return roteiro.ordem.findIndex(id => !visitadas.has(id) && casaPorId(id)); }
 function origemAtual(idx) { if (posicao && Date.now() - posicao.t < 60000) return {lat: posicao.lat, lng: posicao.lng}; for (let i = idx - 1; i >= 0; i--) { const c = casaPorId(roteiro.ordem[i]); if (c) return {lat: c.lat, lng: c.lng}; } return roteiro.de; }
 function falaParada(idx) {
   const c = casaPorId(roteiro.ordem[idx]); if (!c) return '';
-  const de = origemAtual(idx); const d = distM(de, c);
+  const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
   const ofer = (c.oferece || []).map(k => rotuloDe(OFERECE, k).toLowerCase());
   const avisos = (c.flags || []).filter(k => k !== 'pequenos').map(k => ({cachorro: 'tem cachorro', alergia: 'tem opção sem açúcar', assustadora: 'é bem assustadora'}[k])).filter(Boolean);
-  let s = `Parada ${idx + 1} de ${roteiro.ordem.length}: ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. Fica a uns ${falaM(d)}, ${direcaoFala(de, c)}. `;
+  let s = `Parada ${idx + 1} de ${roteiro.ordem.length}: ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. `;
+  s += tr ? `Fica a uns ${falaM(d)} andando. ${textoInstrucao(tr.passos, falaM)} ` : `Fica a uns ${falaM(d)}, ${direcaoFala(de, c)}. `;
   if (ofer.length) s += `Oferece ${listaFala(ofer)}. `;
   if (avisos.length) s += `Atenção: ${listaFala(avisos)}. `;
   if ((c.flags || []).includes('pequenos')) s += 'Boa para os pequenos. ';
@@ -428,17 +501,19 @@ let anunciadoChegada = null, ultimaFalaDist = 0, ultimaFalaT = 0;
 function aoMoverGPS() {
   if (!roteiro || !posicao) return; const idx = proximaParada(); if (idx < 0) return; const c = casaPorId(roteiro.ordem[idx]); const d = distM(posicao, c);
   if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) falar(`Chegou! ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. Pegue os doces e toque em Cheguei para a próxima.`); return; }
-  if (vozAuto && d > 40 && Math.abs(d - ultimaFalaDist) >= 60 && Date.now() - ultimaFalaT > 25000 && !VOZ.falando) { ultimaFalaDist = d; ultimaFalaT = Date.now(); falar(`Faltam ${falaM(d)}, ${direcaoFala(posicao, c)}.`); }
+  atualizarTrecho(false);
+  const tr = trechoDe(c); const dRest = tr ? Math.max(d, tr.dist - distM(tr.de, posicao)) : d;
+  if (vozAuto && d > 40 && Math.abs(dRest - ultimaFalaDist) >= 60 && Date.now() - ultimaFalaT > 25000 && !VOZ.falando) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); falar(tr ? `Faltam uns ${falaM(dRest)}. ${textoInstrucao(tr.passos, falaM)}` : `Faltam ${falaM(d)}, ${direcaoFala(posicao, c)}.`); }
 }
 function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsc.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
-function cheguei() {
-  const idx = proximaParada(); if (idx < 0) return; marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0;
+async function cheguei() {
+  const idx = proximaParada(); if (idx < 0) return; marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
   const b = $('#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
   const prox = proximaParada();
   if (prox < 0) { toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
-  else if (vozAuto) falar('Boa! ' + falaParada(prox));
+  else { await atualizarTrecho(true); if (vozAuto) falar('Boa! ' + falaParada(prox)); }
 }
-function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsc.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; renderRoteiro(); renderPins(); const prox = proximaParada(); if (prox >= 0 && vozAuto) falar('Pulando. ' + falaParada(prox)); }
+async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsc.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. ' + falaParada(prox)); } }
 
 /* ---------- voz ---------- */
 const VOZ = {falando: false};
@@ -447,8 +522,8 @@ function vozPT() { try { const vs = speechSynthesis.getVoices(); return vs.find(
 function falar(texto) {
   if (!temVoz()) { toast('Este navegador não tem voz. Leia a parada na tela.'); return; }
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; const v = vozPT(); if (v) u.voice = v; u.rate = 1;
-    u.onstart = () => { VOZ.falando = true; abaixarMusica(true); $('#painel-roteiro').classList.add('falando'); };
-    u.onend = u.onerror = () => { VOZ.falando = false; abaixarMusica(false); $('#painel-roteiro').classList.remove('falando'); };
+    u.onstart = () => { VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando'); };
+    u.onend = u.onerror = () => { VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); };
     speechSynthesis.speak(u); } catch { toast('Não consegui falar agora.'); }
 }
 if (temVoz()) { try { speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => {}); } catch {} }
@@ -567,7 +642,7 @@ function fmtData(s) { if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return ''; const
 function renderPlacar() {
   const total = casas.length, abertas = casas.filter(abertaAgora).length, vis = casas.filter(c => visitadas.has(c.id)).length;
   $('#placar').innerHTML = `<span class="pill">${IC.casa}<b>${total}</b> casa${total === 1 ? '' : 's'}</span><span class="pill ok">${IC.relogio}<b>${abertas}</b> aberta${abertas === 1 ? '' : 's'} agora</span><span class="pill">${IC.check}<b>${vis}</b> visitada${vis === 1 ? '' : 's'}</span>`;
-  const bolha = $('#bolha-roteiro'); const rest = roteiro ? roteiro.ordem.filter(id => !visitadas.has(id) && casaPorId(id)).length : 0; bolha.hidden = !rest; bolha.textContent = rest;
+
 }
 function renderFiltros() {
   const defs = [['abertas', IC.relogio, 'Abertas agora'], ['pequenos', IC.crianca, 'Para pequenos'], ['brincadeira', IC.susto, 'Com brincadeira'], ['naoVisitadas', IC.check, 'Não visitadas']];
@@ -603,13 +678,14 @@ function renderPartida() {
 function renderGuia() {
   const idx = proximaParada(); const guia = $('#guia');
   if (idx >= 0) {
-    const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx); const d = distM(de, c);
-    $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = `${fmtM(d)} · ${direcaoFala(de, c)}`;
+    const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
+    $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = tr ? `${fmtM(d)} a pé` : `${fmtM(d)} · ${direcaoFala(de, c)}`;
+    const gi = $('#guia-instrucao'); gi.textContent = tr ? textoInstrucao(tr.passos, fmtM) : (trechoBuscando ? 'Procurando o caminho pelas ruas…' : ''); gi.hidden = !gi.textContent;
     $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
     const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no ${IOS ? 'Apple Maps' : 'Google Maps'}`;
     const l = linksNav(c); $('#nav-extra').innerHTML = (IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`) + `<a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
   } else {
-    $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
+    $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-instrucao').hidden = true; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
     $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = '';
   }
   guia.hidden = false;
@@ -619,12 +695,16 @@ function renderRoteiro() {
   const guia = $('#guia'), lista = $('#lista-roteiro'), tot = $('#roteiro-total'); $('#opt-voz').checked = vozAuto; $('#opt-auto-chegada').checked = autoChegada;
   $('#voz-status').textContent = temVoz() ? 'A voz fala em português, avisa a distância pelo GPS e abaixa a música enquanto guia.' : 'Este navegador não oferece voz; o guia fica só na tela.';
   $('#roteiro-acoes').hidden = !visitadas.size && !roteiro;
-  if (!roteiro || !roteiro.ordem.some(id => casaPorId(id))) { guia.hidden = true; lista.innerHTML = ''; tot.textContent = ''; $('#btn-rota-google').hidden = true; return; }
+  const temRoteiro = !!roteiro && roteiro.ordem.some(id => casaPorId(id));
+  $('#acoes-refazer').hidden = !temRoteiro || !$('#card-partida').hidden && !temRoteiro;
+  if (!temRoteiro) { $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; guia.hidden = true; lista.innerHTML = ''; tot.textContent = ''; $('#btn-rota-google').hidden = true; return; }
+  if (!roteiroAberto) { $('#card-partida').hidden = true; $('#acoes-refazer').hidden = false; }
   renderGuia();
   const idx = proximaParada(); let totalM = 0, ant = roteiro.de;
-  lista.innerHTML = roteiro.ordem.map((id, i) => { const c = casaPorId(id); if (!c) return ''; const feita = visitadas.has(id); const d = distM(ant, c); totalM += d; ant = c;
+  const pernas = rotaPernas && rotaChave === chaveRoteiro() ? rotaPernas : null; let k = 0;
+  lista.innerHTML = roteiro.ordem.map((id, i) => { const c = casaPorId(id); if (!c) return ''; const feita = visitadas.has(id); const d = pernas ? pernas[k] : distM(ant, c); k++; totalM += d; ant = c;
     return `<li class="${feita ? 'feita' : ''} ${i === idx ? 'atual' : ''}"><span class="ordem">${i + 1}</span><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'} · ${fmtM(d)}</span></div><button class="btn btn-icone vis" data-visitar="${h(id)}" aria-pressed="${feita}" aria-label="${feita ? 'Desmarcar' : 'Marcar visitada'}: ${h(nomeCasaTxt(c))}">${IC.check}</button><button class="btn btn-icone" data-ver="${h(id)}" aria-label="Ver detalhes">${IC.casa}</button></li>`; }).join('');
-  tot.textContent = `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
+  tot.textContent = pernas ? `Percurso total a pé: cerca de ${fmtM(totalM)}.` : rotaCarregando ? 'Calculando o caminho pelas ruas…' : `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
   const lr = linkRotaCompleta(); const br = $('#btn-rota-google'); br.hidden = !lr; if (lr) br.href = lr;
 }
 function renderParticipar() {
@@ -871,11 +951,14 @@ function renderTudoCondo() {
 function irAba(nome) {
   if (!cid) return;
   if (nome === 'organizador' && !ehAdmin()) nome = 'mapa';
+  // O roteiro mora embaixo do mapa: "ir ao roteiro" abre o mapa e rola até ele.
+  const rolarRoteiro = nome === 'roteiro'; if (rolarRoteiro) nome = 'mapa';
   abaAtual = nome; ls.set('hw.aba', nome);
-  ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
+  if (rolarRoteiro) setTimeout(() => $(roteiro ? '#guia' : '#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}), 120);
+  ['mapa', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
   if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
-  if (nome === 'roteiro') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') atualizarParticipar();
-  window.scrollTo({top: 0, behavior: 'auto'});
+  if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') atualizarParticipar();
+  if (!rolarRoteiro) window.scrollTo({top: 0, behavior: 'auto'});
 }
 async function copiar(txt) { try { await navigator.clipboard.writeText(txt); toast('Copiado!'); SFX.plim(); } catch { toast(txt, 6000); } }
 
@@ -917,7 +1000,7 @@ function ligarEventos() {
   $('#btn-centrar').addEventListener('click', () => { modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); if (modoSeguir) toast('Seguindo você no mapa.'); });
   mapa.on('dragstart', () => { modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); });
   $('#btn-ver-todas').addEventListener('click', verTodas);
-  $('#btn-ir-roteiro').addEventListener('click', () => irAba('roteiro'));
+  $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
   $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
   $('#mapa-vazio').addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irAba(b.dataset.ir); });
   $('#folha').addEventListener('click', e => { if (e.target === e.currentTarget) fecharFolha(); const b = e.target.closest('[data-acao]'); if (!b) return; const id = b.dataset.id; const a = b.dataset.acao;

@@ -433,3 +433,17 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .grecaptcha-badge{visibility:hidden}
 .aviso-recaptcha{text-align:center;font-size:.75rem;color:var(--fg3);margin:4px 0 24px}
 .aviso-recaptcha a{color:var(--fg2)}
+
+.guia-instrucao{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:rgba(141,240,106,.12);border:1px solid var(--veneno-escuro);color:var(--fg);font-weight:800;font-size:1rem;line-height:1.35}
+
+.bloco-roteiro{margin-top:4px}
+.bloco-roteiro .guia{margin-top:14px}
+/* ===== Respiro no cartão do guia (os botões têm sombra 3D embaixo) ===== */
+.guia-acoes{row-gap:18px;column-gap:12px;margin-top:18px}
+.nav-extra{margin-top:16px}
+.guia .check{margin-top:6px}
+.guia .check:first-of-type{margin-top:16px}
+.guia .etiquetas{margin-bottom:4px}
+.guia.falando .guia-casa .num-grande{animation:balancar .6s ease-in-out infinite}
+.rodape-org{margin:28px 0 10px}
+.rodape-org .btn{min-width:min(100%,320px)}

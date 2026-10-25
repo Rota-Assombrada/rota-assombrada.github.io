@@ -9,7 +9,7 @@ Tudo gratuito: GitHub Pages (site), Firebase Auth com Google e Firestore no plan
 - Cada condomínio tem um link próprio: `https://rota-assombrada.github.io/#codigo-do-condominio`.
 - **Mapa**: pins de abóbora nas casas, filtros, posição pelo GPS, camadas Noite / Ruas / Satélite.
 - **Participar**: o morador entra com Google, marca a casa (GPS na porta ou toque no mapa) e diz o que oferece.
-- **Roteiro**: ordem mais curta a partir de onde você está, botão Navegar (Apple Maps, Google Maps, Waze) e guia por voz que avisa distância e chegada.
+- **Roteiro** (embaixo do mapa): ordem mais curta andando pelas ruas, linha seguindo as ruas, próxima curva na tela e na voz, botão Navegar (Apple Maps, Google Maps, Waze) e aviso de chegada pelo GPS. As rotas a pé vêm do roteador gratuito do OpenStreetMap mantido pela FOSSGIS (`routing.openstreetmap.de`); ele recebe só coordenadas, nunca nomes. Se não responder, o app usa linha reta.
 - **Admin**: link do condomínio, convites, aprovação de pedidos, papéis, evento, portaria, privacidade e casas.
 
 ## Arquitetura
