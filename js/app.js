@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=37';
+import CONFIG from './config.js?v=38';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -303,7 +303,7 @@ function abrirCondo(novo) {
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
   partida = lsc.get('partida', 'gps'); ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
   visitadas = new Set(); roteiro = null; rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
-  ls.set('hw.ultimo', cid);
+  ls.set('hw.ultimo', cid); checarPaginaPrevia(cid);
   mostrarCondo();
   subs.condo = fb.fs.onSnapshot(fb.condo(cid), snap => {
     condoCarregado = true; cargaFim('condo');
@@ -1171,8 +1171,18 @@ function atualizarForm() {
   $('#btn-excluir-minha').textContent = minha ? 'Tirar minha casa do mapa' : 'Excluir esta casa';
   const ep = $('#estado-pin'); ep.className = 'estado-pin ' + (pinCasa ? 'ok' : ''); ep.innerHTML = pinCasa ? `${IC.check} Casa marcada no mapa` : `${IC.x} Ainda não marcada`;
 }
-function linkCondo() { return `${location.origin}${location.pathname}#${cid}`; }
-function linkConvite(cod) { return `${location.origin}${location.pathname}#${cid}/convite/${cod}`; }
+// Links com prévia própria no WhatsApp: /c/CODIGO/ mostra o nome do condomínio e /c/CODIGO/convite/#código avisa que é só para moradores.
+// Condomínios fora da busca (ou recém-criados) usam as páginas genéricas /c/#CODIGO e /convite/#CODIGO/código.
+const BASE_SITE = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}`;
+const paginaPrevia = {};
+async function checarPaginaPrevia(id) {
+  if (!id || id in paginaPrevia) return;
+  paginaPrevia[id] = false;
+  try { const r = await fetch(`${BASE_SITE}c/${id}/`, {method: 'HEAD', cache: 'no-store'}); paginaPrevia[id] = r.ok; } catch {}
+  if (paginaPrevia[id] && id === cid) { if (abaAtual === 'organizador') renderAdmin(); }
+}
+function linkCondo() { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/` : `${BASE_SITE}c/#${cid}`; }
+function linkConvite(cod) { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/convite/#${cod}` : `${BASE_SITE}convite/#${cid}/${cod}`; }
 function campoLivre(sel) { const el = $(sel); return el && document.activeElement !== el; }
 function renderAdmin() {
   if (!ehAdmin() || !cid || !condo) return;
@@ -1196,7 +1206,7 @@ function renderAdmin() {
   const agora = Date.now();
   const cs = convites.slice().sort((a, b) => b.criadoEm - a.criadoEm);
   if (convitesCarregados) $('#lista-convites').innerHTML = cs.length ? cs.map(c => { const vale = c.ativo && c.expiraEm > agora; const ate = new Date(c.expiraEm).toLocaleDateString('pt-BR');
-    return `<li><div class="info"><b class="mono">${h(c.id)}</b><span>${vale ? `Válido até ${ate}` : c.ativo ? 'Expirado' : 'Desativado'}</span></div><div class="acoes">${vale ? `<button class="btn btn-p btn-fantasma" data-copiar-convite="${h(c.id)}">${IC.copiar} Copiar</button><a class="btn btn-p btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Convite para o mapa do Halloween de ${condo.nome}: ${linkConvite(c.id)}`)}">WhatsApp</a><button class="btn btn-p btn-fantasma" data-desativar="${h(c.id)}">Desativar</button>` : `<button class="btn btn-p btn-fantasma" data-apagar-convite="${h(c.id)}">${IC.lixo} Apagar</button>`}</div></li>`; }).join('') : '<li><div class="info"><span>Nenhum convite ainda.</span></div></li>';
+    return `<li><div class="info"><b class="mono">${h(c.id)}</b><span>${vale ? `Válido até ${ate}` : c.ativo ? 'Expirado' : 'Desativado'}</span></div><div class="acoes">${vale ? `<button class="btn btn-p btn-fantasma" data-copiar-convite="${h(c.id)}">${IC.copiar} Copiar</button><a class="btn btn-p btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Convite para o mapa do Halloween de ${condo.nome} (só para moradores, não repasse): ${linkConvite(c.id)}`)}">WhatsApp</a><button class="btn btn-p btn-fantasma" data-desativar="${h(c.id)}">Desativar</button>` : `<button class="btn btn-p btn-fantasma" data-apagar-convite="${h(c.id)}">${IC.lixo} Apagar</button>`}</div></li>`; }).join('') : '<li><div class="info"><span>Nenhum convite ainda.</span></div></li>';
   $('#total-membros').textContent = ativos.length;
   if (membrosCarregados) $('#lista-membros').innerHTML = ativos.length ? ativos.sort((a, b) => (a.papel === 'admin' ? 0 : 1) - (b.papel === 'admin' ? 0 : 1) || (a.nome || '').localeCompare(b.nome || '')).map(m => { const sou = usuario && m.id === usuario.uid;
     return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}</span></div>${sou ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
