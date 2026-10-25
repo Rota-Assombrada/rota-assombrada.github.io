@@ -32,9 +32,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=21">
+<link rel="stylesheet" href="css/estilo.css?v=24">
 </head>
 <body>
+<div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
 <div class="cenario" aria-hidden="true">
   <div class="estrelas"></div><div class="lua"></div>
   <div class="nevoa"></div><div class="nevoa b"></div>
@@ -53,7 +54,7 @@
         <svg class="abobora-logo" viewBox="0 0 120 112" aria-hidden="true"><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg>
         <h1 class="titulo">Rota <span>Assombrada</span></h1>
       </div>
-      <div class="topo-botoes"><button id="btn-conta" class="btn btn-conta" aria-label="Entrar com Google">Entrar</button>
+      <div class="topo-botoes"><button id="btn-conta" class="btn btn-conta carregando" aria-label="Carregando perfil"><span class="spinner" aria-hidden="true"></span><span>Carregando perfil…</span></button>
       <div class="dica-musica" id="dica-musica" hidden role="status">Toque aqui para ligar a música!</div>
       <button id="btn-musica" class="btn btn-icone" aria-pressed="false" aria-label="Ligar música de fundo" title="Música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button></div>
     </div>
@@ -111,6 +112,7 @@
         <div id="aviso-modo" class="aviso-modo" hidden><span id="aviso-texto"></span><button class="btn btn-fantasma btn-p" id="aviso-cancelar">Cancelar</button></div>
         <div class="mapa-wrap">
           <div id="mapa" class="mapa" role="application" aria-label="Mapa das casas participantes"></div>
+          <div class="mapa-carregando" id="mapa-carregando" role="status"><span class="spinner grande" aria-hidden="true"></span><span>Acendendo as abóboras…</span></div>
           <div class="mapa-botoes">
             <button class="btn btn-icone" id="btn-centrar" aria-label="Seguir minha posição" title="Onde estou"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></button>
             <button class="btn btn-icone" id="btn-ver-todas" aria-label="Ver todas as casas" title="Ver todas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg></button>
@@ -262,6 +264,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=21"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>

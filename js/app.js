@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=21';
+import CONFIG from './config.js?v=24';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -39,6 +39,22 @@ const OFERECE = [['doces','Doces e balas'],['chocolate','Chocolate'],['brincadei
 const FLAGS = [['pequenos','Amigável para pequenos'],['cachorro','Tem cachorro'],['alergia','Opção sem açúcar/alergia'],['assustadora','Bem assustadora']];
 const rotuloDe = (lista, k) => (lista.find(o => o[0] === k) || [k, k])[1];
 
+/* ---------- carregamentos: barra no topo, esqueletos e spinners ---------- */
+let cargas = 0, barraTimer = null;
+function atualizarBarra() {
+  const b = document.getElementById('barra-carga'); if (!b) return;
+  clearTimeout(barraTimer);
+  if (cargas > 0) barraTimer = setTimeout(() => { b.hidden = false; }, 120); else b.hidden = true;
+}
+function carga(p) { cargas++; atualizarBarra(); return Promise.resolve(p).finally(() => { cargas = Math.max(0, cargas - 1); atualizarBarra(); }); }
+const abertas = new Set();
+function cargaInicio(nome) { if (abertas.has(nome)) return; abertas.add(nome); cargas++; atualizarBarra(); }
+function cargaFim(nome) { if (!abertas.delete(nome)) return; cargas = Math.max(0, cargas - 1); atualizarBarra(); }
+const SPIN = '<span class="spinner" aria-hidden="true"></span>';
+const SKEL_ITEM = '<li class="skel-item" aria-hidden="true"><span class="skel skel-circ"></span><span class="skel-txt"><span class="skel skel-l1"></span><span class="skel skel-l2"></span></span></li>';
+const skelLista = (n = 2) => SKEL_ITEM.repeat(n) + '<li class="sr" role="status">Carregando…</li>';
+const SKEL_LINHA = '<li class="skel-item skel-linha" aria-hidden="true"><span class="skel-txt"><span class="skel skel-l1"></span><span class="skel skel-l2"></span></span><span class="skel skel-btn"></span></li>';
+
 /* ---------- estado ---------- */
 let cid = null;                 // código do condomínio aberto
 let condo = null;               // dados do condomínio aberto
@@ -50,6 +66,7 @@ let donoPlataforma = false;     // decidido pelo hash do e-mail; as regras do Fi
 let papel = '';                 // '' | 'pendente' | 'morador' | 'admin' no condomínio aberto
 let papelCarregado = false;
 let podeVerCasas = false;
+let casasCarregadas = false, membrosCarregados = false, convitesCarregados = false, authPronto = false;
 let membros = [], convites = [];
 let conviteDaRota = null;
 let modo = null;                // null | 'casa' | 'portaria'
@@ -110,7 +127,9 @@ const fb = {
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
+    cargaInicio('auth');
     auth.onAuthStateChanged(this.a, async u => {
+      authPronto = true; cargaFim('auth');
       usuario = u ? {uid: u.uid, nome: u.displayName || '', email: (u.email || '').toLowerCase(), emailToken: u.email || ''} : null;
       donoPlataforma = usuario ? await ehDonoPlataforma(usuario.email) : false;
       renderConta(); renderInicio();
@@ -171,24 +190,24 @@ function parar(...nomes) { nomes.forEach(n => { if (subs[n]) { try { subs[n](); 
 function abrirCondo(novo) {
   if (novo === cid && subs.condo) { tentarConvite(); return; }
   parar('condo', 'membro', 'casas', 'membros', 'convites');
-  cid = novo; condo = null; condoCarregado = false; casas = []; papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
+  cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
-  visitadas = new Set(lsc.get('visitadas', [])); partida = lsc.get('partida', 'gps'); roteiro = lsc.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaChave = ''; trecho = null;
+  visitadas = new Set(lsc.get('visitadas', [])); partida = lsc.get('partida', 'gps'); roteiro = lsc.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid);
   mostrarCondo();
   subs.condo = fb.fs.onSnapshot(fb.condo(cid), snap => {
-    condoCarregado = true;
+    condoCarregado = true; cargaFim('condo');
     if (!snap.exists()) { condo = null; renderTudoCondo(); return; }
     condo = snap.data();
     evento = {nome: condo.eventoNome || '', data: condo.data || '', horaInicio: condo.horaInicio || '', horaFim: condo.horaFim || '', avisos: condo.avisos || '', portaria: condo.portaria || null};
     lembrarRecente(cid, condo.nome);
     if (!centrouCondo && condo.centro) { centrouCondo = true; mapa.setView([condo.centro.lat, condo.centro.lng], condo.zoom || 17); }
     renderTudoCondo();
-  }, e => { console.error(e); condoCarregado = true; toast('Não consegui abrir este condomínio.'); renderTudoCondo(); });
+  }, e => { console.error(e); condoCarregado = true; cargaFim('condo'); cargaFim('casas'); casasCarregadas = true; toast('Não consegui abrir este condomínio.'); renderTudoCondo(); });
   assinarMembro();
 }
 function fecharCondo() {
-  parar('condo', 'membro', 'casas', 'membros', 'convites');
+  parar('condo', 'membro', 'casas', 'membros', 'convites'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
   cid = null; condo = null; casas = []; papel = ''; podeVerCasas = false; membros = []; convites = []; roteiro = null;
   mostrarInicio();
 }
@@ -209,10 +228,10 @@ function assinarMembro() {
 function aoMudarPapel() {
   assinarCasas();
   parar('membros', 'convites');
-  membros = []; convites = [];
+  membros = []; convites = []; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
-    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => console.error(e));
-    subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => console.error(e));
+    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
+    subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
   tentarConvite();
   renderTudoCondo();
@@ -221,9 +240,12 @@ function aoMudarPapel() {
 let tentativasCasas = 0;
 function assinarCasas() {
   parar('casas'); if (!cid) return;
-  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casas = s.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); },
+  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casas = s.docs.map(d => ({id: d.id, ...d.data()})); aoMudarDados(); },
     e => {
-      podeVerCasas = false; casas = []; parar('casas'); aoMudarDados();
+      podeVerCasas = false; casas = []; parar('casas');
+      const vaiTentar = e.code !== 'permission-denied' || (ehMorador() && tentativasCasas < 4);
+      if (!vaiTentar) { casasCarregadas = true; cargaFim('casas'); }
+      aoMudarDados();
       if (e.code !== 'permission-denied') { console.error(e); setTimeout(() => { if (cid && !subs.casas) assinarCasas(); }, 5000); }
       else if (ehMorador() && tentativasCasas < 4) { tentativasCasas++; setTimeout(() => { if (cid && !subs.casas) assinarCasas(); }, 1200 * tentativasCasas); }
     });
@@ -341,15 +363,19 @@ function renderPins() {
   const salva = editandoId && casaPorId(editandoId); const mudouPin = pinCasa && (!salva || salva.lat !== pinCasa.lat || salva.lng !== pinCasa.lng);
   if (pinCasa && (modo === 'casa' || (abaAtual === 'participar' && mudouPin))) camadaExtras.addLayer(L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeMarcador(IC.casa, 'pin-temp'), interactive: false}));
   if (roteiro) {
-    if (rotaLinha && rotaChave === chaveRoteiro()) {
-      camadaExtras.addLayer(L.polyline(rotaLinha, {color: '#06200a', weight: 9, opacity: .55, interactive: false, lineJoin: 'round'}));
-      camadaExtras.addLayer(L.polyline(rotaLinha, {color: '#8df06a', weight: 5, opacity: .95, interactive: false, lineJoin: 'round'}));
+    if (rotaTrechos && rotaChave === chaveRoteiro()) {
+      rotaTrechos.forEach(tr => {
+        if (tr.ruas) { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 9, opacity: .55, interactive: false, lineJoin: 'round'})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 5, opacity: .95, interactive: false, lineJoin: 'round'})); }
+        else { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 7, opacity: .45, interactive: false})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 4, dashArray: '2 9', lineCap: 'round', opacity: .95, interactive: false})); }
+      });
     } else {
       const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng]));
       if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8, interactive: false}));
     }
   }
   const vazio = $('#mapa-vazio');
+  const mc = $('#mapa-carregando'); if (mc) mc.hidden = casasCarregadas;
+  if (!casasCarregadas) { vazio.innerHTML = ''; return; }
   $('#btn-ir-participar').hidden = !casas.length;
   if (!casas.length) vazio.innerHTML = `<div class="cartao vazio vazio-casas">${PUMPKIN_BIG}<h3>Nenhuma abóbora acesa ainda</h3><p>As casas participantes aparecem aqui assim que os moradores se cadastram. Que tal começar pela sua?</p><button class="btn btn-primario" data-ir="participar">Cadastrar minha casa</button></div>`;
   else if (!vis.length) vazio.innerHTML = `<p class="vazio">Nenhuma casa passa nos filtros escolhidos.</p>`; else vazio.innerHTML = '';
@@ -401,27 +427,42 @@ async function osrm(servico, pts, params) {
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
   try {
     const coords = pts.map(p => `${(+p.lng).toFixed(6)},${(+p.lat).toFixed(6)}`).join(';');
-    const r = await fetch(`${ROTEADOR}/${servico}/v1/driving/${coords}?${params}`, {signal: ctl.signal, referrerPolicy: 'strict-origin'});
+    const r = await carga(fetch(`${ROTEADOR}/${servico}/v1/driving/${coords}?${params}`, {signal: ctl.signal, referrerPolicy: 'strict-origin'}));
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json(); if (d.code !== 'Ok') throw new Error(d.code); return d;
   } finally { clearTimeout(tm); }
 }
 let rotaLinha = null, rotaPernas = null, rotaChave = '', rotaCarregando = false;
+let rotaTrechos = null;   // [{pts:[[lat,lng]...], ruas:bool}] por trecho entre paradas
+// Ruas de condomínio costumam estar marcadas como particulares no OpenStreetMap; o roteador a pé dá a volta por fora.
+// Se o caminho pelas ruas for bem maior que a linha reta, ele não serve: usamos a linha direta.
+const plausivel = (m, a, b) => { const r = distM(a, b); return typeof m === 'number' && m <= Math.max(2.2 * r, r + 300); };
+// O roteador "encaixa" cada ponto na rua pública mais próxima; se o encaixe ficou longe, o ponto não está numa rua roteável.
+const ENCAIXE_MAX = 40;
+const encaixeOk = w => !!w && typeof w.distance === 'number' && w.distance <= ENCAIXE_MAX;
 let roteiroAberto = false;   // true enquanto a pessoa reabriu as opções para montar outro roteiro
 let trecho = null, trechoBuscando = false, trechoT = 0;
 const chaveRoteiro = () => roteiro ? roteiro.criado + ':' + roteiro.ordem.join(',') : '';
 async function carregarRotaLinha() {
-  if (!roteiro || rotaCarregando) return; const chave = chaveRoteiro(); if (chave === rotaChave && rotaLinha) return;
+  if (!roteiro || rotaCarregando) return; const chave = chaveRoteiro(); if (chave === rotaChave && rotaTrechos) return;
   const pts = [roteiro.de].concat(roteiro.ordem.map(casaPorId).filter(Boolean));
   if (pts.length < 2 || pts.length > 90) return;
-  rotaCarregando = true;
+  rotaCarregando = true; renderRoteiro();
   try {
-    const d = await osrm('route', pts, 'overview=full&geometries=geojson');
+    const d = await osrm('route', pts, 'overview=false&steps=true&geometries=geojson');
     if (chave !== chaveRoteiro()) return;
-    rotaLinha = d.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]); rotaPernas = d.routes[0].legs.map(l => l.distance); rotaChave = chave;
-    renderPins(); renderRoteiro();
-  } catch (e) { console.warn('Rota pelas ruas indisponível, usando linha reta.', e); rotaLinha = null; rotaPernas = null; rotaChave = chave; }
-  finally { rotaCarregando = false; }
+    const legs = d.routes[0].legs;
+    rotaTrechos = legs.map((leg, i) => {
+      const a = pts[i], b = pts[i + 1];
+      const ok = encaixeOk(d.waypoints[i]) && encaixeOk(d.waypoints[i + 1]) && plausivel(leg.distance, a, b) && leg.distance > 0;
+      if (!ok) return {pts: [[a.lat, a.lng], [b.lat, b.lng]], ruas: false, dist: distM(a, b)};
+      const linha = []; leg.steps.forEach(s => (s.geometry.coordinates || []).forEach(([lng, lat]) => linha.push([lat, lng])));
+      linha.unshift([a.lat, a.lng]); linha.push([b.lat, b.lng]);
+      return {pts: linha, ruas: true, dist: leg.distance};
+    });
+    rotaPernas = rotaTrechos.map(x => x.dist); rotaLinha = true; rotaChave = chave;
+  } catch (e) { console.warn('Rota pelas ruas indisponível, usando linha reta.', e); rotaTrechos = null; rotaLinha = null; rotaPernas = null; rotaChave = chave; }
+  finally { rotaCarregando = false; renderPins(); renderRoteiro(); }
 }
 const MANOBRA = {left: 'vire à esquerda', right: 'vire à direita', 'slight left': 'siga levemente à esquerda', 'slight right': 'siga levemente à direita', 'sharp left': 'vire bem à esquerda', 'sharp right': 'vire bem à direita', straight: 'siga em frente', uturn: 'faça o retorno'};
 function textoInstrucao(passos, fmt) {
@@ -436,23 +477,24 @@ async function atualizarTrecho(forcar) {
   if (!roteiro) return null; const idx = proximaParada(); if (idx < 0) return null; const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx);
   if (!forcar && trecho && trecho.casaId === c.id && distM(trecho.de, de) < 30) return trecho;
   if (trechoBuscando || (!forcar && Date.now() - trechoT < 15000 && trecho && trecho.casaId === c.id)) return trecho;
-  trechoBuscando = true; trechoT = Date.now();
+  trechoBuscando = true; trechoT = Date.now(); if (!$('#guia').hidden) renderGuia();
   try {
     const d = await osrm('route', [de, c], 'overview=false&steps=true');
     const r = d.routes[0];
-    trecho = {casaId: c.id, de, dist: r.distance, passos: r.legs[0].steps};
+    const ok = encaixeOk(d.waypoints[0]) && encaixeOk(d.waypoints[1]) && plausivel(r.distance, de, c) && r.distance > 0;
+    trecho = ok ? {casaId: c.id, de, dist: r.distance, passos: r.legs[0].steps} : {casaId: c.id, de, reta: true};
   } catch (e) { console.warn('Trecho a pé indisponível.', e); if (!trecho || trecho.casaId !== c.id) trecho = null; }
   finally { trechoBuscando = false; }
   if (!$('#guia').hidden) renderGuia();
   return trecho;
 }
 function rotaLinhaBounds() { if (!roteiro) return null; const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng])); return pts.length > 1 ? pts : null; }
-const trechoDe = c => trecho && c && trecho.casaId === c.id ? trecho : null;
+const trechoDe = c => trecho && !trecho.reta && c && trecho.casaId === c.id ? trecho : null;
 
 function otimizar(de, lista, matriz) {
   const pts = [de, ...lista]; const n = pts.length; if (n < 2) return [];
   // Distância a pé da matriz quando existe; senão linha reta com um acréscimo pelas curvas das ruas.
-  const dist = (a, b) => { const v = matriz && matriz[a] && matriz[a][b]; return typeof v === 'number' ? v : distM(pts[a], pts[b]) * 1.4; };
+  const dist = (a, b) => { const v = matriz && matriz[a] && matriz[a][b]; return plausivel(v, pts[a], pts[b]) ? v : distM(pts[a], pts[b]) * 1.3; };
   const resto = []; for (let i = 1; i < n; i++) resto.push(i);
   const ordem = [0]; let atual = 0;
   while (resto.length) { let bi = 0, bd = Infinity; resto.forEach((k, i) => { const d = dist(atual, k); if (d < bd) { bd = d; bi = i; } }); atual = resto[bi]; ordem.push(atual); resto.splice(bi, 1); }
@@ -467,13 +509,20 @@ async function montarRoteiro() {
   if ($('#opt-pular-visitadas').checked) lista = lista.filter(c => !visitadas.has(c.id));
   if ($('#opt-so-abertas').checked) lista = lista.filter(abertaAgora);
   if (!lista.length) { toast('Nenhuma casa para incluir com esses filtros.'); return; }
-  const btn = $('#btn-montar'); btn.disabled = true; const txtBtn = btn.textContent; btn.textContent = 'Calculando o caminho pelas ruas…';
+  const btn = $('#btn-montar'); btn.disabled = true; const txtBtn = btn.innerHTML; btn.innerHTML = `${SPIN} Calculando o caminho pelas ruas…`;
   let matriz = null;
-  if (lista.length + 1 <= 80) { try { matriz = (await osrm('table', [pp.p, ...lista], 'annotations=distance')).distances; } catch (e) { console.warn('Distâncias a pé indisponíveis, usando linha reta.', e); } }
-  btn.disabled = false; btn.textContent = txtBtn;
+  if (lista.length + 1 <= 80) {
+    try {
+      const tb = await osrm('table', [pp.p, ...lista], 'annotations=distance');
+      // Pontos que não encaixaram numa rua pública ficam sem distância a pé (viram linha reta no cálculo).
+      const ruim = (tb.sources || []).map(w => !encaixeOk(w));
+      matriz = tb.distances.map((linha, a) => linha.map((v, b) => ruim[a] || ruim[b] ? null : v));
+    } catch (e) { console.warn('Distâncias a pé indisponíveis, usando linha reta.', e); }
+  }
+  btn.disabled = false; btn.innerHTML = txtBtn;
   roteiroAberto = false;
   roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, criado: Date.now(), aPe: !!matriz}; lsc.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
-  rotaLinha = null; rotaPernas = null; trecho = null;
+  rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`);
   carregarRotaLinha(); await atualizarTrecho(true);
@@ -640,6 +689,7 @@ function tocarCenario(x, y, alvo) {
 function toast(msg, ms = 2800) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => { t.hidden = true; }, ms); }
 function fmtData(s) { if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return ''; const [, m, d] = s.split('-'); return `${d}/${m}`; }
 function renderPlacar() {
+  if (cid && !casasCarregadas) { $('#placar').innerHTML = '<span class="skel skel-pill"></span><span class="skel skel-pill"></span><span class="skel skel-pill"></span>'; return; }
   const total = casas.length, abertas = casas.filter(abertaAgora).length, vis = casas.filter(c => visitadas.has(c.id)).length;
   $('#placar').innerHTML = `<span class="pill">${IC.casa}<b>${total}</b> casa${total === 1 ? '' : 's'}</span><span class="pill ok">${IC.relogio}<b>${abertas}</b> aberta${abertas === 1 ? '' : 's'} agora</span><span class="pill">${IC.check}<b>${vis}</b> visitada${vis === 1 ? '' : 's'}</span>`;
 
@@ -680,7 +730,7 @@ function renderGuia() {
   if (idx >= 0) {
     const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
     $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = tr ? `${fmtM(d)} a pé` : `${fmtM(d)} · ${direcaoFala(de, c)}`;
-    const gi = $('#guia-instrucao'); gi.textContent = tr ? textoInstrucao(tr.passos, fmtM) : (trechoBuscando ? 'Procurando o caminho pelas ruas…' : ''); gi.hidden = !gi.textContent;
+    const gi = $('#guia-instrucao'); if (tr) gi.textContent = textoInstrucao(tr.passos, fmtM); else gi.innerHTML = trechoBuscando ? `${SPIN} Procurando o caminho pelas ruas…` : ''; gi.hidden = !gi.innerHTML;
     $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
     const nav = $('#btn-navegar'); nav.href = linkPrincipal(c); nav.removeAttribute('aria-disabled'); nav.innerHTML = `${IC.navegar} Navegar no ${IOS ? 'Apple Maps' : 'Google Maps'}`;
     const l = linksNav(c); $('#nav-extra').innerHTML = (IOS ? `<a href="${l.google}" target="_blank" rel="noopener">Google Maps</a>` : `<a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a>`) + `<a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
@@ -704,7 +754,9 @@ function renderRoteiro() {
   const pernas = rotaPernas && rotaChave === chaveRoteiro() ? rotaPernas : null; let k = 0;
   lista.innerHTML = roteiro.ordem.map((id, i) => { const c = casaPorId(id); if (!c) return ''; const feita = visitadas.has(id); const d = pernas ? pernas[k] : distM(ant, c); k++; totalM += d; ant = c;
     return `<li class="${feita ? 'feita' : ''} ${i === idx ? 'atual' : ''}"><span class="ordem">${i + 1}</span><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${(c.oferece || []).map(k => rotuloDe(OFERECE, k)).join(', ') || 'Sem detalhes'} · ${fmtM(d)}</span></div><button class="btn btn-icone vis" data-visitar="${h(id)}" aria-pressed="${feita}" aria-label="${feita ? 'Desmarcar' : 'Marcar visitada'}: ${h(nomeCasaTxt(c))}">${IC.check}</button><button class="btn btn-icone" data-ver="${h(id)}" aria-label="Ver detalhes">${IC.casa}</button></li>`; }).join('');
-  tot.textContent = pernas ? `Percurso total a pé: cerca de ${fmtM(totalM)}.` : rotaCarregando ? 'Calculando o caminho pelas ruas…' : `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
+  const temReta = rotaTrechos && rotaChave === chaveRoteiro() && rotaTrechos.some(x => !x.ruas);
+  const tudoReto = temReta && rotaTrechos.every(x => !x.ruas);
+  if (pernas) tot.textContent = (tudoReto ? `Percurso total: cerca de ${fmtM(totalM)} em linha reta.` : `Percurso total a pé: cerca de ${fmtM(totalM)}.`) + (temReta ? ' A linha pontilhada é caminho direto, porque as ruas internas do condomínio não aparecem como públicas no mapa. Siga pelas ruas do condomínio na direção indicada.' : ''); else if (rotaCarregando) tot.innerHTML = `${SPIN} Calculando o caminho pelas ruas…`; else tot.textContent = `Percurso total em linha reta: cerca de ${fmtM(totalM)}.`;
   const lr = linkRotaCompleta(); const br = $('#btn-rota-google'); br.hidden = !lr; if (lr) br.href = lr;
 }
 function renderParticipar() {
@@ -722,14 +774,15 @@ function preencherForm(c) {
 function limparForm() { editandoId = null; pinCasa = null; preencherForm({}); $('#form-erro').hidden = true; }
 async function salvarSeguro(fn, msg) {
   const tela = document.createElement('div'); tela.className = 'salvando'; tela.innerHTML = `${IC.carregando}<div>Gravando no caldeirão…</div>`; document.body.appendChild(tela);
-  try { await fn(); toast(msg); SFX.sucesso(); return true; }
+  try { await carga(fn()); toast(msg); SFX.sucesso(); return true; }
   catch (e) { console.error(e); toast(e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para isso. Só o dono da casa ou um organizador pode mexer.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
   finally { tela.remove(); }
 }
 function renderCabecalho() {
   if (!cid) { $('#sub-evento').textContent = 'Mapa e roteiro do Halloween do seu condomínio.'; return; }
   $('#linha-condo').hidden = false;
-  $('#nome-condo').textContent = condo ? condo.nome : (condoCarregado ? 'Condomínio não encontrado' : 'Carregando…');
+  if (!condoCarregado) $('#nome-condo').innerHTML = '<span class="skel skel-inline" aria-label="Carregando"></span>'; else $('#nome-condo').textContent = condo ? condo.nome : 'Condomínio não encontrado';
+  if (!condoCarregado) { $('#sub-evento').innerHTML = '<span class="skel skel-inline skel-largo"></span>'; return; }
   const pp = $('#pill-papel'); const rotulo = donoPlataforma ? 'Dono' : {admin: 'Admin', morador: 'Morador', pendente: 'Aguardando'}[papel] || '';
   pp.hidden = !rotulo; pp.textContent = rotulo; pp.className = 'pill papel ' + (papel || (donoPlataforma ? 'admin' : ''));
   const partes = []; if (evento.nome) partes.push(evento.nome); if (evento.data) partes.push(fmtData(evento.data)); if (evento.horaInicio && evento.horaFim) partes.push(`${evento.horaInicio}–${evento.horaFim}`);
@@ -738,6 +791,8 @@ function renderCabecalho() {
 function renderConta() {
   if (!$('#folha').hidden && $('#folha-in [data-criar]') && !$('#form-criar') && usuario) abrirCriarCondo();
   const b = $('#btn-conta'); delete b.dataset.confirma;
+  if (!authPronto) { b.innerHTML = `${SPIN}<span>Carregando perfil…</span>`; b.setAttribute('aria-label', 'Carregando perfil'); b.title = 'Carregando perfil'; b.classList.remove('logado'); b.classList.add('carregando'); return; }
+  b.classList.remove('carregando');
   if (usuario) { const ini = (usuario.nome || usuario.email || '?').trim().charAt(0).toUpperCase(); b.innerHTML = `<span class="avatar">${h(ini)}</span>`; b.setAttribute('aria-label', `Conectado como ${usuario.nome || usuario.email}. Toque para sair.`); b.title = 'Sair'; b.classList.add('logado'); }
   else { b.innerHTML = `${IC.google}<span>Entrar</span>`; b.setAttribute('aria-label', 'Entrar com Google'); b.title = 'Entrar com Google'; b.classList.remove('logado'); }
 }
@@ -745,7 +800,8 @@ function cartaoAviso(titulo, texto, botoes = '') { return `${PUMPKIN_BIG}<h3>${t
 function renderAcesso() {
   const ac = $('#acesso'), bloco = $('#mapa-bloco'); if (!cid) return;
   let html = '';
-  if (condoCarregado && !condo) html = cartaoAviso('Condomínio não encontrado', 'Confira o link com quem te mandou. O código pode ter mudado.', `<button class="btn btn-primario" data-acao-acesso="inicio">Ver outros condomínios</button>`);
+  if (!condoCarregado || (condo && !podeVerCasas && (!papelCarregado || !casasCarregadas))) html = `<div class="skel-cartao" aria-hidden="true"><span class="skel skel-circ grande"></span><span class="skel skel-l1" style="width:60%"></span><span class="skel skel-l2" style="width:80%"></span><span class="skel skel-btn largo"></span></div><p class="res-carregando">${SPIN} Abrindo o portão do condomínio…</p>`;
+  else if (condoCarregado && !condo) html = cartaoAviso('Condomínio não encontrado', 'Confira o link com quem te mandou. O código pode ter mudado.', `<button class="btn btn-primario" data-acao-acesso="inicio">Ver outros condomínios</button>`);
   else if (condo && !podeVerCasas && papelCarregado) {
     if (!usuario) html = cartaoAviso('Mapa só para moradores', conviteDaRota ? 'Você recebeu um convite! Entre com Google para aceitar.' : `O mapa de ${h(condo.nome)} é fechado. Entre com Google para pedir acesso.`, `<button class="btn btn-google" data-acao-acesso="entrar">${IC.google} Entrar com Google</button>`);
     else if (papel === 'pendente') html = cartaoAviso('Pedido enviado', 'Um admin do condomínio precisa aprovar sua entrada. Assim que aprovar, o mapa aparece aqui sozinho.', `<button class="btn btn-fantasma" data-acao-acesso="cancelar">Cancelar pedido</button>`);
@@ -761,7 +817,7 @@ function atualizarParticipar() {
   const gate = $('#gate'), form = $('#form-casa');
   let html = '';
   if (!usuario) html = `<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
-  else if (!papelCarregado) html = '<p class="dica">Conferindo seu acesso…</p>';
+  else if (!papelCarregado) html = `<p class="res-carregando">${SPIN} Conferindo seu acesso…</p><span class="skel skel-campo"></span><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!ehMorador() && papel === 'pendente') html = `<p>Seu pedido está com o admin. Assim que aprovar, você cadastra a casa aqui.</p>`;
   else if (!ehMorador()) html = `<button type="button" class="btn btn-primario btn-grande" data-acao-acesso="pedir">Pedir para entrar no condomínio</button><p class="dica">Só moradores aprovados colocam casas no mapa.</p>`;
   gate.innerHTML = html; gate.hidden = !html; form.hidden = !!html;
@@ -795,13 +851,15 @@ function renderAdmin() {
   $('#portaria-status').textContent = condo.portaria ? 'Portaria marcada no mapa.' : 'Portaria ainda não marcada. Ela vira o ponto de partida de quem está sem GPS.';
   const pend = membros.filter(m => m.papel === 'pendente'), ativos = membros.filter(m => m.papel !== 'pendente');
   $('#total-pendentes').textContent = pend.length; const bolha = $('#bolha-admin'); bolha.hidden = !pend.length; bolha.textContent = pend.length;
-  $('#lista-pendentes').innerHTML = pend.length ? pend.map(m => `<li><div class="info"><b>${h(m.nome || 'Sem nome')}</b><span>${h(m.email)}</span></div><div class="acoes"><button class="btn btn-p btn-sucesso" data-aprovar="${h(m.id)}">${IC.check} Aprovar</button><button class="btn btn-p btn-fantasma" data-recusar="${h(m.id)}">${IC.x} Recusar</button></div></li>`).join('') : '<li><div class="info"><span>Nenhum pedido agora.</span></div></li>';
+  if (!membrosCarregados) { $('#lista-pendentes').innerHTML = SKEL_LINHA; $('#lista-membros').innerHTML = SKEL_LINHA.repeat(2); }
+  if (!convitesCarregados) $('#lista-convites').innerHTML = SKEL_LINHA;
+  if (membrosCarregados) $('#lista-pendentes').innerHTML = pend.length ? pend.map(m => `<li><div class="info"><b>${h(m.nome || 'Sem nome')}</b><span>${h(m.email)}</span></div><div class="acoes"><button class="btn btn-p btn-sucesso" data-aprovar="${h(m.id)}">${IC.check} Aprovar</button><button class="btn btn-p btn-fantasma" data-recusar="${h(m.id)}">${IC.x} Recusar</button></div></li>`).join('') : '<li><div class="info"><span>Nenhum pedido agora.</span></div></li>';
   const agora = Date.now();
   const cs = convites.slice().sort((a, b) => b.criadoEm - a.criadoEm);
-  $('#lista-convites').innerHTML = cs.length ? cs.map(c => { const vale = c.ativo && c.expiraEm > agora; const ate = new Date(c.expiraEm).toLocaleDateString('pt-BR');
+  if (convitesCarregados) $('#lista-convites').innerHTML = cs.length ? cs.map(c => { const vale = c.ativo && c.expiraEm > agora; const ate = new Date(c.expiraEm).toLocaleDateString('pt-BR');
     return `<li><div class="info"><b class="mono">${h(c.id)}</b><span>${vale ? `Válido até ${ate}` : c.ativo ? 'Expirado' : 'Desativado'}</span></div><div class="acoes">${vale ? `<button class="btn btn-p btn-fantasma" data-copiar-convite="${h(c.id)}">${IC.copiar} Copiar</button><a class="btn btn-p btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Convite para o mapa do Halloween de ${condo.nome}: ${linkConvite(c.id)}`)}">WhatsApp</a><button class="btn btn-p btn-fantasma" data-desativar="${h(c.id)}">Desativar</button>` : `<button class="btn btn-p btn-fantasma" data-apagar-convite="${h(c.id)}">${IC.lixo} Apagar</button>`}</div></li>`; }).join('') : '<li><div class="info"><span>Nenhum convite ainda.</span></div></li>';
   $('#total-membros').textContent = ativos.length;
-  $('#lista-membros').innerHTML = ativos.length ? ativos.sort((a, b) => (a.papel === 'admin' ? 0 : 1) - (b.papel === 'admin' ? 0 : 1) || (a.nome || '').localeCompare(b.nome || '')).map(m => { const sou = usuario && m.id === usuario.uid;
+  if (membrosCarregados) $('#lista-membros').innerHTML = ativos.length ? ativos.sort((a, b) => (a.papel === 'admin' ? 0 : 1) - (b.papel === 'admin' ? 0 : 1) || (a.nome || '').localeCompare(b.nome || '')).map(m => { const sou = usuario && m.id === usuario.uid;
     return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}</span></div>${sou ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
@@ -829,7 +887,8 @@ async function renderInicio() {
   $('#card-plataforma').hidden = !donoPlataforma;
   if (donoPlataforma && !listaCondosCarregada) {
     listaCondosCarregada = true;
-    try { const s = await fb.fs.getDocs(fb.condos()); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => cartaoCondo(d.id, d.data().nome, [d.data().cidade, d.data().publico ? 'público' : 'fechado'].filter(Boolean).join(' · '))).join('') : '<li class="res-info">Nenhum condomínio ainda.</li>'; }
+    $('#lista-condos').innerHTML = skelLista(3);
+    try { const s = await carga(fb.fs.getDocs(fb.condos())); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => cartaoCondo(d.id, d.data().nome, [d.data().cidade, d.data().publico ? 'público' : 'fechado'].filter(Boolean).join(' · '))).join('') : '<li class="res-info">Nenhum condomínio ainda.</li>'; }
     catch (e) { console.error(e); listaCondosCarregada = false; $('#lista-condos').innerHTML = '<li class="res-info">Não consegui carregar a lista.</li>'; }
   }
 }
@@ -838,7 +897,8 @@ async function carregarMeusEventos() {
   const card = $('#card-meus'), lista = $('#lista-meus'); const seq = ++meusSeq;
   if (!usuario || !fb.pronto) { card.hidden = true; return []; }
   try {
-    const s = await fb.fs.getDocs(fb.fs.query(fb.fs.collectionGroup(fb.db, 'membros'), fb.fs.where('uid', '==', usuario.uid), fb.fs.limit(30)));
+    if (card.hidden || !lista.children.length) { card.hidden = false; lista.innerHTML = skelLista(2); }
+    const s = await carga(fb.fs.getDocs(fb.fs.query(fb.fs.collectionGroup(fb.db, 'membros'), fb.fs.where('uid', '==', usuario.uid), fb.fs.limit(30))));
     const itens = await Promise.all(s.docs.map(async d => {
       const id = d.ref.parent.parent.id; let nome = id, cidade = '';
       try { const c = await fb.fs.getDoc(fb.condo(id)); if (!c.exists()) return null; nome = c.data().nome; cidade = c.data().cidade || ''; } catch { return null; }
@@ -890,10 +950,10 @@ async function buscarCondos(txt) {
   const el = $('#resultados'); const palavras = semAcento(txt).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
   if (!palavras.length) { el.innerHTML = ''; return; }
   const termo = palavras.reduce((a, b) => b.length > a.length ? b : a).slice(0, 15); const seq = ++buscaSeq;
-  el.innerHTML = '<li class="res-info">Procurando nas sombras…</li>';
+  el.innerHTML = `<li class="res-info res-carregando">${SPIN} Procurando nas sombras…</li>` + SKEL_ITEM.repeat(2);
   const lento = setTimeout(() => { if (seq === buscaSeq) el.innerHTML = '<li class="res-info">Está demorando… Confira a internet. Se tiver o código, use o campo abaixo.</li>'; }, 8000);
   try {
-    const s = await fb.fs.getDocs(fb.fs.query(fb.buscas(), fb.fs.where('prefixos', 'array-contains', termo), fb.fs.limit(20)));
+    const s = await carga(fb.fs.getDocs(fb.fs.query(fb.buscas(), fb.fs.where('prefixos', 'array-contains', termo), fb.fs.limit(20))));
     if (seq !== buscaSeq) return;
     const achados = s.docs.map(d => ({id: d.id, ...d.data()})).filter(d => palavras.every(w => (d.prefixos || []).some(p => p === w.slice(0, 15) || p.startsWith(w.slice(0, 15)))));
     el.innerHTML = achados.length ? achados.slice(0, 10).map(d => cartaoCondo(d.id, d.nome, d.cidade)).join('')
@@ -1189,9 +1249,10 @@ function aplicarRota() {
 
 /* ---------- início ---------- */
 async function iniciar() {
-  iniciarMapa(); ligarEventos(); renderFiltros(); renderParticipar(); renderModo(); renderConta();
+  iniciarMapa(); ligarEventos(); renderFiltros(); renderParticipar(); renderModo(); renderConta(); cargaInicio('app');
   if (!CONFIG.firebase || !CONFIG.firebase.apiKey) { toast('Configure o Firebase em js/config.js.', 8000); return; }
-  try { await fb.init(); } catch (e) { console.error(e); toast('Não consegui conectar. Confira sua internet e recarregue.', 8000); return; }
+  try { await fb.init(); } catch (e) { console.error(e); cargaFim('app'); authPronto = true; renderConta(); toast('Não consegui conectar. Confira sua internet e recarregue.', 8000); return; }
+  cargaFim('app');
   aplicarRota();
   const perm = await estadoPermissaoGPS();
   if (perm === 'granted') ligarGPS(false);
