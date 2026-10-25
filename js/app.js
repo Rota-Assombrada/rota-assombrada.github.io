@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=53';
+import CONFIG from './config.js?v=54';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -271,7 +271,7 @@ const fb = {
     const prov = new this.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt: 'select_account'});
     try { await this.auth.signInWithPopup(this.a, prov); }
     catch (e) {
-      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) { try { history.replaceState(history.state, '', '/' + location.search + location.hash); } catch {} return this.auth.signInWithRedirect(this.a, prov); }
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) { try { history.replaceState(history.state, '', '/' + location.search + (location.hash || (cid ? '#' + cid : ''))); } catch {} return this.auth.signInWithRedirect(this.a, prov); }
       if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
       console.error(e);
       toast(e && e.code === 'auth/unauthorized-domain' ? 'Este endereço ainda não foi autorizado no Firebase.' : e && e.code === 'auth/operation-not-allowed' ? 'O login com Google ainda não foi ligado no Firebase.' : 'Não consegui entrar agora. Tente de novo.', 5000);
@@ -1479,8 +1479,12 @@ async function checarPaginaPrevia(id) {
 // copiar o endereço de lá. O app continua na raiz; a rota mesmo fica no "#". Convite e início ficam na raiz.
 function ajustarEndereco() {
   try {
-    const r = lerRota(), alvo = r.c && !r.convite && paginaPrevia[r.c] ? `/c/${r.c}/` : '/';
-    if (location.pathname !== alvo) history.replaceState(history.state, '', alvo + location.search + location.hash);
+    // Barra limpa: /c/CODIGO/ para o condomínio (é o link com prévia do nome), / para o início. Convite e
+    // condomínio sem página de prévia continuam com o "#", que é onde a rota mora.
+    const r = lerRota();
+    const url = r.c && !r.convite && paginaPrevia[r.c] ? `/c/${r.c}/${location.search}`
+      : !r.c && !r.convite ? `/${location.search}` : `/${location.search}${location.hash}`;
+    if (location.pathname + location.search + location.hash !== url) history.replaceState(history.state, '', url);
   } catch {}
 }
 function linkCondo() { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/` : `${BASE_SITE}c/#${cid}`; }
@@ -2022,6 +2026,8 @@ document.addEventListener('click', e => {
 });
 function lerRota() {
   let s = location.hash.replace(/^#\/?/, ''); try { s = decodeURIComponent(s); } catch {}
+  // sem "#", vale o caminho limpo /c/CODIGO/ que o app mostra na barra
+  if (!s) { const m = location.pathname.match(/^\/c\/([A-Za-z0-9]{5})\/?$/); if (m) s = m[1]; }
   const [c, tipo, codConvite] = s.split('/');
   const cod = normalizarCodigo(c);
   return {c: c && c.toLowerCase() !== 'inicio' && CODIGO.test(cod) ? cod : null, inicio: (c || '').toLowerCase() === 'inicio', convite: tipo === 'convite' && /^[A-Za-z0-9]{8,40}$/.test(codConvite || '') ? codConvite : null};

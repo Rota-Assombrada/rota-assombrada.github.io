@@ -637,7 +637,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 
 .gps-linha{display:flex;align-items:center;gap:14px}
 .gps-txt{flex:1;min-width:0}
-.gps-drac{flex:none;align-self:flex-end;margin:-6px -4px -8px 0}
+.gps-drac{flex:none;align-self:center;margin:0 -4px 0 0;display:flex;align-items:center}
 .gps-drac .dracula{width:96px}
 @media (max-width:380px){.gps-drac .dracula{width:78px}}
 
