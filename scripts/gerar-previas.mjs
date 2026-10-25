@@ -47,7 +47,8 @@ function paraJpg(png, jpg) {
 // Desenha a capa só quando o texto muda (a versão fica num arquivo ao lado), para não gerar commit toda hora.
 function capa(pasta, valores) {
   const html = MODELO.replace('{{SELO}}', valores.selo ? `<div class="selo">${h(valores.selo)}</div>` : '').replace('{{NOME}}', h(valores.nome))
-    .replace('{{CLASSE_NOME}}', valores.nome.length > 34 ? 'longo' : '').replace('{{SUB}}', h(valores.sub)).replace('{{CHIP}}', h(valores.chip));
+    .replace('{{CLASSE_NOME}}', valores.nome.length > 34 ? 'longo' : '').replace('{{SUB}}', h(valores.sub)).replace('{{CHIP}}', h(valores.chip))
+    .replace('{{ALERTA}}', valores.alerta ? `<div class="alerta"><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22z" fill="#fff"/><path d="M12 9v5" stroke="#e8102b" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.5" fill="#e8102b"/></svg>${h(valores.alerta)}</div>` : '');
   const versao = createHash('sha256').update(html).digest('hex').slice(0, 10);
   const jpg = join(pasta, 'capa.jpg'), arqVersao = join(pasta, 'capa.versao');
   if (existsSync(jpg) && existsSync(arqVersao) && readFileSync(arqVersao, 'utf8').trim() === versao) return `capa.jpg?v=${versao}`;
@@ -98,7 +99,9 @@ function pagina({titulo, descricao, url, imagem, alt, destino}) {
 `;
 }
 
-const IMG_SITE = `${BASE}img/preview.jpg`, IMG_CONVITE = `${BASE}img/preview-convite.jpg`;
+// Textos das capas, um por tipo de link. As genéricas (sem nome) ficam em img/ e são geradas com --genericas.
+const CAPA_CONVITE = nome => ({selo: 'CONVITE', nome, sub: 'Cadastro aprovado automaticamente', chip: 'Entre e cadastre sua casa', alerta: 'NÃO COMPARTILHE · SÓ MORADORES'});
+const IMG_SITE = `${BASE}img/preview.jpg?v=2`, IMG_CONVITE = `${BASE}img/preview-convite.jpg?v=2`;
 function paginaCondo({cid, nome, cidade}, img) {
   const titulo = `${nome} · Rota Assombrada`;
   const descricao = `O mapa do Halloween de ${nome}${cidade ? ` (${cidade})` : ''}: veja as casas que dão doces, monte o roteiro e cadastre a sua.`;
@@ -107,12 +110,22 @@ function paginaCondo({cid, nome, cidade}, img) {
 }
 function paginaConvite({cid, nome}, img) {
   const titulo = `Convite: ${nome} · Rota Assombrada`;
-  const descricao = `Convite para o mapa do Halloween de ${nome}: sua entrada é aprovada automaticamente. Compartilhe só com moradores do condomínio.`;
+  const descricao = `Convite para o mapa do Halloween de ${nome}: seu cadastro é aprovado automaticamente. Não compartilhe: é só para moradores do condomínio.`;
   return pagina({titulo, descricao, url: `${BASE}c/${cid}/convite/`, imagem: img ? `${BASE}c/${cid}/convite/${img}` : IMG_CONVITE, alt: `Convite para o mapa do Halloween de ${nome}`,
     destino: `var c=location.hash.slice(1),d=${JSON.stringify(BASE + '#' + cid)}+(/^[A-Za-z0-9]{8,40}$/.test(c)?'/convite/'+c:'');document.getElementById('ir').href=d;location.replace(d);`});
 }
 
 const raiz = new URL('../', import.meta.url).pathname;
+// node scripts/gerar-previas.mjs --genericas  -> redesenha img/preview.jpg (site) e img/preview-convite.jpg (convite sem nome)
+if (process.argv.includes('--genericas')) {
+  for (const [arq, v] of [['preview.jpg', {nome: '', sub: 'O mapa das casas que dão doces no seu condomínio', chip: 'Ache seu condomínio e monte o roteiro'}],
+    ['preview-convite.jpg', CAPA_CONVITE('Convite do seu condomínio')]]) {
+    const d = join(tmpdir(), `generica-${arq}`); rmSync(d, {recursive: true, force: true}); mkdirSync(d, {recursive: true});
+    if (!capa(d, v)) { console.error('Sem Chrome para desenhar', arq); process.exit(1); }
+    copyFileSync(join(d, 'capa.jpg'), `${raiz}img/${arq}`); console.log('ok', arq);
+  }
+  process.exit(0);
+}
 const itens = await listarBusca();
 const pastaC = `${raiz}c`;
 mkdirSync(pastaC, {recursive: true});
@@ -120,8 +133,8 @@ const manter = new Set(itens.map(i => i.cid));
 for (const nome of existsSync(pastaC) ? readdirSync(pastaC) : []) if (CODIGO.test(nome) && !manter.has(nome)) rmSync(`${pastaC}/${nome}`, {recursive: true, force: true});
 for (const it of itens) {
   mkdirSync(`${pastaC}/${it.cid}/convite`, {recursive: true});
-  const imgCondo = capa(`${pastaC}/${it.cid}`, {nome: it.nome, sub: 'O mapa das casas que dão doces no Halloween', chip: 'Cadastre sua casa e monte o roteiro'});
-  const imgConvite = capa(`${pastaC}/${it.cid}/convite`, {selo: 'CONVITE', nome: it.nome, sub: 'Entrada aprovada automaticamente', chip: 'Só para moradores · não repasse'});
+  const imgCondo = capa(`${pastaC}/${it.cid}`, {nome: it.nome, sub: 'O mapa das casas que dão doces no Halloween', chip: 'Veja as casas e monte o roteiro'});
+  const imgConvite = capa(`${pastaC}/${it.cid}/convite`, CAPA_CONVITE(it.nome));
   writeFileSync(`${pastaC}/${it.cid}/index.html`, paginaCondo(it, imgCondo));
   writeFileSync(`${pastaC}/${it.cid}/convite/index.html`, paginaConvite(it, imgConvite));
 }
