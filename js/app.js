@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=14';
+import CONFIG from './config.js?v=17';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -726,26 +726,82 @@ function mostrarInicio() {
 }
 function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
 let listaCondosCarregada = false;
-function cartaoCondo(id, nome, extra = '') { return `<li><a class="resultado" href="#${h(id)}"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>${extra ? h(extra) + ' · ' : ''}código ${h(id)}</span></span><span class="res-seta" aria-hidden="true">›</span></a></li>`; }
+function cartaoCondo(id, nome, extra = '') {
+  if (!CODIGO.test(id)) return `<li><div class="resultado"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>código antigo ${h(id)}: não abre na versão nova</span></span><button class="btn btn-p btn-primario" data-migrar="${h(id)}">Atualizar código</button></div></li>`;
+  return `<li><a class="resultado" href="#${h(id)}"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>${extra ? h(extra) + ' · ' : ''}código ${h(id)}</span></span><span class="res-seta" aria-hidden="true">›</span></a></li>`; }
 async function renderInicio() {
   if (cid) return;
   $('#inicio-abobora').innerHTML = PUMPKIN_BIG;
-  const rec = ls.get('hw.recentes', []).filter(r => CODIGO.test(r.cid));
+  const meus = await carregarMeusEventos();
+  const rec = ls.get('hw.recentes', []).filter(r => CODIGO.test(r.cid) && !meus.some(m => m.cid === r.cid));
   $('#card-recentes').hidden = !rec.length;
   $('#lista-recentes').innerHTML = rec.map(r => cartaoCondo(r.cid, r.nome)).join('');
   $('#card-plataforma').hidden = !donoPlataforma;
   if (donoPlataforma && !listaCondosCarregada) {
     listaCondosCarregada = true;
-    try { const s = await fb.fs.getDocs(fb.condos()); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => cartaoCondo(d.id, d.data().nome, `${d.data().cidade || ''} ${d.data().publico ? '· público' : '· fechado'}`.trim())).join('') : '<li><div class="info"><span>Nenhum condomínio ainda.</span></div></li>'; }
-    catch (e) { console.error(e); listaCondosCarregada = false; $('#lista-condos').innerHTML = '<li><div class="info"><span>Não consegui carregar a lista.</span></div></li>'; }
+    try { const s = await fb.fs.getDocs(fb.condos()); $('#lista-condos').innerHTML = s.docs.length ? s.docs.map(d => cartaoCondo(d.id, d.data().nome, [d.data().cidade, d.data().publico ? 'público' : 'fechado'].filter(Boolean).join(' · '))).join('') : '<li class="res-info">Nenhum condomínio ainda.</li>'; }
+    catch (e) { console.error(e); listaCondosCarregada = false; $('#lista-condos').innerHTML = '<li class="res-info">Não consegui carregar a lista.</li>'; }
   }
 }
+let meusSeq = 0;
+async function carregarMeusEventos() {
+  const card = $('#card-meus'), lista = $('#lista-meus'); const seq = ++meusSeq;
+  if (!usuario || !fb.pronto) { card.hidden = true; return []; }
+  try {
+    const s = await fb.fs.getDocs(fb.fs.query(fb.fs.collectionGroup(fb.db, 'membros'), fb.fs.where('uid', '==', usuario.uid), fb.fs.limit(30)));
+    const itens = await Promise.all(s.docs.map(async d => {
+      const id = d.ref.parent.parent.id; let nome = id, cidade = '';
+      try { const c = await fb.fs.getDoc(fb.condo(id)); if (!c.exists()) return null; nome = c.data().nome; cidade = c.data().cidade || ''; } catch { return null; }
+      return {cid: id, nome, cidade, papel: d.data().papel};
+    }));
+    if (seq !== meusSeq) return [];
+    const meus = itens.filter(Boolean);
+    const rotulo = {admin: 'você é admin', morador: 'você é morador', pendente: 'esperando aprovação'};
+    lista.innerHTML = meus.map(m => cartaoCondo(m.cid, m.nome, [m.cidade, rotulo[m.papel]].filter(Boolean).join(' · '))).join('');
+    card.hidden = !meus.length; return meus;
+  } catch (e) { console.error(e); card.hidden = true; return []; }
+}
+
+/* ---------- dono: atualizar condomínio do formato antigo para o código novo ---------- */
+async function migrarCondo(antigo) {
+  if (!donoPlataforma) return;
+  const ok = await salvarSeguro(async () => {
+    const snap = await fb.fs.getDoc(fb.condo(antigo)); if (!snap.exists()) throw new Error('não existe');
+    const d = snap.data();
+    let novo = null;
+    for (let i = 0; i < 6 && !novo; i++) { const v = crypto.getRandomValues(new Uint8Array(5)); const c = [...v].map(x => ALFABETO_CODIGO[x % 32]).join(''); const ex = await fb.fs.getDoc(fb.condo(c)); if (!ex.exists()) novo = c; }
+    if (!novo) throw new Error('sem código');
+    const [membrosS, casasS, convitesS] = await Promise.all([fb.fs.getDocs(fb.membros(antigo)), fb.fs.getDocs(fb.casas(antigo)), fb.fs.getDocs(fb.convites(antigo))]);
+    const agora = Date.now(); const s = (v, n) => String(v ?? '').slice(0, n);
+    const hora = v => /^[0-2]\d:[0-5]\d$/.test(v || '') ? v : '';
+    const centro = d.centro && typeof d.centro.lat === 'number' ? {lat: d.centro.lat, lng: d.centro.lng} : {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
+    const portaria = d.portaria && typeof d.portaria.lat === 'number' ? {lat: d.portaria.lat, lng: d.portaria.lng} : null;
+    const nome = s(d.nome || antigo, 80), cidade = s(d.cidade, 60), publico = !!d.publico;
+    const b = fb.fs.writeBatch(fb.db);
+    b.set(fb.condo(novo), {nome, cidade, eventoNome: s(d.eventoNome, 80), data: s(d.data, 10), horaInicio: hora(d.horaInicio), horaFim: hora(d.horaFim), avisos: s(d.avisos, 160), portaria, centro, zoom: Math.max(3, Math.min(20, Math.round(d.zoom || 17))), publico, listado: true, criadoPor: usuario.uid, criadoEm: d.criadoEm || agora, atualizadoEm: agora});
+    b.set(fb.busca(novo), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico, atualizadoEm: agora});
+    membrosS.docs.forEach(m => { const x = m.data(); b.set(fb.membro(novo, m.id), {uid: m.id, papel: ['admin', 'morador', 'pendente'].includes(x.papel) ? x.papel : 'pendente', nome: s(x.nome, 80), email: s(x.email, 160), convite: s(x.convite, 40), criadoEm: x.criadoEm || agora, atualizadoEm: agora}); });
+    if (!membrosS.docs.some(m => m.id === usuario.uid)) b.set(fb.membro(novo, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: agora, atualizadoEm: agora});
+    casasS.docs.forEach(c => b.set(fb.casa(novo, c.id), limparCasa({...c.data(), uid: c.data().uid || usuario.uid})));
+    convitesS.docs.forEach(c => { const x = c.data(); if (/^[A-Za-z0-9]{8,40}$/.test(c.id)) b.set(fb.convite(novo, c.id), {papel: 'morador', ativo: !!x.ativo, expiraEm: +x.expiraEm || agora, criadoPor: s(x.criadoPor || usuario.uid, 128), criadoEm: +x.criadoEm || agora}); });
+    await b.commit();
+    const apagar = fb.fs.writeBatch(fb.db);
+    [...membrosS.docs, ...casasS.docs, ...convitesS.docs].forEach(x => apagar.delete(x.ref)); apagar.delete(fb.condo(antigo));
+    await apagar.commit();
+    ls.set('hw.recentes', ls.get('hw.recentes', []).filter(r => r.cid !== antigo));
+    migrado = novo;
+  }, 'Código atualizado!');
+  if (ok && migrado) { listaCondosCarregada = false; const n = migrado; migrado = null; location.hash = n; }
+}
+let migrado = null;
+
 let buscaTimer = null, buscaSeq = 0;
 async function buscarCondos(txt) {
   const el = $('#resultados'); const palavras = semAcento(txt).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
   if (!palavras.length) { el.innerHTML = ''; return; }
   const termo = palavras.reduce((a, b) => b.length > a.length ? b : a).slice(0, 15); const seq = ++buscaSeq;
   el.innerHTML = '<li class="res-info">Procurando nas sombras…</li>';
+  const lento = setTimeout(() => { if (seq === buscaSeq) el.innerHTML = '<li class="res-info">Está demorando… Confira a internet. Se tiver o código, use o campo abaixo.</li>'; }, 8000);
   try {
     const s = await fb.fs.getDocs(fb.fs.query(fb.buscas(), fb.fs.where('prefixos', 'array-contains', termo), fb.fs.limit(20)));
     if (seq !== buscaSeq) return;
@@ -754,6 +810,7 @@ async function buscarCondos(txt) {
       : `<li class="res-info">Não achei nenhum condomínio com "${h(txt)}". Confira o nome ou peça o código ao organizador.</li>`;
     if (achados.length) SFX.plim();
   } catch (e) { console.error(e); if (seq === buscaSeq) el.innerHTML = '<li class="res-info">A busca não respondeu. Tente de novo.</li>'; }
+  finally { clearTimeout(lento); }
 }
 
 /* ---------- criar condomínio (self-service) ---------- */
@@ -871,6 +928,7 @@ function ligarEventos() {
   });
   $('#i-codigo').addEventListener('input', e => { const v = normalizarCodigo(e.target.value); if (v.length <= 5) e.target.value = v; });
   $('#btn-sou-org').addEventListener('click', abrirCriarCondo);
+  document.addEventListener('click', e => { const b = e.target.closest('[data-migrar]'); if (b) { b.disabled = true; b.textContent = 'Atualizando…'; migrarCondo(b.dataset.migrar).finally(() => { b.disabled = false; b.textContent = 'Atualizar código'; }); } });
   document.addEventListener('submit', e => { if (e.target.id !== 'form-criar') return; e.preventDefault(); criarCondo($('#n-nome').value.trim().slice(0, 80), $('#n-cidade').value.trim().slice(0, 60)); });
   document.addEventListener('click', e => { if (e.target.closest('[data-fechar-folha]')) fecharFolha(); });
 

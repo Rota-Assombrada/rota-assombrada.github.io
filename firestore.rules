@@ -116,6 +116,11 @@ service cloud.firestore {
         && d.get('criadoEm', 0) is number && d.get('atualizadoEm', 0) is number;
     }
 
+    // ---------- "Meus eventos": cada pessoa lista só as próprias participações ----------
+    match /{caminho=**}/membros/{mid} {
+      allow read: if logado() && resource.data.uid == eu();
+    }
+
     // ---------- busca pública (só nome, cidade e código) ----------
     match /busca/{cid} {
       allow get: if true;

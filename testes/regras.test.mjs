@@ -5,7 +5,7 @@ import {test, before, after, beforeEach} from 'node:test';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
-import {doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, query, where, limit} from 'firebase/firestore';
+import {doc, getDoc, setDoc, updateDoc, deleteDoc, collection, collectionGroup, getDocs, writeBatch, query, where, limit} from 'firebase/firestore';
 
 // Troca o hash real do dono por um e-mail de teste, para não depender do e-mail verdadeiro.
 const EMAIL_DONO = 'dono@teste.dev';
@@ -295,4 +295,44 @@ test('busca: só admin do condomínio altera ou remove', async () => {
 });
 test('busca: NÃO aceita campos extras como telefone', async () => {
   await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'busca/VALE2'), {...buscaBase('Vale'), telefone: '11999999999'}));
+});
+
+// ---------- Meus eventos ----------
+test('meus eventos: a pessoa lista as próprias participações', async () => {
+  await assertSucceeds(getDocs(query(collectionGroup(como('morM', 'm@x.com'), 'membros'), where('uid', '==', 'morM'), limit(30))));
+});
+test('meus eventos: NÃO lista as participações de outra pessoa', async () => {
+  await assertFails(getDocs(query(collectionGroup(como('morM', 'm@x.com'), 'membros'), where('uid', '==', 'adminA'), limit(30))));
+  await assertFails(getDocs(collectionGroup(como('morM', 'm@x.com'), 'membros')));
+});
+test('meus eventos: visitante NÃO lista participações', async () => {
+  await assertFails(getDocs(query(collectionGroup(visitante(), 'membros'), where('uid', '==', 'morM'))));
+});
+
+// ---------- dono atualiza condomínio do formato antigo ----------
+test('dono: migra condomínio de código antigo para o novo', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'condominios/csa1'), {...condoBase('Antigo', true, 'dono'), whatsapp: '11999999999'});
+    await setDoc(doc(db, 'condominios/csa1/membros/morM'), membro('morM', 'morador', 'm@x.com'));
+    await setDoc(doc(db, 'condominios/csa1/casas/morM'), casaBase('morM'));
+  });
+  const db = como('dono', EMAIL_DONO);
+  await assertSucceeds(getDocs(collection(db, 'condominios/csa1/casas')));
+  await assertSucceeds(getDocs(collection(db, 'condominios/csa1/membros')));
+  const b = writeBatch(db);
+  b.set(doc(db, 'condominios/MGR22'), condoBase('Antigo', true, 'dono'));
+  b.set(doc(db, 'busca/MGR22'), buscaBase('Antigo'));
+  b.set(doc(db, 'condominios/MGR22/membros/morM'), membro('morM', 'morador', 'm@x.com'));
+  b.set(doc(db, 'condominios/MGR22/casas/morM'), casaBase('morM'));
+  await assertSucceeds(b.commit());
+  const apagar = writeBatch(db);
+  apagar.delete(doc(db, 'condominios/csa1/membros/morM')); apagar.delete(doc(db, 'condominios/csa1/casas/morM')); apagar.delete(doc(db, 'condominios/csa1'));
+  await assertSucceeds(apagar.commit());
+});
+test('admin comum NÃO apaga condomínio antigo nem cria com código antigo', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/csa1'), condoBase('Antigo', true, 'adminA')));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/csa1/membros/adminA'), membro('adminA', 'admin', 'a@x.com')));
+  await assertFails(deleteDoc(doc(como('adminA', 'a@x.com'), 'condominios/csa1')));
+  await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/csa1'), {avisos: 'x'}, {merge: true}));
 });
