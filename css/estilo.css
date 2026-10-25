@@ -109,7 +109,8 @@ h2{font-size:1.15rem;font-weight:900;letter-spacing:.01em;display:flex;align-ite
 .btn-primario:active{box-shadow:0 0 0 var(--abobora-escura),0 3px 8px rgba(255,120,0,.3)}
 .btn-sucesso{background:linear-gradient(180deg,#b4ff95,var(--veneno) 55%,#5fd13a);color:var(--no-veneno);box-shadow:0 5px 0 var(--veneno-escuro),0 10px 22px rgba(120,255,80,.3)}
 .btn-sucesso:active{box-shadow:0 0 0 var(--veneno-escuro),0 3px 8px rgba(120,255,80,.3)}
-.btn-fantasma{background:transparent;border:2px solid var(--borda);box-shadow:none}
+.btn-fantasma{background:var(--superficie);border:2px solid var(--borda);box-shadow:none}
+.btn-fantasma:hover{border-color:var(--roxo)}
 .btn-fantasma:active{transform:scale(.95)}
 .btn-perigo{background:linear-gradient(180deg,#ff7a94,var(--sangue));color:#2a0010;box-shadow:0 4px 0 #8c1a33}
 .btn-grande{min-height:58px;font-size:1.1rem;padding:12px 26px;width:100%}
@@ -562,7 +563,8 @@ input::placeholder,textarea::placeholder{color:var(--fg3);opacity:.8}
 
 /* Seletor de horário: botões grandes de -15/+15 minutos e a hora no meio (toque abre a lista do celular) */
 .campo .rotulo-campo{font-weight:800;font-size:.9rem;color:var(--fg2)}
-.hora-sel{display:grid;grid-template-columns:52px 1fr 52px;gap:8px;align-items:center}
+.hora-sel{display:grid;grid-template-columns:56px minmax(96px,1fr) 56px;gap:10px;align-items:center}
+.hora-btn{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .hora-btn{min-height:52px;border-radius:var(--raio-p);border:2px solid var(--borda);background:var(--superficie2);color:var(--fg);font:900 1.6rem/1 var(--f-corpo);cursor:pointer;transition:transform .15s var(--mola),border-color .2s}
 .hora-btn:hover{border-color:var(--abobora)}
 .hora-btn:active{transform:scale(.92)}
@@ -580,3 +582,33 @@ input::placeholder,textarea::placeholder{color:var(--fg3);opacity:.8}
 .faixa-edicao b{display:block;color:var(--fg)}
 .faixa-edicao span{display:block;color:var(--fg2);font-size:.88rem;font-weight:600}
 #painel-participar .cartao.editando-outra{border-color:var(--abobora);box-shadow:0 0 0 3px rgba(255,138,31,.18)}
+
+/* Colunas da grade nunca empurram para fora (campo de data do iPhone tem largura mínima própria) */
+.linha>*{min-width:0}
+input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;display:block;max-width:100%}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
+/* Horários um embaixo do outro no celular: cada um com a largura toda */
+@media (max-width:640px){.linha-horas{grid-template-columns:1fr}}
+/* Moradores da casa */
+.lista-moradores{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.lista-moradores li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--raio-p);border:1px solid var(--borda);background:var(--bg2);min-height:52px}
+.lista-moradores .morador-criador{border-style:dashed}
+.morador-ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:rgba(255,138,31,.15);color:var(--abobora);flex:none}
+.morador-ic svg{width:18px;height:18px}
+.morador-txt{flex:1;min-width:0}
+.morador-txt b{display:block;color:var(--fg);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.morador-txt small{display:block;color:var(--fg3);font-weight:600}
+.btn-x{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--borda);background:transparent;color:var(--fg2);display:grid;place-items:center;cursor:pointer}
+.btn-x svg{width:18px;height:18px}
+.btn-x:hover{border-color:var(--sangue);color:var(--sangue)}
+.add-morador{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px}
+.add-morador .btn{margin:0;min-height:48px}
+/* Ficha da casa (folha de baixo): mais respiro */
+.folha-in .casa-titulo{gap:16px;align-items:center}
+.folha-in .etiquetas{margin-top:18px;gap:10px}
+.folha-in .obs{margin-top:16px}
+.acoes-folha{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+.acoes-folha>.btn{width:100%;margin:0;justify-content:center}
+.acoes-folha>.btn-grande,.acoes-folha>[data-acao="visitar"],.acoes-folha>[data-acao="ouvir"]:last-child{grid-column:1/-1}
+.acoes-folha>.btn-grande{flex-wrap:wrap;row-gap:4px}
+.folha-in .nav-extra{margin-top:20px;padding-top:16px;border-top:1px solid var(--borda);gap:10px}

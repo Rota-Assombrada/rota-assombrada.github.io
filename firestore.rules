@@ -46,9 +46,35 @@ service cloud.firestore {
         && getAfter(caminhoCondo(cid)).data.criadoPor == eu();
     }
     // Casa atribuída a um e-mail: na casa fica só o SHA-256 de "codigo:email". Quem entra com aquele e-mail pode cuidar dela.
+    function meuHash(cid) { return hashing.sha256(cid + ':' + request.auth.token.email.lower()).toHexString().lower(); }
+    // Moradores da casa: quem entra com um dos e-mails da lista (guardados só como SHA-256 de "codigo:email").
+    // donoHash é o formato antigo, de um e-mail só.
     function responsavel(cid, d) {
-      return logado() && d.get('donoHash', '') != ''
-        && d.donoHash == hashing.sha256(cid + ':' + request.auth.token.email.lower()).toHexString().lower();
+      return logado() && (
+        (d.get('donoHash', '') != '' && d.donoHash == meuHash(cid))
+        || meuHash(cid) in d.get('donoHashes', []));
+    }
+    // Lista curta (até 6) e cada item no formato certo; regras não têm laço, então confere posição por posição.
+    function itensOk(l, re) {
+      return l is list && l.size() <= 6
+        && (l.size() < 1 || (l[0] is string && l[0].size() <= 160 && l[0].matches(re)))
+        && (l.size() < 2 || (l[1] is string && l[1].size() <= 160 && l[1].matches(re)))
+        && (l.size() < 3 || (l[2] is string && l[2].size() <= 160 && l[2].matches(re)))
+        && (l.size() < 4 || (l[3] is string && l[3].size() <= 160 && l[3].matches(re)))
+        && (l.size() < 5 || (l[4] is string && l[4].size() <= 160 && l[4].matches(re)))
+        && (l.size() < 6 || (l[5] is string && l[5].size() <= 160 && l[5].matches(re)));
+    }
+    // Quem pode mexer na casa do evento atual: quem cadastrou ou um morador da lista.
+    function caminhoCasaAtual(cid, casaId) {
+      return /databases/$(database)/documents/condominios/$(cid)/eventos/$(string(get(/databases/$(database)/documents/condominios/$(cid)).data.get('eventoAtual', 0)))/casas/$(casaId);
+    }
+    function editorAntes(cid, casaId) {
+      let p = caminhoCasaAtual(cid, casaId);
+      return logado() && exists(p) && (get(p).data.uid == eu() || responsavel(cid, get(p).data));
+    }
+    function editorDepois(cid, casaId) {
+      let p = caminhoCasaAtual(cid, casaId);
+      return logado() && existsAfter(p) && (getAfter(p).data.uid == eu() || responsavel(cid, getAfter(p).data));
     }
     function conviteValido(cid, codigo) {
       let caminho = /databases/$(database)/documents/condominios/$(cid)/convites/$(codigo);
@@ -118,8 +144,9 @@ service cloud.firestore {
     }
 
     function casaValida(d) {
-      return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'donoHash', 'criadoEm', 'atualizadoEm'])
+      return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'donoHash', 'donoHashes', 'criadoEm', 'atualizadoEm'])
         && (d.get('donoHash', '') == '' || d.get('donoHash', '').matches('^[0-9a-f]{64}$'))
+        && itensOk(d.get('donoHashes', []), '^[0-9a-f]{64}$')
         && d.keys().hasAll(['numero', 'lat', 'lng', 'uid'])
         && texto(d.numero, 20) && d.numero.size() > 0
         && texto(d.get('rua', ''), 60)
@@ -222,24 +249,24 @@ service cloud.firestore {
           );
           allow update: if casaValida(request.resource.data) && (
             ehAdmin(cid)
-            || (ehMorador(cid) && resource.data.uid == eu() && request.resource.data.uid == eu()
-                && request.resource.data.get('donoHash', '') == resource.data.get('donoHash', ''))
-            // o responsável pelo e-mail edita e pode assumir a casa (uid passa a ser o dele); não troca a atribuição
-            || (responsavel(cid, resource.data)
-                && request.resource.data.get('donoHash', '') == resource.data.get('donoHash', '')
-                && request.resource.data.uid in [resource.data.uid, eu()])
+            // quem cadastrou e os moradores da lista editam e cuidam da lista de moradores;
+            // ninguém troca quem cadastrou, e o formato antigo (donoHash) só pode ser mantido ou apagado
+            || ((ehMorador(cid) && resource.data.uid == eu()) || responsavel(cid, resource.data))
+                && request.resource.data.uid == resource.data.uid
+                && request.resource.data.get('donoHash', '') in [resource.data.get('donoHash', ''), '']
           );
           allow delete: if ehAdmin(cid) || (logado() && resource.data.uid == eu()) || responsavel(cid, resource.data);
         }
       }
 
-      // E-mail a quem cada casa foi atribuída: só admins leem e gravam.
+      // E-mails dos moradores de cada casa: só admins e os próprios moradores daquela casa leem e gravam.
       match /atribuicoes/{casaId} {
-        allow read: if ehAdmin(cid);
-        allow create, update: if ehAdmin(cid)
-          && request.resource.data.keys().hasOnly(['email', 'ano', 'atualizadoEm'])
-          && texto(request.resource.data.email, 160) && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+$');
-        allow delete: if ehAdmin(cid);
+        allow read: if ehAdmin(cid) || editorAntes(cid, casaId);
+        allow create, update: if (ehAdmin(cid) || editorAntes(cid, casaId) || editorDepois(cid, casaId))
+          && request.resource.data.keys().hasOnly(['email', 'emails', 'ano', 'atualizadoEm'])
+          && (!('email' in request.resource.data) || (texto(request.resource.data.email, 160) && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+$')))
+          && itensOk(request.resource.data.get('emails', []), '^[^@\\s]+@[^@\\s]+$');
+        allow delete: if ehAdmin(cid) || editorAntes(cid, casaId) || editorDepois(cid, casaId);
       }
     }
   }

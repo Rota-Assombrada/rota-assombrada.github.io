@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=40';
+import CONFIG from './config.js?v=41';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -16,6 +16,7 @@ const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const IC = {
   check: svg('<path d="M20 6L9 17l-5-5"/>'),
   x: svg('<path d="M18 6L6 18M6 6l12 12"/>'),
+  pessoa: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
   navegar: svg('<path d="M3 11l19-9-9 19-2-8z"/>'),
   alvo: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>'),
   lixo: svg('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),
@@ -108,7 +109,7 @@ function vigiarPedidos() {
 }
 function vigiarCasasAtribuidas() {
   if (!cid || !usuario || !casasCarregadas || !meuHashAqui) return;
-  casas.filter(c => souResponsavel(c) && c.uid !== usuario.uid).forEach(c => notificar(`atrib-${ano}-${c.id}`, `A casa ${nomeCasaTxt(c)} foi colocada no seu nome. Confira os dados.`, {acao: 'participar'}));
+  casas.filter(c => souResponsavel(c) && c.uid !== usuario.uid).forEach(c => notificar(`atrib-${ano}-${c.id}`, `Você foi adicionado como morador da casa ${nomeCasaTxt(c)}. Já pode editar os dados dela.`, {acao: 'participar'}));
 }
 function vigiarEvento() {
   if (!cid || !condo) return;
@@ -149,11 +150,12 @@ let papel = '';                 // '' | 'pendente' | 'morador' | 'admin' no cond
 let papelCarregado = false;
 let podeVerCasas = false;
 let casasCarregadas = false, membrosCarregados = false, convitesCarregados = false, authPronto = false;
-let atribuicoes = {};     // casaId -> e-mail (só admin lê)
+let atribuicoes = {};     // casaId -> [e-mails dos moradores] (o admin lê todos)
 let meuHashAqui = '';     // SHA-256 de "codigo:meu-email": acha as casas atribuídas a mim
 const hashAtribuicao = (c, email) => sha256hex(`${c}:${String(email || '').trim().toLowerCase()}`);
 async function atualizarMeuHash() { meuHashAqui = usuario && cid && crypto.subtle ? await hashAtribuicao(cid, usuario.email) : ''; }
-const souResponsavel = c => !!c && !!meuHashAqui && c.donoHash === meuHashAqui;
+const hashesDaCasa = c => [...new Set([...(Array.isArray(c && c.donoHashes) ? c.donoHashes : []), ...(c && c.donoHash ? [c.donoHash] : [])])];
+const souResponsavel = c => !!c && !!meuHashAqui && hashesDaCasa(c).includes(meuHashAqui);
 const minhaCasa = () => usuario ? (casaPorId(usuario.uid) || casas.find(souResponsavel) || null) : null;
 let membros = [], convites = [];
 // Convite do link: {cid, cod}. Fica guardado na aba do navegador até ser usado, para sobreviver ao vaivém do login do Google.
@@ -229,7 +231,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -282,6 +284,7 @@ function limparCasa(c) {
     oferece: [...new Set((c.oferece || []).filter(k => OFERECE.some(o => o[0] === k)))],
     flags: [...new Set((c.flags || []).filter(k => FLAGS.some(o => o[0] === k)))],
     horaInicio: hora(c.horaInicio), horaFim: hora(c.horaFim), obs: s(c.obs, 240), donoHash: /^[0-9a-f]{64}$/.test(c.donoHash || '') ? c.donoHash : '',
+    donoHashes: [...new Set((Array.isArray(c.donoHashes) ? c.donoHashes : []).filter(x => /^[0-9a-f]{64}$/.test(x)))].slice(0, 6),
     lat: +c.lat, lng: +c.lng, uid: s(c.uid, 128), criadoEm: +c.criadoEm || Date.now(), atualizadoEm: Date.now()};
 }
 async function sha256hex(txt) {
@@ -392,7 +395,7 @@ function aoMudarPapel() {
   membros = []; convites = []; atribuicoes = {}; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
     subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); vigiarPedidos(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
-    subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, d.data().email])); renderAdmin(); }, e => console.error(e));
+    subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, emailsDaAtribuicao(d.data())])); if (editandoId && moradoresDe === editandoId && !moradoresMexidos) carregarMoradores(); renderAdmin(); }, e => console.error(e));
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
   tentarConvite();
@@ -935,8 +938,8 @@ function cartaoCasa(c, idx) {
 }
 function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
-  $('#folha-in').innerHTML = cartaoCasa(c) + `<div class="acoes">
-    <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps (recomendado)</a>
+  $('#folha-in').innerHTML = cartaoCasa(c) + `<div class="acoes acoes-folha">
+    <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small></a>
     <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
     <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
     ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
@@ -1005,11 +1008,14 @@ function montarSeletoresHora() {
     const inp = $('#' + box.dataset.hora), rot = box.dataset.rotulo || 'Horário';
     box.innerHTML = `<button type="button" class="hora-btn" data-passo="-15" aria-label="${rot}: 15 minutos mais cedo">−</button><select class="hora-val" aria-label="${rot}"></select><button type="button" class="hora-btn" data-passo="15" aria-label="${rot}: 15 minutos mais tarde">+</button>`;
     box.querySelector('select').addEventListener('change', e => { inp.value = e.target.value; });
-    box.querySelectorAll('.hora-btn').forEach(b => b.addEventListener('click', () => {
-      const m = hm(inp.value);
-      inp.value = m == null ? (box.dataset.padrao || '18:00') : fmtHm(((Math.round((m + +b.dataset.passo) / 15) * 15) % 1440 + 1440) % 1440);
-      renderHora(box);
-    }));
+    box.querySelectorAll('.hora-btn').forEach(b => {
+      const passo = () => { const m = hm(inp.value); inp.value = m == null ? (box.dataset.padrao || '18:00') : fmtHm(((Math.round((m + +b.dataset.passo) / 15) * 15) % 1440 + 1440) % 1440); renderHora(box); };
+      // segurar o botão anda rápido; um toque anda 15 minutos
+      let t1, t2, porToque = false; const parar = () => { clearTimeout(t1); clearInterval(t2); };
+      b.addEventListener('pointerdown', e => { porToque = true; passo(); t1 = setTimeout(() => { t2 = setInterval(passo, 110); }, 420); try { b.setPointerCapture(e.pointerId); } catch {} });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, parar));
+      b.addEventListener('click', () => { if (porToque) { porToque = false; return; } passo(); });   // teclado
+    });
     renderHora(box);
   });
 }
@@ -1018,12 +1024,59 @@ function mostrarHorasCasa() {
   $('#f-hora-evento-txt').textContent = evento.horaInicio && evento.horaFim ? `Das ${evento.horaInicio} às ${evento.horaFim}, o mesmo horário do evento.` : 'Segue o horário que o admin definir para o evento.';
   renderHoras();
 }
+// ---------- moradores da casa (vários e-mails podem cuidar da mesma casa) ----------
+const emailsDaAtribuicao = d => [...new Set([...(Array.isArray(d && d.emails) ? d.emails : []), ...(d && d.email ? [d.email] : [])].map(e => String(e).toLowerCase()))].slice(0, 6);
+let moradoresForm = [], moradoresProntos = false, moradoresDe = null, moradoresMexidos = false, atribuicaoExiste = false, hashesSemEmail = [];
+async function carregarMoradores() {
+  const id = editandoId, c = id && casaPorId(id);
+  moradoresDe = id; moradoresMexidos = false; moradoresProntos = false; moradoresForm = []; hashesSemEmail = []; atribuicaoExiste = false;
+  if (!c) { moradoresProntos = true; renderMoradores(); return; }   // casa nova: lista começa vazia
+  renderMoradores();
+  let emails = null;
+  if (ehAdmin() && atribuicoes[id]) { emails = atribuicoes[id]; atribuicaoExiste = true; }
+  else if (podeEditar(c)) { try { const snap = await fb.fs.getDoc(fb.atribuicao(cid, id)); atribuicaoExiste = snap.exists(); emails = snap.exists() ? emailsDaAtribuicao(snap.data()) : []; } catch (e) { console.error(e); emails = null; } }
+  if (editandoId !== id) return;   // trocou de casa enquanto carregava
+  if (emails == null) { renderMoradores(); return; }   // sem permissão ou sem rede: não mexe na lista
+  const hs = await Promise.all(emails.map(e => hashAtribuicao(cid, e)));
+  if (editandoId !== id) return;
+  moradoresForm = emails; hashesSemEmail = hashesDaCasa(c).filter(x => !hs.includes(x)); moradoresProntos = true; renderMoradores();
+}
+function renderMoradores() {
+  const box = $('#campo-moradores'), c = editandoId && casaPorId(editandoId);
+  const pode = !!usuario && (c ? podeEditar(c) : (ehMorador() || ehAdmin()));
+  box.hidden = !pode; if (!pode) return;
+  let criador = '';
+  if (!c || c.uid === meuUid()) criador = 'Você (cadastrou a casa)';
+  else { const m = membros.find(x => x.id === c.uid); criador = m ? `${h(m.nome || 'Um morador')}${m.email ? ` · ${h(m.email)}` : ''}` : (ehAdmin() && membrosCarregados ? 'Quem cadastrou não está mais no condomínio' : 'Quem cadastrou a casa'); }
+  const itens = [`<li class="morador-criador"><span class="morador-ic">${IC.casa}</span><span class="morador-txt"><b>${criador}</b><small>Conta que cadastrou</small></span></li>`];
+  if (!moradoresProntos && c) itens.push(`<li><span class="res-carregando">${SPIN} Carregando moradores…</span></li>`);
+  moradoresForm.forEach(e => itens.push(`<li><span class="morador-ic">${IC.pessoa}</span><span class="morador-txt"><b>${h(e)}</b>${usuario && e === usuario.email ? '<small>Você</small>' : ''}</span><button type="button" class="btn-x" data-tirar-morador="${h(e)}" aria-label="Tirar ${h(e)} da casa">${IC.x}</button></li>`));
+  if (hashesSemEmail.length) itens.push(`<li><span class="morador-txt"><small>Mais ${hashesSemEmail.length} morador${hashesSemEmail.length > 1 ? 'es' : ''} sem e-mail visível (continua com acesso).</small></span></li>`);
+  $('#lista-moradores').innerHTML = itens.join('');
+  const cheio = moradoresForm.length + hashesSemEmail.length >= 6;
+  $('#f-email-morador').disabled = !moradoresProntos || cheio; $('#btn-add-morador').disabled = !moradoresProntos || cheio;
+  if (cheio) $('#f-email-morador').placeholder = 'Limite de 6 moradores';
+  else $('#f-email-morador').placeholder = 'E-mail do Google';
+}
+function adicionarMorador() {
+  const inp = $('#f-email-morador'), e = inp.value.trim().toLowerCase().slice(0, 160);
+  if (!e) { inp.focus(); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('Confira o e-mail: precisa ser o do Google da pessoa.'); inp.focus(); return; }
+  const c = editandoId && casaPorId(editandoId);
+  if ((!c || c.uid === meuUid()) && usuario && e === usuario.email) { toast('Você já cuida desta casa.'); inp.value = ''; return; }
+  if (moradoresForm.includes(e)) { toast('Esse e-mail já está na lista.'); inp.value = ''; return; }
+  moradoresForm = [...moradoresForm, e].slice(0, 6); moradoresMexidos = true; inp.value = ''; SFX.plim(); renderMoradores();
+  toast('Adicionado! Salve a casa para valer.');
+}
 function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hora-evento').checked ? '' : $('#f-hi').value, horaFim: $('#f-hora-evento').checked ? '' : $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
+let versaoForm = 0;
 function preencherForm(c) {
+  versaoForm++;
   $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hora-evento').checked = !(c.horaInicio || c.horaFim); $('#f-hi').value = c.horaInicio || evento.horaInicio || '18:00'; $('#f-hf').value = c.horaFim || evento.horaFim || '21:00'; mostrarHorasCasa(); $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
   pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa); travarMapaCasa(true); confirmouLonge = '';
+  carregarMoradores();
 }
 /* ---------- mapa do cadastro e endereço automático ---------- */
 let mapaCasa = null, marcadorCasa = null, confirmouLonge = '';
@@ -1097,8 +1150,10 @@ async function acharPeloEndereco(automatico) {
   if (!rua) { if (!automatico) { dica.textContent = 'Escreva a rua primeiro.'; $('#f-rua').focus(); } return; }
   if (geoBuscando) return;
   geoBuscando = true; const btn = $('#btn-achar-endereco'); const txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${SPIN} Procurando…`;
+  const v = versaoForm;
   try {
     const g = await geocodificar(rua, num);
+    if (v !== versaoForm) return;   // o formulário mudou de casa enquanto buscava: ignora a resposta
     if (!g) { dica.textContent = 'Não achei esse endereço no mapa. Destrave o mapa e toque onde fica a casa.'; if (!automatico) SFX.boo(); return; }
     definirPinCasa(g, true, true); travarMapaCasa(true);
     dica.textContent = g.exato ? 'Achei o endereço! Se a abóbora não estiver em cima da casa, destrave o mapa e arraste.' : 'Achei a rua, mas não o número. Destrave o mapa e arraste a abóbora até a sua casa.';
@@ -1175,7 +1230,8 @@ function atualizarParticipar() {
   $('#participar-intro').textContent = html ? (usuario ? '' : 'Para colocar sua casa no mapa, entre com sua conta Google. Assim só você consegue mexer nela.')
     : criandoOutra ? 'Ela fica sob sua responsabilidade de admin.'
     : 'Marque a casa no mapa (ou use o GPS na porta) e conte o que vai rolar.';
-  if (!html && !editandoId && !criandoOutra && !jaAbriuMinhaCasa) { const minha = minhaCasa(); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
+  // Quem já tem casa sempre vê a própria casa aqui (nunca um formulário vazio, que sobrescreveria a casa ao salvar).
+  if (!html && !editandoId && !criandoOutra) { const minha = minhaCasa(); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
   verificarCasaAnoPassado();
   atualizarForm();
 }
@@ -1191,16 +1247,8 @@ async function verificarCasaAnoPassado() {
 }
 function atualizarForm() {
   const minha = editandoId && usuario && (editandoId === usuario.uid || souResponsavel(casaPorId(editandoId)));
-  const campo = $('#campo-email-dono'); campo.hidden = !ehAdmin();
-  // Mostra ao admin a quem a casa pertence hoje: a conta que cadastrou e, se houver, o e-mail atribuído.
-  const casaEd = editandoId && casaPorId(editandoId); let dono = '';
-  if (casaEd && usuario) {
-    if (casaEd.uid === usuario.uid) dono = 'Hoje esta casa é da sua conta Google.';
-    else { const m = membros.find(x => x.id === casaEd.uid); dono = m ? `Hoje esta casa é da conta de ${m.nome || 'um morador'}${m.email ? ` (${m.email})` : ''}, que a cadastrou.` : (membrosCarregados ? 'Quem cadastrou esta casa não está mais na lista de membros. Atribua a um e-mail para alguém poder cuidar dela.' : ''); }
-    if (atribuicoes[editandoId]) dono += ` Também está atribuída a ${atribuicoes[editandoId]}.`;
-  }
-  $('#ajuda-email-dono').textContent = (dono ? dono + ' ' : '') + 'Preencha o e-mail só para passar a casa para outra pessoa: quem entrar com ele no Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa, só admins veem.';
-  if (ehAdmin() && document.activeElement !== $('#f-email-dono')) $('#f-email-dono').value = editandoId ? (atribuicoes[editandoId] || '') : (campo.dataset.reter || '');
+  const casaEd = editandoId && casaPorId(editandoId);
+  renderMoradores();
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
   $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Casa de outra família' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
   // Faixa laranja: deixa claro que não é a sua casa e oferece o caminho de volta.
@@ -1208,6 +1256,7 @@ function atualizarForm() {
   fx.hidden = !outra; $('#painel-participar .cartao').classList.toggle('editando-outra', outra);
   if (outra) fx.innerHTML = `${IC.editar}<div><b>${criandoOutra ? 'Cadastrando a casa de outra família' : `Editando ${casaEd ? h(casaEd.familia || nomeCasaTxt(casaEd)) : 'outra casa'}`}</b><span>Isso não mexe na sua casa.</span></div><button type="button" class="btn btn-p btn-fantasma" data-sair-edicao>${minhaCasa() ? 'Voltar para a minha casa' : 'Cancelar'}</button>`;
   $('#aba-participar span').textContent = minhaCasa() ? 'Minha casa' : 'Participar';
+  $('#btn-ir-participar').textContent = minhaCasa() ? 'Editar minha casa' : 'Cadastrar minha casa';
   mostrarHorasCasa();
   $('#btn-cancelar-edicao').hidden = !(editandoId && !minha) && !criandoOutra;
   $('#btn-excluir-minha').hidden = !editandoId || !casaPorId(editandoId);
@@ -1255,7 +1304,7 @@ function renderAdmin() {
     return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}</span></div>${sou ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
-  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h(atribuicoes[c.id] ? `Responsável: ${atribuicoes[c.id]}` : (dono(c.uid) || 'Cadastrada por admin'))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
+  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...((atribuicoes[c.id] || []).length ? [`+ ${atribuicoes[c.id].join(', ')}`] : [])].join(' '))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 async function conferirEnderecos() {
@@ -1561,6 +1610,9 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
+  $('#btn-add-morador').addEventListener('click', adicionarMorador);
+  $('#f-email-morador').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); adicionarMorador(); } });
+  $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
   $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
   $('#f-hora-evento').addEventListener('change', e => { if (!e.target.checked) { if (hm($('#f-hi').value) == null) $('#f-hi').value = evento.horaInicio || '18:00'; if (hm($('#f-hf').value) == null) $('#f-hf').value = evento.horaFim || '21:00'; } mostrarHorasCasa(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
@@ -1586,24 +1638,28 @@ function ligarEventos() {
     if (!usuario) { toast('Entre com Google para salvar sua casa.'); fb.entrar(); return; }
     const antiga = editandoId ? casaPorId(editandoId) : null;
     if (antiga && !podeEditar(antiga)) { toast('Só quem cadastrou ou um admin pode editar esta casa.'); return; }
+    if (!editandoId && !criandoOutra && casaPorId(usuario.uid)) { toast('Você já tem uma casa no mapa. Abrindo ela para editar.'); editandoId = usuario.uid; preencherForm(casaPorId(usuario.uid)); return; }
     const id = editandoId || (criandoOutra && ehAdmin() ? novoId() : usuario.uid);
-    // Admin pode atribuir a casa a um e-mail; o responsável, ao salvar, assume a casa.
-    const emailDono = ehAdmin() ? $('#f-email-dono').value.trim().toLowerCase().slice(0, 160) : '';
-    if (emailDono && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailDono)) { erro.textContent = 'Confira o e-mail do responsável.'; erro.hidden = false; $('#f-email-dono').focus(); return; }
-    let donoHash = antiga ? (antiga.donoHash || '') : '';
-    if (ehAdmin()) donoHash = emailDono ? await hashAtribuicao(cid, emailDono) : '';
-    const uidNovo = antiga ? (souResponsavel(antiga) && !ehAdmin() ? usuario.uid : antiga.uid) : usuario.uid;
-    const casa = {...d, uid: uidNovo, donoHash, criadoEm: antiga ? antiga.criadoEm : Date.now()};
+    // Moradores: a casa guarda só o SHA-256 de "codigo:email"; os e-mails ficam em atribuicoes/, que só os moradores da casa e os admins leem.
+    // Se a lista não carregou (sem rede), mantém os moradores que já estavam.
+    let donoHashes = antiga ? hashesDaCasa(antiga) : [], gravarEmails = false;
+    if (moradoresProntos && moradoresDe === editandoId) {
+      const hs = await Promise.all(moradoresForm.map(e => hashAtribuicao(cid, e)));
+      donoHashes = [...new Set([...hashesSemEmail, ...hs])].slice(0, 6); gravarEmails = true;
+    }
+    const emails = moradoresForm.slice();
+    const casa = {...d, uid: antiga ? antiga.uid : usuario.uid, donoHash: '', donoHashes, criadoEm: antiga ? antiga.criadoEm : Date.now()};
     const ok = await salvarSeguro(() => {
-      if (!ehAdmin()) return fb.fs.setDoc(fb.casa(cid, id), limparCasa(casa));
       const b = fb.fs.writeBatch(fb.db);
       b.set(fb.casa(cid, id), limparCasa(casa));
-      if (emailDono) b.set(fb.atribuicao(cid, id), {email: emailDono, ano, atualizadoEm: Date.now()}); else if (atribuicoes[id]) b.delete(fb.atribuicao(cid, id));
+      if (gravarEmails && emails.length) b.set(fb.atribuicao(cid, id), {emails, ano, atualizadoEm: Date.now()});
+      else if (gravarEmails && atribuicaoExiste) b.delete(fb.atribuicao(cid, id));
       return b.commit();
-    }, emailDono ? `Casa salva e atribuída a ${emailDono}.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
-    if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, atribuida: emailDono ? 1 : 0});
-    if (ok && emailDono && !membros.some(m => (m.email || '').toLowerCase() === emailDono)) setTimeout(() => toast('Essa pessoa ainda não está no condomínio. Mande um convite para ela entrar e ver a casa.', 6000), 3000);
-    if (ok) { $('#campo-email-dono').dataset.reter = ''; const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
+    }, emails.length ? `Casa salva com ${emails.length + 1} moradores.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
+    const emailDono = emails.find(e => !(atribuicoes[id] || []).includes(e)) || '';
+    if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, moradores: emails.length});
+    if (ok && moradoresMexidos && emails.length) setTimeout(() => toast(ehAdmin() && emailDono && !membros.some(m => (m.email || '').toLowerCase() === emailDono) ? 'Essa pessoa ainda não está no condomínio. Mande um convite para ela entrar e cuidar da casa.' : 'Os outros moradores precisam entrar no condomínio com esse e-mail do Google para editar a casa.', 6000), 3000);
+    if (ok) { const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
   });
 
   // admin

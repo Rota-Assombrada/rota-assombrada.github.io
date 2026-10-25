@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=40">
+<link rel="stylesheet" href="css/estilo.css?v=41">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -183,14 +183,14 @@
             <div class="campo"><label for="f-rua">Rua / quadra</label><input type="text" id="f-rua" autocomplete="off" placeholder="Rua das Abóboras" maxlength="60"></div>
             <div class="campo"><label for="f-numero">Número / lote *</label><input type="text" id="f-numero" required inputmode="numeric" placeholder="12" maxlength="20"></div>
           </div>
-          <div class="campo campo-admin" id="campo-email-dono" hidden><label for="f-email-dono">E-mail do responsável (opcional)</label><input type="email" id="f-email-dono" maxlength="160" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="familia@gmail.com"><span class="ajuda" id="ajuda-email-dono">Quem entrar com este e-mail do Google pode editar ou tirar a casa do mapa. O e-mail não aparece no mapa: só admins veem.</span></div>
+          
           <div class="campo"><label for="f-familia">Família / nome</label><input type="text" id="f-familia" placeholder="Família Souza" maxlength="60"></div>
           <div class="campo"><span class="rotulo">O que a casa oferece</span><div class="multi" id="f-oferece"></div></div>
           <div class="campo"><span class="rotulo">Avisos</span><div class="multi" id="f-flags"></div></div>
           <div class="campo">
             <span class="rotulo">Horário da casa</span>
             <label class="check-grande"><input type="checkbox" id="f-hora-evento" checked><span><b>Período do evento completo</b><small id="f-hora-evento-txt">Segue o horário do evento.</small></span></label>
-            <div class="linha" id="f-horas" hidden>
+            <div class="linha linha-horas" id="f-horas" hidden>
               <div class="campo"><span class="rotulo-campo" id="r-hi">Abre às</span><input type="hidden" id="f-hi"><div class="hora-sel" data-hora="f-hi" data-rotulo="Abre às"></div></div>
               <div class="campo"><span class="rotulo-campo" id="r-hf">Fecha às</span><input type="hidden" id="f-hf"><div class="hora-sel" data-hora="f-hf" data-rotulo="Fecha às"></div></div>
             </div>
@@ -207,6 +207,12 @@
               <button type="button" class="btn btn-fantasma" id="btn-usar-gps">Usar minha posição (GPS)</button>
             </div>
             <div class="estado-pin" id="estado-pin">Ainda não marcada</div>
+          </div>
+          <div class="campo campo-moradores" id="campo-moradores" hidden>
+            <span class="rotulo-campo">Moradores desta casa</span>
+            <ul class="lista-moradores" id="lista-moradores"></ul>
+            <div class="add-morador"><input type="email" id="f-email-morador" maxlength="160" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="E-mail do Google" aria-label="E-mail do Google de outro morador"><button type="button" class="btn btn-fantasma" id="btn-add-morador">Adicionar</button></div>
+            <span class="ajuda" id="ajuda-moradores">Quem entrar com um destes e-mails do Google também pode editar ou tirar a casa do mapa. Os e-mails não aparecem no mapa: só os moradores desta casa e os admins veem.</span>
           </div>
           <p class="erro-msg" id="form-erro" hidden></p>
           <div class="acoes">
@@ -249,7 +255,7 @@
           <div class="campo"><label for="c-cidade">Cidade</label><input type="text" id="c-cidade" maxlength="60" placeholder="São Paulo"></div>
           <div class="campo"><label for="c-data">Data</label><input type="date" id="c-data"></div>
         </div>
-        <div class="linha">
+        <div class="linha linha-horas">
           <div class="campo"><span class="rotulo-campo">Começa às</span><input type="hidden" id="c-hi"><div class="hora-sel" data-hora="c-hi" data-rotulo="Começa às" data-vazio="1" data-padrao="18:00"></div></div>
           <div class="campo"><span class="rotulo-campo">Termina às</span><input type="hidden" id="c-hf"><div class="hora-sel" data-hora="c-hf" data-rotulo="Termina às" data-vazio="1" data-padrao="21:00"></div></div>
         </div>
@@ -299,6 +305,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=40"></script>
+<script type="module" src="js/app.js?v=41"></script>
 </body>
 </html>

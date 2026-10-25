@@ -19,7 +19,7 @@ const google = (uid, email, extra = {}) => ({email, email_verified: true, fireba
 const como = (uid, email, extra) => env.authenticatedContext(uid, google(uid, email, extra)).firestore();
 const visitante = () => env.unauthenticatedContext().firestore();
 
-const condoBase = (nome, publico, criadoPor) => ({nome, eventoNome: 'Halloween', data: '2026-10-31', horaInicio: '18:30', horaFim: '21:00', avisos: '', portaria: null, centro: {lat: -23.55, lng: -46.63}, zoom: 17, publico, criadoPor, criadoEm: agora, atualizadoEm: agora});
+const condoBase = (nome, publico, criadoPor) => ({nome, eventoNome: 'Halloween', data: '2026-10-31', horaInicio: '18:30', horaFim: '21:00', avisos: '', portaria: null, centro: {lat: -23.55, lng: -46.63}, zoom: 17, publico, criadoPor, eventoAtual: 2026, criadoEm: agora, atualizadoEm: agora});
 const casaBase = uid => ({rua: 'Rua A', numero: '12', familia: 'Família Teste', oferece: ['doces'], flags: ['pequenos'], horaInicio: '', horaFim: '', obs: 'Toque a campainha', lat: -23.55, lng: -46.63, uid, criadoEm: agora, atualizadoEm: agora});
 const membro = (uid, papel, email, convite = '') => ({uid, papel, nome: uid, email, convite, criadoEm: agora, atualizadoEm: agora});
 
@@ -396,10 +396,74 @@ test('atribuição: o e-mail fica escondido de moradores e visitantes', async ()
   await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/atribuicoes')));
   await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/atribuicoes/x77'), {email: 'eu@x.com', ano: 2026, atualizadoEm: agora}));
 });
-test('atribuição: quem entra com o e-mail edita e assume a casa', async () => {
+test('atribuição: quem entra com o e-mail edita a casa, sem trocar quem cadastrou', async () => {
   await casaAtribuida('ana@x.com');
   const db = como('ana', 'Ana@X.com');
-  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('ana'), donoHash: hashDe('VALE2', 'ana@x.com'), obs: 'editado pela Ana'}));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('adminA'), donoHash: hashDe('VALE2', 'ana@x.com'), obs: 'editado pela Ana'}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('ana'), donoHash: hashDe('VALE2', 'ana@x.com')}));
+});
+test('atribuição: formato antigo passa para a lista de moradores', async () => {
+  await casaAtribuida('ana@x.com');
+  await assertSucceeds(setDoc(doc(como('ana', 'ana@x.com'), 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('adminA'), donoHash: '', donoHashes: [hashDe('VALE2', 'ana@x.com'), hashDe('VALE2', 'bia@x.com')]}));
+});
+
+// ---------- vários moradores na mesma casa ----------
+const casaComMoradores = (uid, emails) => ({...casaBase(uid), donoHashes: emails.map(e => hashDe('VALE2', e))});
+test('moradores: quem cadastrou adiciona outros moradores e guarda os e-mails no mesmo lote', async () => {
+  const db = como('morM', 'm@x.com'); const b = writeBatch(db);
+  b.set(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['bia@x.com', 'cris@x.com']));
+  b.set(doc(db, 'condominios/VALE2/atribuicoes/morM'), {emails: ['bia@x.com', 'cris@x.com'], ano: 2026, atualizadoEm: agora});
+  await assertSucceeds(b.commit());
+  await assertSucceeds(getDoc(doc(db, 'condominios/VALE2/atribuicoes/morM')));
+});
+test('moradores: casa nova já nasce com moradores (lote com a casa e os e-mails)', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/membros/novaN'), membro('novaN', 'morador', 'n@x.com')));
+  const db = como('novaN', 'n@x.com'); const b = writeBatch(db);
+  b.set(doc(db, 'condominios/VALE2/eventos/2026/casas/novaN'), casaComMoradores('novaN', ['bia@x.com']));
+  b.set(doc(db, 'condominios/VALE2/atribuicoes/novaN'), {emails: ['bia@x.com'], ano: 2026, atualizadoEm: agora});
+  await assertSucceeds(b.commit());
+});
+test('moradores: quem está na lista edita, vê os e-mails e cuida da lista, mas não troca quem cadastrou', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['bia@x.com']));
+    await setDoc(doc(d, 'condominios/VALE2/atribuicoes/morM'), {emails: ['bia@x.com'], ano: 2026, atualizadoEm: agora});
+  });
+  const db = como('bia', 'bia@x.com');
+  await assertSucceeds(getDoc(doc(db, 'condominios/VALE2/atribuicoes/morM')));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), {...casaComMoradores('morM', ['bia@x.com', 'davi@x.com']), obs: 'Bia mexeu'}));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {emails: ['bia@x.com', 'davi@x.com'], ano: 2026, atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('bia', ['bia@x.com'])));
+});
+test('moradores: quem não está na lista NÃO lê os e-mails nem mexe na casa', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['bia@x.com']));
+    await setDoc(doc(d, 'condominios/VALE2/atribuicoes/morM'), {emails: ['bia@x.com'], ano: 2026, atualizadoEm: agora});
+  });
+  const db = como('cris', 'cris@x.com');
+  await assertFails(getDoc(doc(db, 'condominios/VALE2/atribuicoes/morM')));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {emails: ['cris@x.com'], ano: 2026, atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['cris@x.com'])));
+  await assertFails(getDoc(doc(como('penP', 'p@x.com'), 'condominios/VALE2/atribuicoes/morM')));
+});
+test('moradores: quem cadastrou NÃO se coloca na lista de outra casa', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026/casas/x80'), casaBase('adminA')));
+  const db = como('morM', 'm@x.com'); const b = writeBatch(db);
+  b.set(doc(db, 'condominios/VALE2/eventos/2026/casas/x80'), casaComMoradores('adminA', ['m@x.com']));
+  b.set(doc(db, 'condominios/VALE2/atribuicoes/x80'), {emails: ['m@x.com'], ano: 2026, atualizadoEm: agora});
+  await assertFails(b.commit());
+});
+test('moradores: tirado da lista perde o acesso', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['cris@x.com'])));
+  await assertFails(setDoc(doc(como('bia', 'bia@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['bia@x.com'])));
+});
+test('moradores: no máximo 6 e no formato certo', async () => {
+  const db = como('morM', 'm@x.com');
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), casaComMoradores('morM', ['a@x.com', 'b@x.com', 'c@x.com', 'd@x.com', 'e@x.com', 'f@x.com', 'g@x.com'])));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/morM'), {...casaBase('morM'), donoHashes: ['bia@x.com']}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {emails: ['nao-e-email'], ano: 2026, atualizadoEm: agora}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/atribuicoes/morM'), {emails: ['a@x.com'], ano: 2026, extra: 1, atualizadoEm: agora}));
 });
 test('atribuição: o responsável pode tirar a casa do mapa', async () => {
   await casaAtribuida('ana@x.com');
