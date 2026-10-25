@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Casas participantes: qualquer pessoa lê; quem está logado (login anônimo) cria, edita e exclui.
+    // O app só mostra "Editar/Excluir" para quem cadastrou a casa ou para o organizador (PIN).
+    match /casas/{id} {
+      allow read: if true;
+      allow delete: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.data.numero is string
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number
+        && request.resource.data.size() < 20;
+    }
+    // Dados do evento (nome, horários, portaria, avisos).
+    match /config/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
