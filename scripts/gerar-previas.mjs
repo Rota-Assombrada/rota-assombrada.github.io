@@ -101,7 +101,7 @@ function pagina({titulo, descricao, url, imagem, alt, destino}) {
 
 // Textos das capas, um por tipo de link. As genéricas (sem nome) ficam em img/ e são geradas com --genericas.
 const CAPA_CONVITE = nome => ({selo: 'CONVITE', nome, sub: 'Cadastro aprovado automaticamente', chip: 'Entre e cadastre sua casa', alerta: 'NÃO COMPARTILHE · SÓ MORADORES'});
-const IMG_SITE = `${BASE}img/preview.jpg?v=2`, IMG_CONVITE = `${BASE}img/preview-convite.jpg?v=2`;
+const IMG_SITE = `${BASE}img/preview.jpg?v=3`, IMG_CONVITE = `${BASE}img/preview-convite.jpg?v=3`;
 function paginaCondo({cid, nome, cidade}, img) {
   const titulo = `${nome} · Rota Assombrada`;
   const descricao = `O mapa do Halloween de ${nome}${cidade ? ` (${cidade})` : ''}: veja as casas que dão doces, monte o roteiro e cadastre a sua.`;
