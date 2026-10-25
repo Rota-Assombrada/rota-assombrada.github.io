@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=73';
+import CONFIG from './config.js?v=74';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1661,7 +1661,7 @@ function renderContagem() {
     const t = Math.floor((m.ini.getTime() - agora) / 1000), hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60;
     html = `<span class="cd-rotulo">Hoje é dia!</span><span class="cd-frase">Começa às <b>${h(evento.horaInicio)}</b>. Faltam <b>${hh ? hh + 'h ' : ''}${doisDig(mm)}min ${doisDig(ss)}s</b></span>`;
   } else if (agora < m.fim.getTime()) {
-    html = `<span class="cd-rotulo cd-agora">Está acontecendo agora!</span><span class="cd-frase">Até <b>${h(evento.horaFim || '23:59')}</b>. Boa caçada!</span>`;
+    html = `<span class="cd-rotulo cd-agora">Está acontecendo agora!</span><span class="cd-frase">Até <b>${h(evento.horaFim || '23:59')}</b>. Bons doces e travessuras!</span>`;
   } else {
     html = `<span class="cd-rotulo">O Halloween de ${h(String(ano || ''))} acabou</span><span class="cd-frase">Até o ano que vem!</span>`;
   }
@@ -2210,7 +2210,7 @@ function ligarEventos() {
       if (gravar && pessoas.length) b.set(fb.atribuicao(cid, id), {moradores: pessoas, ano, atualizadoEm: Date.now()});
       else if (gravar && atribuicaoExiste) b.delete(fb.atribuicao(cid, id));
       return b.commit();
-    }, pessoas.length ? `Casa salva com ${pessoas.length + 1} moradores.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
+    }, pessoas.length ? `Casa salva com ${pessoas.length + 1} moradores.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Bons doces e travessuras!');
     if (ok) evento_('casa_salva', {nova: editandoId ? 0 : 1, moradores: pessoas.length});
     if (ok && moradoresMexidos && pessoas.some(p => !noDiretorio(p.h))) setTimeout(() => toast('Quem ainda não entrou no condomínio precisa entrar com o mesmo e-mail do Google para editar a casa.', 6000), 3000);
     if (ok) { const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
@@ -2341,7 +2341,7 @@ document.addEventListener('click', e => {
     ligarGPS(true);
     setTimeout(() => { if (!posicao && gpsErro == null) { gpsErro = 3; atualizarBoasVindasGPS(); } }, 20000);
   }
-  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); setTimeout(mostrarDicaMusica, 2500); if (vozAuto) setTimeout(() => falaDracula('Boa caçada! E não esqueçam de dizer: doces ou travessuras!'), 500); }
+  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); setTimeout(mostrarDicaMusica, 2500); if (vozAuto) setTimeout(() => falaDracula('Bons doces e travessuras, pequenos monstrinhos! Muahaha!'), 500); }
 });
 function lerRota() {
   let s = location.hash.replace(/^#\/?/, ''); try { s = decodeURIComponent(s); } catch {}
