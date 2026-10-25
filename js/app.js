@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=71';
+import CONFIG from './config.js?v=72';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -304,6 +304,7 @@ function limparCasa(c) {
     flags: [...new Set((c.flags || []).filter(k => FLAGS.some(o => o[0] === k)))],
     horaInicio: hora(c.horaInicio), horaFim: hora(c.horaFim), obs: s(c.obs, 240), donoHash: /^[0-9a-f]{64}$/.test(c.donoHash || '') ? c.donoHash : '',
     donoHashes: [...new Set((Array.isArray(c.donoHashes) ? c.donoHashes : []).filter(x => /^[0-9a-f]{64}$/.test(x)))].slice(0, 6),
+    esgotado: !!c.esgotado,
     lat: +c.lat, lng: +c.lng, uid: s(c.uid, 128), criadoEm: +c.criadoEm || Date.now(), atualizadoEm: Date.now()};
 }
 async function sha256hex(txt) {
@@ -673,7 +674,7 @@ function espalharPinos(lista, raio = 8) {
 }
 function casasNoMesmoLugar(p, idIgnorar, raio = 6) { return casas.filter(c => c.id !== idIgnorar && typeof c.lat === 'number' && distM(p, c) <= raio); }
 function iconePin(c, extra) {
-  const cls = ['pin', visitadas.has(c.id) ? 'visitada' : '', abertaAgora(c) ? '' : 'fechada', extra.atual ? 'atual' : '', extra.ordem ? 'ordem' : ''].filter(Boolean).join(' ');
+  const cls = ['pin', visitadas.has(c.id) ? 'visitada' : '', c.esgotado ? 'esgotada' : abertaAgora(c) ? '' : 'fechada', extra.atual ? 'atual' : '', extra.ordem ? 'ordem' : ''].filter(Boolean).join(' ');
   return L.divIcon({className: 'pin-wrap', iconSize: [46, 52], iconAnchor: [23 - (extra.dx || 0), 50], html: `<div class="${cls}" data-ordem="${extra.ordem || ''}">${PIN_SVG}<span class="num">${h(c.numero)}</span></div>`});
 }
 function iconeMarcador(ic, cls = '') { return L.divIcon({className: 'marcador-wrap', iconSize: [44, 44], iconAnchor: [22, 22], html: `<div class="marcador ${cls}">${ic}</div>`}); }
@@ -721,8 +722,8 @@ function renderListaCasas() {
     const aberta = abertaAgora(c); const vis = visitadas.has(c.id);
     const etqs = [statusCasa(c).texto].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
-      <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
-      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
+      <span class="pin pin-lista ${c.esgotado ? 'esgotada' : aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
+      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span>${c.esgotado ? '<span class="nota-esgotado">Os doces desta casa acabaram</span>' : ''}<span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
       ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
     </button></li>`;
   }).join('');
@@ -751,6 +752,24 @@ function ligarGPS(centrar) {
   ligarBussola();
 }
 let modoSeguir = false;
+// "Acabaram os doces": a casa continua no mapa e na rota, só muda a cor da abóbora e aparece um aviso na lista.
+async function alternarEsgotado(c) {
+  const novo = !c.esgotado;
+  const ok = await salvarSeguro(() => fb.fs.updateDoc(fb.casa(cid, c.id), {esgotado: novo, atualizadoEm: Date.now()}),
+    novo ? 'Avisamos que os doces acabaram. Obrigado por participar!' : 'Oba! A casa voltou a ter doces.');
+  if (ok) { SFX.plim(); evento_('esgotou', {estado: novo ? 1 : 0}); }
+  return ok;
+}
+function htmlEsgotou(c) {
+  return `<div class="esgotou-txt"><b>${c.esgotado ? 'Sua casa está sem doces' : 'Sua casa está no mapa'}</b><span>${c.esgotado ? 'A abóbora ficou roxa e a lista avisa as famílias.' : 'Se os doces acabarem, avise com um toque.'}</span></div>
+    <button type="button" class="btn ${c.esgotado ? 'btn-sucesso' : 'btn-primario'}" data-esgotou="${h(c.id)}">${c.esgotado ? 'Voltei a ter doces' : 'Acabaram os doces'}</button>`;
+}
+function renderEsgotou() {
+  const minha = usuario && cid && ehAnoAtual() ? minhaCasa() : null, m = momentosEvento(), agora = Date.now();
+  const noDia = !!(m && agora >= m.dia.getTime() && agora <= m.fim.getTime() + 3 * 36e5);
+  const bm = $('#esgotou-mapa'); bm.hidden = !(minha && noDia); if (!bm.hidden) bm.innerHTML = htmlEsgotou(minha);
+  const bf = $('#esgotou-form'); bf.hidden = !(minha && editandoId === minha.id); if (!bf.hidden) bf.innerHTML = htmlEsgotou(minha);
+}
 function renderGpsCartao() {
   const c = $('#gps-cartao'); if (!c) return;
   if (posicao || !('geolocation' in navigator)) { c.hidden = true; return; }
@@ -1077,7 +1096,7 @@ function renderFiltros() {
 function renderModo() { const av = $('#aviso-modo'); const textos = {casa: 'Toque no mapa exatamente onde fica a casa. Dê zoom para acertar.', portaria: 'Toque no mapa onde fica a portaria.'}; av.hidden = !modo; if (modo) $('#aviso-texto').textContent = textos[modo]; $('#mapa').classList.toggle('marcando', !!modo); }
 function cartaoCasa(c, idx) {
   const st = statusCasa(c), aberta = st.aberta;
-  const etq = [`<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${h(st.texto)}</span>`]
+  const etq = [...(c.esgotado ? ['<span class="etq esgotado">Doces esgotados</span>'] : []), `<span class="etq ${aberta ? 'aberta' : 'fechada'}">${IC.relogio}${h(st.texto)}</span>`]
     .concat((c.oferece || []).map(k => `<span class="etq">${IC.doce}${h(rotuloDe(OFERECE, k))}</span>`))
     .concat((c.flags || []).map(k => `<span class="etq ${k === 'cachorro' || k === 'assustadora' ? 'alerta' : ''}">${k === 'cachorro' ? IC.cachorro : k === 'pequenos' ? IC.crianca : IC.susto}${h(rotuloDe(FLAGS, k))}</span>`));
   const dist = posicao ? `<span class="etq">${IC.navegar}${fmtM(distM(posicao, c))} de você</span>` : '';
@@ -1089,7 +1108,7 @@ function abrirFolha(id) {
     <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small></a>
     <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
     <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
-    ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
+    ${podeEditar(c) ? `<button class="btn ${c.esgotado ? 'btn-sucesso' : 'btn-fantasma'} btn-esgotou" data-acao="esgotou" data-id="${h(id)}">${c.esgotado ? 'Voltei a ter doces' : 'Acabaram os doces'}</button><button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
   </div><div class="nav-extra"><span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a></div>`;
   $('#folha').hidden = false; SFX.plop();
 }
@@ -1732,7 +1751,7 @@ function atualizarForm() {
   if (outra) fx.innerHTML = `${IC.editar}<div><b>${criandoOutra ? 'Cadastrando a casa de outra família' : `Editando ${casaEd ? h(casaEd.familia || nomeCasaTxt(casaEd)) : 'outra casa'}`}</b><span>Isso não mexe na sua casa.</span></div><button type="button" class="btn btn-p btn-fantasma" data-sair-edicao>${minhaCasa() ? 'Voltar para a minha casa' : 'Cancelar'}</button>`;
   $('#aba-participar span').textContent = minhaCasa() ? 'Minha casa' : 'Participar';
   $('#btn-ir-participar').textContent = minhaCasa() ? 'Editar minha casa' : 'Cadastrar minha casa';
-  mostrarHorasCasa();
+  mostrarHorasCasa(); renderEsgotou();
   $('#btn-cancelar-edicao').hidden = !(editandoId && !minha) && !criandoOutra;
   $('#btn-excluir-minha').hidden = !editandoId || !casaPorId(editandoId);
   $('#btn-excluir-minha').textContent = minha ? 'Tirar minha casa do mapa' : 'Excluir esta casa';
@@ -1952,7 +1971,7 @@ async function criarCondo(nome, cidade) {
 }
 function renderTudoCondo() {
   if (!cid) return;
-  renderCabecalho(); renderPlacar(); renderContagem(); renderAcesso(); renderPins(); renderRoteiro(); atualizarParticipar();
+  renderCabecalho(); renderPlacar(); renderContagem(); renderEsgotou(); renderAcesso(); renderPins(); renderRoteiro(); atualizarParticipar();
   $('#aba-organizador').hidden = !ehAdmin();
   if (abaAtual === 'organizador') renderAdmin();
 }
@@ -2053,6 +2072,7 @@ function ligarEventos() {
   $('#folha').addEventListener('click', e => { if (e.target === e.currentTarget) fecharFolha(); const b = e.target.closest('[data-acao]'); if (!b) return; const id = b.dataset.id; const a = b.dataset.acao;
     if (a === 'visitar') { const v = !visitadas.has(id); marcarVisitada(id, v); if (v) SFX.sucesso(); fecharFolha(); if (v && roteiro && vozAuto && roteiro.ordem.includes(id)) { const p = proximaParada(); if (p >= 0) falar('Boa! ' + falaParada(p)); } }
     if (a === 'ouvir') { const c = casaPorId(id); if (!c) return; const i = roteiro ? roteiro.ordem.indexOf(id) : -1; falar(i >= 0 ? falaParada(i) : `${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. ${posicao ? 'Fica a uns ' + falaM(distM(posicao, c)) + ', ' + direcaoFala(posicao, c) + '. ' : ''}${(c.oferece || []).length ? 'Oferece ' + listaFala((c.oferece || []).map(k => rotuloDe(OFERECE, k).toLowerCase())) + '.' : ''} ${c.obs || ''}`); }
+    if (a === 'esgotou') { const c = casaPorId(id); if (c) alternarEsgotado(c).then(() => abrirFolha(id)); return; }
     if (a === 'editar') { const c = casaPorId(id); fecharFolha(); editandoId = id; criandoOutra = false; preencherForm(c); irAba('participar'); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharFolha(); if (modo) { modo = null; renderModo(); } } });
@@ -2110,6 +2130,10 @@ function ligarEventos() {
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
   $('#btn-imprimir').addEventListener('click', imprimirLista);
+  ['#esgotou-mapa', '#esgotou-form'].forEach(sel => $(sel).addEventListener('click', async e => {
+    const b = e.target.closest('[data-esgotou]'); if (!b) return; const c = casaPorId(b.dataset.esgotou); if (!c) return;
+    b.disabled = true; await alternarEsgotado(c); b.disabled = false;
+  }));
   $('#btn-placa-visitantes').addEventListener('click', () => imprimirPlaca('visitantes'));
   $('#btn-placa-moradores').addEventListener('click', () => imprimirPlaca('moradores'));
   // Sair do condomínio (morador): tira a casa da pessoa do mapa e o nome dela da lista. Dois toques para confirmar.
@@ -2179,7 +2203,7 @@ function ligarEventos() {
     let donoHashes = antiga ? hashesDaCasa(antiga) : [], gravar = false;
     if (moradoresProntos && moradoresDe === editandoId) { donoHashes = [...new Set(moradoresForm.map(p => p.h))].slice(0, 6); gravar = true; }
     const pessoas = moradoresForm.map(p => ({h: p.h, ...(p.nome ? {nome: p.nome} : {}), ...(p.email ? {email: p.email} : {})}));
-    const casa = {...d, uid: antiga ? antiga.uid : usuario.uid, donoHash: '', donoHashes, criadoEm: antiga ? antiga.criadoEm : Date.now()};
+    const casa = {...d, uid: antiga ? antiga.uid : usuario.uid, donoHash: '', donoHashes, esgotado: antiga ? !!antiga.esgotado : false, criadoEm: antiga ? antiga.criadoEm : Date.now()};
     const ok = await salvarSeguro(() => {
       const b = fb.fs.writeBatch(fb.db);
       b.set(fb.casa(cid, id), limparCasa(casa));

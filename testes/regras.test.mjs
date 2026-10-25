@@ -565,3 +565,13 @@ test('protegidos: o dono da plataforma pode tudo e cada um pode sair sozinho', a
   await assertSucceeds(updateDoc(doc(como('donoD', EMAIL_DONO), 'condominios/VALE2/membros/adminA'), {papel: 'morador'}));
   await assertSucceeds(deleteDoc(doc(como('donoD', EMAIL_DONO), 'condominios/VALE2/membros/donoD')));
 });
+
+// ---------- doces esgotados ----------
+test('esgotado: quem cuida da casa marca e desmarca; outros não', async () => {
+  await assertSucceeds(updateDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {esgotado: true, atualizadoEm: agora}));
+  await assertSucceeds(updateDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {esgotado: false, atualizadoEm: agora}));
+  await assertSucceeds(updateDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {esgotado: true}));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/membros/outro'), membro('outro', 'morador', 'o@x.com')));
+  await assertFails(updateDoc(doc(como('outro', 'o@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {esgotado: true}));
+  await assertFails(updateDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {esgotado: 'sim'}));
+});

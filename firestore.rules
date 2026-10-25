@@ -167,7 +167,8 @@ service cloud.firestore {
     }
 
     function casaValida(d) {
-      return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'donoHash', 'donoHashes', 'criadoEm', 'atualizadoEm'])
+      return d.keys().hasOnly(['rua', 'numero', 'familia', 'oferece', 'flags', 'horaInicio', 'horaFim', 'obs', 'lat', 'lng', 'uid', 'donoHash', 'donoHashes', 'esgotado', 'criadoEm', 'atualizadoEm'])
+        && (!('esgotado' in d) || d.esgotado is bool)
         && (d.get('donoHash', '') == '' || d.get('donoHash', '').matches('^[0-9a-f]{64}$'))
         && itensOk(d.get('donoHashes', []), '^[0-9a-f]{64}$')
         && d.keys().hasAll(['numero', 'lat', 'lng', 'uid'])

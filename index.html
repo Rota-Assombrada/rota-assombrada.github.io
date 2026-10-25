@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=71">
+<link rel="stylesheet" href="css/estilo.css?v=72">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -122,6 +122,7 @@
     <section id="painel-mapa" class="painel" hidden>
       <div id="acesso" class="cartao acesso" hidden></div>
       <div id="mapa-bloco">
+        <div class="cartao esgotou-cartao" id="esgotou-mapa" hidden></div>
         <div class="cartao gps-cartao" id="gps-cartao" hidden role="status"></div>
         <div class="barra-mapa">
           <div class="chips" id="filtros" role="group" aria-label="Filtros do mapa"></div>
@@ -136,7 +137,7 @@
           </div>
         </div>
         <p class="gps-status" id="gps-status"></p>
-        <div class="legenda"><span><i style="background:var(--abobora)"></i>Casa aberta</span><span><i style="background:#9a6c3c"></i>Fora do horário</span><span><i style="background:var(--veneno)"></i>Você / ordem do roteiro</span><span><i style="background:var(--lua)"></i>Portaria</span></div>
+        <div class="legenda"><span><i style="background:var(--abobora)"></i>Casa aberta</span><span><i style="background:#9a6c3c"></i>Fora do horário</span><span><i style="background:var(--veneno)"></i>Você / ordem do roteiro</span><span><i style="background:var(--lua)"></i>Portaria</span><span><i style="background:var(--roxo)"></i>Doces esgotados</span></div>
         <div id="bloco-roteiro" class="bloco-roteiro">
         <div id="guia" class="cartao guia" hidden>
         <div class="guia-topo"><span class="rotulo">Parada <b id="guia-n"></b></span><span class="dist" id="guia-dist"></span></div>
@@ -190,6 +191,7 @@
       <div class="cartao">
         <h2 id="participar-titulo">Cadastrar minha casa</h2>
         <p id="participar-intro"></p>
+        <div class="esgotou-cartao esgotou-form" id="esgotou-form" hidden></div>
         <div class="faixa-edicao" id="faixa-edicao" hidden></div>
         <div id="gate" class="gate" hidden></div>
         <div class="repetir-casa" id="repetir-casa" hidden><p>Você participou no ano passado.</p><button type="button" class="btn btn-sucesso" id="btn-repetir">Repetir minha casa do ano passado</button></div>
@@ -328,6 +330,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=71"></script>
+<script type="module" src="js/app.js?v=72"></script>
 </body>
 </html>
