@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=29';
+import CONFIG from './config.js?v=30';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -467,7 +467,7 @@ function renderPins() {
   const vazio = $('#mapa-vazio');
   const mc = $('#mapa-carregando'); if (mc) mc.hidden = casasCarregadas;
   if (!casasCarregadas) { vazio.innerHTML = ''; return; }
-  $('#btn-ir-participar').hidden = !casas.length;
+  $('#btn-ir-participar').hidden = !casas.length; $('#btn-compartilhar').hidden = !condo;
   if (!casas.length) vazio.innerHTML = `<div class="cartao vazio vazio-casas">${PUMPKIN_BIG}<h3>Nenhuma abóbora acesa ainda</h3><p>As casas participantes aparecem aqui assim que os moradores se cadastram. Que tal começar pela sua?</p><button class="btn btn-primario" data-ir="participar">Cadastrar minha casa</button></div>`;
   else if (!vis.length) vazio.innerHTML = `<p class="vazio">Nenhuma casa passa nos filtros escolhidos.</p>`; else vazio.innerHTML = '';
 }
@@ -1198,6 +1198,19 @@ function irAba(nome) {
   if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') { atualizarParticipar(); setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80); }
   if (!rolarRoteiro) window.scrollTo({top: 0, behavior: 'auto'});
 }
+function abrirCompartilhar() {
+  if (!cid || !condo) return;
+  const link = linkCondo(); const texto = `Mapa do Halloween de ${condo.nome}! Veja as casas que dão doces e cadastre a sua: ${link}`;
+  const fechado = !condo.publico;
+  $('#folha-in').innerHTML = `<div class="boas-vindas">${PUMPKIN_BIG}<h3>Chame os vizinhos!</h3>
+    <p>Mande o link no grupo do condomínio. O código é:</p><div class="codigo-grande">${h(cid)}</div><div class="codigo-link">${h(link)}</div>
+    <div class="acoes">${navigator.share ? `<button class="btn btn-primario btn-grande" data-comp="nativo">Compartilhar</button>` : ''}
+      <a class="btn btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">Enviar no WhatsApp</a>
+      <button class="btn btn-fantasma" data-comp="copiar">Copiar link</button></div>
+    <p class="dica">${fechado ? 'O mapa deste condomínio é fechado: quem abrir o link pede para entrar e um admin aprova.' : 'Quem abrir o link já vê o mapa e pode pedir para cadastrar a casa.'}${ehAdmin() ? ' Para alguém entrar sem precisar de aprovação, gere um convite na aba Admin.' : ''}</p></div>`;
+  $('#folha-in').dataset.textoComp = texto; $('#folha-in').dataset.linkComp = link;
+  $('#folha').hidden = false; SFX.plim();
+}
 async function copiar(txt) { try { await navigator.clipboard.writeText(txt); toast('Copiado!'); SFX.plim(); } catch { toast(txt, 6000); } }
 
 /* ---------- toque no mapa ---------- */
@@ -1242,6 +1255,12 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-ligar-gps]')) { gpsErro = null; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); } });
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
   $('#btn-ir-participar').addEventListener('click', () => irAba('participar'));
+  $('#btn-compartilhar').addEventListener('click', abrirCompartilhar);
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-comp]'); if (!b) return; const f = $('#folha-in');
+    if (b.dataset.comp === 'copiar') copiar(f.dataset.linkComp);
+    if (b.dataset.comp === 'nativo') { try { await navigator.share({title: `Rota Assombrada: ${condo.nome}`, text: f.dataset.textoComp.replace(f.dataset.linkComp, '').trim(), url: f.dataset.linkComp}); } catch (err) { if (err && err.name !== 'AbortError') copiar(f.dataset.linkComp); } }
+  });
   $('#mapa-vazio').addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irAba(b.dataset.ir); });
   $('#folha').addEventListener('click', e => { if (e.target === e.currentTarget) fecharFolha(); const b = e.target.closest('[data-acao]'); if (!b) return; const id = b.dataset.id; const a = b.dataset.acao;
     if (a === 'visitar') { const v = !visitadas.has(id); marcarVisitada(id, v); if (v) SFX.sucesso(); fecharFolha(); if (v && roteiro && vozAuto && roteiro.ordem.includes(id)) { const p = proximaParada(); if (p >= 0) falar('Boa! ' + falaParada(p)); } }
