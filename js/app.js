@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=66';
+import CONFIG from './config.js?v=68';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1477,37 +1477,87 @@ function quandoPlaca() {
   if (evento.avisos) partes.push(evento.avisos.slice(0, 40));
   return partes;
 }
+// A plaquinha é desenhada num canvas A4 a 300 dpi e vira PNG: sai igual em qualquer celular e impressora
+// (a impressão do navegador transformava os brilhos em retângulos e cortava as bordas).
+const PX_MM = 2480 / 210, PT = 0.3528 * PX_MM;
+function imagemSvg(svg) {
+  const vb = (svg.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 100 100'; const [, , w, hh] = vb.split(/\s+/).map(Number);
+  const src = svg.replace(/<svg([^>]*)>/, (m, a) => `<svg${a.replace(/\s(width|height|class)="[^"]*"/g, '')} xmlns="http://www.w3.org/2000/svg" width="${w * 10}" height="${hh * 10}">`);
+  return new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok({im, r: hh / w}); im.onerror = erro; im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src); });
+}
+function caixaArredondada(g, x, y, w, hh, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + hh, r); g.arcTo(x + w, y + hh, x, y + hh, r); g.arcTo(x, y + hh, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function linhasDeTexto(g, texto, larg) { const ps = texto.split(' '), ls = []; let l = ''; ps.forEach(p => { const t = l ? l + ' ' + p : p; if (g.measureText(t).width > larg && l) { ls.push(l); l = p; } else l = t; }); if (l) ls.push(l); return ls; }
+// texto centralizado com partes coloridas: [[texto, cor], ...]
+function textoColorido(g, partes, cx, y) { const tot = partes.reduce((t, [x]) => t + g.measureText(x).width, 0); let x = cx - tot / 2; g.textAlign = 'left'; partes.forEach(([t, c]) => { g.fillStyle = c; g.fillText(t, x, y); x += g.measureText(t).width; }); g.textAlign = 'center'; }
+async function desenharPlaca(tipo, link) {
+  const W = 2480, H = 3508, mm = v => v * PX_MM, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  await Promise.all(['900 40px Nunito', '800 40px Nunito', '700 40px Nunito', '40px Creepster'].map(f => document.fonts.load(f).catch(() => {})));
+  const [bat, fant, drac, abo] = await Promise.all([PL_BAT, PL_FANT, PL_DRAC, PL_ABO].map(imagemSvg));
+  const qr = (await carregarQR())(0, 'H'); qr.addData(link); qr.make();
+  const mor = tipo === 'moradores', cx = W / 2, laranja = '#ff8a1f', claro = '#f7f1ff', suave = '#e7defa';
+  // fundo, estrelas e lua
+  const bg = g.createRadialGradient(cx, mm(320), mm(20), cx, mm(320), mm(330)); bg.addColorStop(0, '#3a1d5e'); bg.addColorStop(.55, '#15102a'); bg.addColorStop(1, '#0d0a16'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  let sem = 7; const rnd = () => (sem = (sem * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${.35 + rnd() * .6})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * .55, 2 + rnd() * 5, 0, 7); g.fill(); }
+  g.save(); g.shadowColor = 'rgba(255,243,196,.45)'; g.shadowBlur = mm(14); const lua = g.createRadialGradient(mm(172), mm(24), mm(2), mm(178), mm(30), mm(18)); lua.addColorStop(0, '#fffbe6'); lua.addColorStop(.6, '#fff3c4'); lua.addColorStop(1, '#e9d58b'); g.fillStyle = lua; g.beginPath(); g.arc(mm(178), mm(30), mm(17), 0, 7); g.fill(); g.restore();
+  [[22, 20, 16], [60, 10, 11], [140, 26, 12]].forEach(([x, y, w]) => g.drawImage(bat.im, mm(x), mm(y), mm(w), mm(w) * bat.r));
+  [[12, 268, 13], [186, 270, 11]].forEach(([x, y, w]) => { g.globalAlpha = .9; g.drawImage(fant.im, mm(x), mm(y), mm(w), mm(w) * fant.r); g.globalAlpha = 1; });
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  // faixa
+  const faixa = mor ? 'MORADOR, PARTICIPE!' : 'BEM-VINDOS, CAÇADORES DE DOCES!';
+  g.font = `900 ${15 * PT}px Nunito`; const fw = g.measureText(faixa).width + mm(16), fh = mm(12);
+  g.save(); g.translate(cx, mm(26)); g.rotate(-2 * Math.PI / 180);
+  g.fillStyle = mor ? '#b84a00' : '#3f8f2a'; caixaArredondada(g, -fw / 2, -fh / 2 + mm(1.5), fw, fh, mm(3)); g.fill();
+  g.fillStyle = mor ? laranja : '#8df06a'; caixaArredondada(g, -fw / 2, -fh / 2, fw, fh, mm(3)); g.fill();
+  g.fillStyle = mor ? '#1c0b00' : '#06200a'; g.fillText(faixa, 0, mm(2.2)); g.restore();
+  // marca
+  g.font = `${60 * PT}px Creepster, Impact, sans-serif`; g.save(); g.fillStyle = '#4a1d00';
+  const marca = [['Rota ', claro], ['Assombrada', laranja]]; textoColorido(g, marca.map(([t]) => [t, '#4a1d00']), cx, mm(57) + mm(1)); g.restore(); textoColorido(g, marca, cx, mm(57));
+  // título, condomínio e quando
+  g.font = `900 ${27 * PT}px Nunito`;
+  textoColorido(g, mor ? [['Sua casa vai ', claro], ['dar doces', laranja], ['?', claro]] : [['Ache as casas que ', claro], ['dão doces', laranja], ['!', claro]], cx, mm(76));
+  g.font = `800 ${14 * PT}px Nunito`; g.fillStyle = suave; g.fillText(condo.nome, cx, mm(88));
+  g.font = `900 ${13 * PT}px Nunito`; const chips = quandoPlaca(), cw = chips.map(t => g.measureText(t).width + mm(10)), gap = mm(3), totc = cw.reduce((a, b) => a + b, 0) + gap * (chips.length - 1);
+  let xc = cx - totc / 2; chips.forEach((t, i) => { caixaArredondada(g, xc, mm(93), cw[i], mm(10), mm(5)); g.fillStyle = 'rgba(106,63,216,.3)'; g.fill(); g.lineWidth = mm(.5); g.strokeStyle = '#6a3fd8'; g.stroke(); g.fillStyle = claro; g.fillText(t, xc + cw[i] / 2, mm(100)); xc += cw[i] + gap; });
+  // QR com moldura laranja, Drácula e abóbora dos lados
+  const qs = mm(92), qx = cx - qs / 2, qy = mm(110);
+  caixaArredondada(g, qx - mm(2), qy - mm(2), qs + mm(4), qs + mm(4), mm(7)); g.fillStyle = laranja; g.fill();
+  caixaArredondada(g, qx, qy, qs, qs, mm(5)); g.fillStyle = '#fff'; g.fill();
+  const n = qr.getModuleCount(), cel = (qs - mm(10)) / n; g.fillStyle = '#1a1428';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(Math.round(qx + mm(5) + c * cel), Math.round(qy + mm(5) + r * cel), Math.ceil(cel), Math.ceil(cel));
+  const dw = mm(36); g.drawImage(drac.im, qx - dw - mm(8), qy + qs / 2 - dw * drac.r / 2, dw, dw * drac.r);
+  const aw = mm(34); g.drawImage(abo.im, qx + qs + mm(8), qy + qs - aw * abo.r, aw, aw * abo.r);
+  // instrução e passos
+  g.fillStyle = claro; g.font = `900 ${18 * PT}px Nunito`; g.fillText(mor ? 'Coloque sua casa no mapa em 1 minuto' : 'Aponte a câmera do celular para o código', cx, mm(218));
+  g.fillStyle = suave; g.font = `700 ${12 * PT}px Nunito`; g.fillText(mor ? 'Entrada aprovada na hora: é só escanear e entrar com o Google.' : 'O mapa abre na hora. Não precisa instalar nada.', cx, mm(226));
+  const passos = mor ? ['Aponte a câmera e abra o convite', 'Entre com sua conta Google', 'Toque em "Participar" e marque sua casa'] : ['Aponte a câmera e abra o mapa', 'Veja as abóboras: cada uma é uma casa com doces', 'Toque em "Montar roteiro" e siga pelo Google Maps'];
+  const px0 = mm(16), pg = mm(4), pw = (W - 2 * px0 - 2 * pg) / 3, py = mm(232), ph = mm(30);
+  passos.forEach((t, i) => {
+    const x = px0 + i * (pw + pg); caixaArredondada(g, x, py, pw, ph, mm(4)); g.fillStyle = 'rgba(28,21,48,.9)'; g.fill(); g.lineWidth = mm(.4); g.strokeStyle = '#3b2f5c'; g.stroke();
+    g.fillStyle = laranja; g.beginPath(); g.arc(x + pw / 2, py + mm(7.5), mm(4.5), 0, 7); g.fill(); g.fillStyle = '#1c0b00'; g.font = `900 ${13 * PT}px Nunito`; g.fillText(String(i + 1), x + pw / 2, py + mm(9.3));
+    g.fillStyle = suave; g.font = `800 ${11.5 * PT}px Nunito`; linhasDeTexto(g, t, pw - mm(6)).slice(0, 3).forEach((l, k) => g.fillText(l, x + pw / 2, py + mm(17.5) + k * mm(5)));
+  });
+  if (mor) { const alerta = 'Só para moradores · não compartilhe este código'; g.font = `900 ${12 * PT}px Nunito`; const aw2 = g.measureText(alerta).width + mm(14); caixaArredondada(g, cx - aw2 / 2, mm(266), aw2, mm(10), mm(5)); g.fillStyle = '#e8102b'; g.fill(); g.lineWidth = mm(.6); g.strokeStyle = '#fff'; g.stroke(); g.fillStyle = '#fff'; g.fillText(alerta, cx, mm(273)); }
+  // rodapé
+  g.fillStyle = '#fff3c4'; g.font = `800 ${(mor ? 10 : 12) * PT}px Nunito`; g.fillText(link.replace(/^https?:\/\//, '').replace(/\/$/, ''), cx, mm(mor ? 284 : 280));
+  g.font = `800 ${10 * PT}px Nunito`; textoColorido(g, [['Feito com travessuras por ', 'rgba(231,222,250,.75)'], ['Bruno Couto', laranja]], cx, mm(290));
+  return new Promise(ok => cv.toBlob(ok, 'image/png'));
+}
 async function imprimirPlaca(tipo) {
   if (!cid || !condo || !ehAdmin()) return;
-  const b = $(tipo === 'moradores' ? '#btn-placa-moradores' : '#btn-placa-visitantes'); const txt = b.innerHTML; b.disabled = true; b.innerHTML = `${SPIN} Preparando…`;
+  const b = $(tipo === 'moradores' ? '#btn-placa-moradores' : '#btn-placa-visitantes'); const txt = b.innerHTML; b.disabled = true; b.innerHTML = `${SPIN} Desenhando…`;
   try {
-    let link = linkCondo(), cod = '';
-    if (tipo === 'moradores') { cod = await conviteParaPlaca(); link = linkConvite(cod); }
-    const qr = await svgQR(link);
-    const t = tipo === 'moradores' ? {faixa: 'MORADOR, PARTICIPE!', cls: 'laranja', titulo: 'Sua casa vai <b>dar doces</b>?', cam: 'Coloque sua casa no mapa em 1 minuto', camSub: 'Entrada aprovada na hora: é só escanear e entrar com o Google.',
-        passos: ['Aponte a câmera e abra o convite', 'Entre com sua conta Google', 'Toque em "Participar" e marque sua casa'], extra: '<div class="pl-alerta">Só para moradores · não compartilhe este código</div>'}
-      : {faixa: 'BEM-VINDOS, CAÇADORES DE DOCES!', cls: '', titulo: 'Ache as casas que <b>dão doces</b>!', cam: 'Aponte a câmera do celular para o código', camSub: 'O mapa abre na hora. Não precisa instalar nada.',
-        passos: ['Aponte a câmera e abra o mapa', 'Veja as abóboras: cada uma é uma casa com doces', 'Toque em "Montar roteiro" e siga pelo Google Maps'], extra: ''};
-    let el = $('#impressao'); if (!el) { el = document.createElement('div'); el.id = 'impressao'; document.body.appendChild(el); }
-    el.className = 'placa';
-    el.innerHTML = `<div class="pl-est"></div><div class="pl-lua"></div>
-      <div class="pl-bat" style="left:22mm;top:20mm">${PL_BAT}</div><div class="pl-bat" style="left:60mm;top:10mm;width:11mm">${PL_BAT}</div><div class="pl-bat" style="right:58mm;top:26mm;width:12mm">${PL_BAT}</div>
-      <div class="pl-fant" style="left:12mm;bottom:10mm;width:13mm">${PL_FANT}</div><div class="pl-fant" style="right:14mm;bottom:12mm;width:11mm">${PL_FANT}</div>
-      <div class="pl-conteudo">
-        <div class="pl-faixa ${t.cls}">${t.faixa}</div>
-        <div class="pl-marca">Rota <span>Assombrada</span></div>
-        <div class="pl-titulo">${t.titulo}</div>
-        <div class="pl-condo">${h(condo.nome)}</div>
-        <div class="pl-quando">${quandoPlaca().map(x => `<span>${h(x)}</span>`).join('')}</div>
-        <div class="pl-qr">${qr}<div class="pl-drac">${PL_DRAC}</div><div class="pl-abo">${PL_ABO}</div></div>
-        <div class="pl-cam">${t.cam}<small>${t.camSub}</small></div>
-        <div class="pl-passos">${t.passos.map((p, i) => `<div class="pl-passo"><b>${i + 1}</b>${h(p)}</div>`).join('')}</div>
-        ${t.extra}
-      </div>
-      <div class="pl-rodape"><span>${h((tipo === 'moradores' ? '' : link).replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span>Feito com travessuras por <b>Bruno Couto</b></div>`;
-    paginaImpressao(0); document.body.classList.add('imprimindo'); evento_('placa', {tipo});
-    setTimeout(() => window.print(), 80);
-  } catch (e) { console.error(e); toast('Não consegui montar a plaquinha. Confira a internet e tente de novo.'); }
+    let link = linkCondo(); if (tipo === 'moradores') link = linkConvite(await conviteParaPlaca());
+    const blob = await desenharPlaca(tipo, link); const url = URL.createObjectURL(blob);
+    const nome = `plaquinha-${tipo}-${cid}.png`, arquivo = new File([blob], nome, {type: 'image/png'});
+    const podeCompartilhar = !!(navigator.canShare && navigator.canShare({files: [arquivo]}));
+    $('#folha-in').innerHTML = `<div class="placa-pronta"><h3>Plaquinha ${tipo === 'moradores' ? 'de moradores' : 'de visitantes'} pronta!</h3>
+      <img src="${url}" alt="Prévia da plaquinha">
+      <div class="acoes">${podeCompartilhar ? '<button class="btn btn-primario" data-placa="compartilhar">Compartilhar</button>' : ''}<a class="btn ${podeCompartilhar ? 'btn-fantasma' : 'btn-primario'}" href="${url}" download="${nome}">Salvar imagem</a></div>
+      <p class="dica">Imagem A4 em alta resolução. Para imprimir, abra a imagem e escolha "Ajustar à página".</p></div>`;
+    $('#folha-in').onclick = async e => { if (!e.target.closest('[data-placa="compartilhar"]')) return; try { await navigator.share({files: [arquivo], title: 'Plaquinha da Rota Assombrada'}); } catch {} };
+    $('#folha').hidden = false; SFX.plim(); evento_('placa', {tipo});
+  } catch (e) { console.error(e); toast('Não consegui desenhar a plaquinha. Confira a internet e tente de novo.'); }
   finally { b.disabled = false; b.innerHTML = txt; }
 }
 // margem da folha muda conforme o que vai imprimir: lista (12 mm) ou plaquinha (sem margem, fundo até a borda)

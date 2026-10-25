@@ -755,7 +755,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 #ajuda-familia b{color:var(--abobora)}
 
 /* ---------- plaquinha A4 (impressão) ---------- */
-#impressao.placa{position:relative;width:210mm;height:296mm;overflow:hidden;font-family:Nunito,Arial,sans-serif;color:#f7f1ff;background:radial-gradient(120% 70% at 50% 105%,#3a1d5e 0%,#15102a 55%,#0d0a16 100%);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#impressao.placa{position:relative;width:190mm;height:268mm;overflow:hidden;border-radius:4mm;margin:0 auto;font-family:Nunito,Arial,sans-serif;color:#f7f1ff;background:radial-gradient(120% 70% at 50% 105%,#3a1d5e 0%,#15102a 55%,#0d0a16 100%);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 #impressao.placa *{box-sizing:border-box}
 #impressao.placa .pl-est{position:absolute;inset:0;background-image:radial-gradient(2px 2px at 12% 10%,#fff 60%,transparent 61%),radial-gradient(1.5px 1.5px at 28% 5%,#fff 60%,transparent 61%),radial-gradient(2px 2px at 70% 8%,#ffe9b0 60%,transparent 61%),radial-gradient(1.5px 1.5px at 88% 30%,#fff 60%,transparent 61%),radial-gradient(1.5px 1.5px at 6% 40%,#fff 60%,transparent 61%)}
 #impressao.placa .pl-lua{position:absolute;right:16mm;top:12mm;width:34mm;height:34mm;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fffbe6,#fff3c4 55%,#e9d58b);box-shadow:0 0 18mm 6mm rgba(255,243,196,.28)}
@@ -788,3 +788,15 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 #impressao.placa .pl-rodape span{display:block;font-size:12pt;color:#fff3c4;margin-bottom:1mm}
 #impressao.placa .pl-rodape b{color:#ff8a1f}
 @media print{body.imprimindo #impressao.placa{display:block;color:#f7f1ff}}
+
+/* A folha da plaquinha é desenhada em 210x296 mm e encolhida para caber na margem de 10 mm (impressoras não imprimem até a borda) */
+#impressao.placa .pl-folha{position:absolute;left:0;top:0;width:210mm;height:296mm;transform:scale(.9048);transform-origin:top left;background:radial-gradient(120% 70% at 50% 105%,#3a1d5e 0%,#15102a 55%,#0d0a16 100%);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* sem brilhos borrados: na impressora eles viram retângulos */
+#impressao.placa .pl-marca{text-shadow:0 1mm 0 #4a1d00!important}
+#impressao.placa .pl-lua{box-shadow:none!important}
+#impressao.placa .pl-qr{box-shadow:0 0 0 2mm #ff8a1f!important}
+#impressao.placa svg{filter:none!important}
+
+.placa-pronta{text-align:center}
+.placa-pronta img{display:block;width:100%;max-width:360px;margin:12px auto;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.placa-pronta .acoes{justify-content:center}
