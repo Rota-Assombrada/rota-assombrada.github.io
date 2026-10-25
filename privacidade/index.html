@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Privacidade · Rota Assombrada</title>
+<meta name="description" content="Como a Rota Assombrada usa e protege os dados de quem participa do mapa do Halloween.">
+<meta name="theme-color" content="#0d0a16">
+<link rel="icon" href="../img/favicon-32.png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
+<link rel="stylesheet" href="../css/estilo.css?v=51">
+<style>
+  .priv{max-width:720px;margin:0 auto;padding:24px 16px calc(40px + env(safe-area-inset-bottom,0px))}
+  .priv-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .priv-marca{font-family:var(--f-titulo);font-size:1.9rem;color:var(--fg);text-decoration:none;letter-spacing:.02em}
+  .priv-marca span{color:var(--abobora)}
+  .priv h1{font-size:1.7rem;margin:22px 0 6px}
+  .priv h2{font-size:1.15rem;margin:0 0 8px}
+  .priv .cartao{margin-top:16px}
+  .priv p,.priv li{color:var(--fg2)}
+  .priv ul{margin:8px 0 0;padding-left:20px}
+  .priv li+li{margin-top:6px}
+  .priv b{color:var(--fg)}
+  .priv a{color:var(--abobora)}
+  .priv table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.95rem}
+  .priv th,.priv td{text-align:left;vertical-align:top;padding:8px 6px;border-top:1px solid var(--borda);color:var(--fg2)}
+  .priv th{color:var(--fg);font-weight:800}
+  .priv .atualizado{color:var(--fg3);font-size:.9rem;margin:0}
+  .priv .resumo{border-color:var(--abobora);background:linear-gradient(180deg,rgba(255,138,31,.12),var(--superficie) 70%)}
+  @media (max-width:520px){.priv table,.priv tbody,.priv tr,.priv th,.priv td{display:block}.priv tr{border-top:1px solid var(--borda);padding:6px 0}.priv th,.priv td{border:0;padding:2px 0}}
+</style>
+</head>
+<body>
+<div id="splash" class="splash so-css" aria-hidden="true">
+  <div class="splash-lua"></div>
+  <div class="splash-bat b1"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b2"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b3"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div>
+  <div class="splash-fantasma f1"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div><div class="splash-fantasma f2"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div>
+  <div class="splash-centro">
+    <div class="splash-drac"><svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><ellipse cx="80" cy="164" rx="46" ry="5" fill="#000" opacity=".35"/><g class="capa"><path d="M18 74 L80 58 L142 74 L150 162 L10 162 Z" fill="#1a0f2e"/><path d="M30 80 L80 66 L130 80 L136 160 L24 160 Z" fill="#b3123b"/></g><path d="M44 100 L80 88 L116 100 L118 160 L42 160 Z" fill="#1a0f2e"/><path d="M66 96 L80 108 L94 96 L94 160 L66 160 Z" fill="#f4f1fb"/><path d="M74 104 l6 10 6-10 z" fill="#b3123b"/><path d="M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z" fill="#b3123b"/><path d="M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z" fill="#2a1846"/><ellipse cx="80" cy="56" rx="30" ry="34" fill="#dcd6f0"/><path d="M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z" fill="#14091f"/><path d="M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z" fill="#dcd6f0"/><g class="olhos"><ellipse cx="68" cy="56" rx="6" ry="7" fill="#fff"/><ellipse cx="92" cy="56" rx="6" ry="7" fill="#fff"/><circle cx="69" cy="57" r="3.4" fill="#b3123b"/><circle cx="93" cy="57" r="3.4" fill="#b3123b"/><circle cx="70" cy="55.5" r="1.1" fill="#fff"/><circle cx="94" cy="55.5" r="1.1" fill="#fff"/></g><path d="M60 46 l14 4 M100 46 l-14 4" stroke="#14091f" stroke-width="3" stroke-linecap="round"/><ellipse cx="62" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><ellipse cx="98" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><g class="boca"><path d="M68 72 Q80 82 92 72 Q80 78 68 72 Z" fill="#4a0d1e"/><path d="M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z" fill="#fff"/></g></svg></div>
+    <div class="splash-titulo">Rota <span>Assombrada</span></div>
+    <div class="splash-barra"><i></i></div>
+    <p class="splash-txt" id="splash-txt">Abrindo o livro de feitiços…</p>
+  </div>
+  <div class="splash-abo"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg></div>
+</div>
+<main class="priv">
+  <div class="priv-topo">
+    <a class="priv-marca" href="../">Rota <span>Assombrada</span></a>
+    <a class="btn btn-fantasma btn-p" href="../">Voltar para o mapa</a>
+  </div>
+
+  <h1>Privacidade</h1>
+  <p class="atualizado">Atualizado em 25 de outubro de 2026</p>
+
+  <section class="cartao resumo">
+    <h2>Em poucas palavras</h2>
+    <ul>
+      <li>Guardamos só o necessário para o mapa funcionar: sua conta Google e os dados da casa que você cadastrar.</li>
+      <li>Seu e-mail não aparece no mapa. Admins do condomínio veem o e-mail completo; os outros moradores veem só um pedaço, como <b>cr•••@gmail.com</b>.</li>
+      <li>Sua localização do GPS fica no seu celular. Não guardamos por onde você andou.</li>
+      <li>Não tem anúncio e não vendemos dados.</li>
+      <li>Você pode tirar sua casa do mapa e sair do condomínio quando quiser.</li>
+    </ul>
+  </section>
+
+  <section class="cartao">
+    <h2>O que guardamos</h2>
+    <ul>
+      <li><b>Sua conta:</b> nome, e-mail e identificador da conta Google, usados para saber que a casa é sua. Não temos acesso à sua senha.</li>
+      <li><b>Seu lugar no condomínio:</b> se você é morador, admin ou se pediu para entrar, e o convite usado.</li>
+      <li><b>A casa que você cadastra:</b> rua, número, nome da família, a posição no mapa, o que a casa oferece, avisos (como "tem cachorro"), horário e observações.</li>
+      <li><b>Outros moradores da casa:</b> nome e e-mail de quem você adicionou para cuidar da casa com você.</li>
+      <li><b>Uso do site:</b> contagem de visitas por tela e erros, sem nome, e-mail, código do condomínio ou links.</li>
+    </ul>
+  </section>
+
+  <section class="cartao">
+    <h2>Quem vê o quê</h2>
+    <table>
+      <tr><th>Quem</th><th>O que vê</th></tr>
+      <tr><td>Qualquer pessoa com o link</td><td>Nome do condomínio e, se o admin deixou o mapa público, as casas participantes (rua, número, família, o que oferece, horário). Nunca e-mails.</td></tr>
+      <tr><td>Moradores aprovados</td><td>As casas do mapa e, ao buscar alguém para adicionar na casa, o nome e um pedaço do e-mail de outros moradores.</td></tr>
+      <tr><td>Moradores da mesma casa</td><td>Os nomes e e-mails da lista de moradores daquela casa.</td></tr>
+      <tr><td>Admins do condomínio</td><td>Nome e e-mail de quem participa, pedidos de entrada e convites daquele condomínio.</td></tr>
+      <tr><td>Outros condomínios</td><td>Nada do seu condomínio, a não ser o nome dele na busca, se o admin escolheu aparecer.</td></tr>
+    </table>
+    <p>Essas permissões são conferidas nos servidores do Google a cada leitura e gravação, e não só na tela.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>O que fica só no seu celular</h2>
+    <ul>
+      <li>Sua posição do GPS, enquanto o mapa está aberto.</li>
+      <li>As casas que você marcou como visitadas, o roteiro montado e suas preferências, como som e música.</li>
+    </ul>
+  </section>
+
+  <section class="cartao">
+    <h2>Serviços que usamos</h2>
+    <ul>
+      <li><b>Google Firebase:</b> login com Google e o banco de dados, guardado no Brasil (São Paulo). Também conta visitas e erros de forma anônima, sem anúncios e sem personalização.</li>
+      <li><b>OpenStreetMap:</b> os desenhos do mapa e a busca de endereço (Nominatim).</li>
+      <li><b>Photon (Komoot):</b> sugere ruas enquanto você digita.</li>
+      <li>Na busca de endereço e na sugestão de ruas, esses serviços recebem só o texto digitado e a área do condomínio, nunca nome ou e-mail.</li>
+      <li><b>FOSSGIS (roteador do OpenStreetMap):</b> para calcular o caminho a pé, recebe só as coordenadas do ponto de partida e das casas.</li>
+      <li><b>Esri:</b> as imagens de satélite, quando você escolhe essa camada.</li>
+      <li><b>Google Maps, Apple Maps ou Waze:</b> só quando você toca para navegar, e aí vale a privacidade do app escolhido.</li>
+    </ul>
+  </section>
+
+  <section class="cartao">
+    <h2>Crianças</h2>
+    <p>O login e o cadastro da casa são para adultos responsáveis. As crianças usam o mapa, os sons e o roteiro sem precisar de conta, e não pedimos nenhum dado delas.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Por quanto tempo</h2>
+    <p>Cada Halloween fica guardado por ano, para o condomínio poder repetir as casas no ano seguinte. Sua casa do ano atual sai do mapa quando você a tira. Sua participação sai quando você deixa o condomínio ou um admin remove você. Casas de anos passados continuam no histórico do condomínio até um admin apagar.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Seus direitos (LGPD)</h2>
+    <ul>
+      <li><b>Ver e corrigir:</b> na aba da sua casa, você vê e edita tudo o que cadastrou.</li>
+      <li><b>Tirar a casa do mapa:</b> botão "Tirar minha casa do mapa".</li>
+      <li><b>Sair do condomínio:</b> moradores têm o botão "Sair deste condomínio", no fim da aba da sua casa, que também tira sua casa do mapa. Admins pedem a outro admin.</li>
+      <li><b>Qualquer outro pedido</b>, como apagar casas de anos passados, tirar seu e-mail da lista de moradores de outra casa ou apagar tudo o que é seu de todos os condomínios: fale com o admin do seu condomínio ou abra um pedido em <a href="https://github.com/rota-assombrada/rota-assombrada.github.io/issues" rel="noopener">github.com/rota-assombrada</a>.</li>
+    </ul>
+  </section>
+
+  <footer class="creditos">
+    <p>Feito com travessuras por <b>Bruno Couto</b></p>
+    <p class="creditos-sub">Rota Assombrada · mapas © OpenStreetMap</p>
+  </footer>
+</main>
+</body>
+</html>

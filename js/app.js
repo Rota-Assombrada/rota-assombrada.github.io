@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=48';
+import CONFIG from './config.js?v=52';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -270,7 +270,7 @@ const fb = {
     const prov = new this.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt: 'select_account'});
     try { await this.auth.signInWithPopup(this.a, prov); }
     catch (e) {
-      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) return this.auth.signInWithRedirect(this.a, prov);
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) { try { history.replaceState(history.state, '', '/' + location.search + location.hash); } catch {} return this.auth.signInWithRedirect(this.a, prov); }
       if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
       console.error(e);
       toast(e && e.code === 'auth/unauthorized-domain' ? 'Este endereço ainda não foi autorizado no Firebase.' : e && e.code === 'auth/operation-not-allowed' ? 'O login com Google ainda não foi ligado no Firebase.' : 'Não consegui entrar agora. Tente de novo.', 5000);
@@ -442,7 +442,7 @@ async function tentarConvite() {
   // Roda quando o papel OU o condomínio terminam de carregar (o que chegar por último), e só uma vez por convite.
   if (!temConvite() || aceitandoConvite || !usuario || !cid || !papelCarregado || !condo) return;
   const cod = conviteDaRota.cod; guardarConvite(null);
-  const limparRota = () => { try { history.replaceState(null, '', '#' + cid); } catch {} };
+  const limparRota = () => { try { history.replaceState(null, '', '#' + cid); } catch {} ajustarEndereco(); };
   if (papel === 'admin' || papel === 'morador') { limparRota(); toast('Você já faz parte deste condomínio.'); return; }
   aceitandoConvite = true; renderAcesso(); atualizarParticipar();
   try {
@@ -832,14 +832,19 @@ async function montarRoteiro() {
   roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, partida, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
-  // Mostra o mapa com o roteiro na hora (antes de buscar o caminho pelas ruas, que pode demorar),
-  // para a tela não ficar parada no botão do Google Maps que aparece no lugar do "Montar".
+  // O mapa já se ajusta às casas, mas a tela vai para o botão do Google Maps, que é o jeito recomendado de seguir a rota.
   const pontos = [pp.p, ...roteiro.ordem.map(casaPorId).filter(Boolean)].map(c => [c.lat, c.lng]);
   if (pontos.length > 1) mapa.fitBounds(pontos, {padding: [60, 60], maxZoom: 18});
-  $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
+  const bn = $('#btn-navegar'); bn.scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'});
+  bn.classList.remove('chamar'); void bn.offsetWidth; bn.classList.add('chamar'); setTimeout(() => bn.classList.remove('chamar'), 3600);
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
-  if (vozAuto) { const idx = proximaParada(); falar(`Roteiro montado com ${n} casa${n > 1 ? 's' : ''}, saindo de ${pp.nome}. ` + (idx >= 0 ? falaParada(idx) : '')); }
+  // A recomendação do Google Maps sempre é falada; os detalhes da primeira casa, só com o guia por voz ligado.
+  const partes = partesRotaGoogle().length;
+  const dica = `Recomendamos seguir a rota pelo Google Maps: toque no botão laranja, Rota completa no Google Maps.${partes > 1 ? ` Como são muitas casas, a rota vem em ${partes} partes.` : ''} `;
+  const idxFala = proximaParada();
+  const saindo = /^a /.test(pp.nome) ? 'da ' + pp.nome.slice(2) : /^o /.test(pp.nome) ? 'do ' + pp.nome.slice(2) : 'de ' + pp.nome;
+  falar(`Roteiro pronto com ${n} casa${n > 1 ? 's' : ''}, saindo ${saindo}. ` + dica + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : ''));
   if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
 }
 function proximaParada() { if (!roteiro) return -1; return roteiro.ordem.findIndex(id => !visitadas.has(id) && casaPorId(id)); }
@@ -1413,7 +1418,8 @@ function atualizarParticipar() {
   if (!cid) return;
   const gate = $('#gate'), form = $('#form-casa');
   let html = '';
-  if (!usuario) html = `${temConvite() ? '<p class="ok-msg">Você recebeu um convite! Entre com Google e o cadastro é aprovado na hora.</p>' : ''}<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
+  if (!authPronto) html = `<p class="res-carregando">${SPIN} Conferindo seu login…</p><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
+  else if (!usuario) html = `${temConvite() ? '<p class="ok-msg">Você recebeu um convite! Entre com Google e o cadastro é aprovado na hora.</p>' : ''}<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
   else if (aceitandoConvite || (temConvite() && !ehMorador())) html = `<p class="res-carregando">${SPIN} Aceitando seu convite…</p><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!papelCarregado) html = `<p class="res-carregando">${SPIN} Conferindo seu acesso…</p><span class="skel skel-campo"></span><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!ehMorador() && papel === 'pendente') html = `<p>Seu pedido está com o admin. Assim que aprovar, você cadastra a casa aqui.</p>`;
@@ -1428,6 +1434,7 @@ function atualizarParticipar() {
   if (!html && !editandoId && !criandoOutra) { const minha = minhaCasa(); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
   verificarCasaAnoPassado();
   atualizarForm();
+  $('#sair-condo').hidden = !(usuario && papelCarregado && papel === 'morador');
 }
 async function verificarCasaAnoPassado() {
   const box = $('#repetir-casa');
@@ -1465,7 +1472,15 @@ async function checarPaginaPrevia(id) {
   if (!id || id in paginaPrevia) return;
   paginaPrevia[id] = false;
   try { const r = await fetch(`${BASE_SITE}c/${id}/`, {method: 'HEAD', cache: 'no-store'}); paginaPrevia[id] = r.ok; } catch {}
-  if (paginaPrevia[id] && id === cid) { if (abaAtual === 'organizador') renderAdmin(); }
+  if (paginaPrevia[id] && id === cid) { if (abaAtual === 'organizador') renderAdmin(); ajustarEndereco(); }
+}
+// Na barra do navegador, o condomínio aparece como /c/CODIGO/ (a página com prévia do nome no WhatsApp), para quem
+// copiar o endereço de lá. O app continua na raiz; a rota mesmo fica no "#". Convite e início ficam na raiz.
+function ajustarEndereco() {
+  try {
+    const r = lerRota(), alvo = r.c && !r.convite && paginaPrevia[r.c] ? `/c/${r.c}/` : '/';
+    if (location.pathname !== alvo) history.replaceState(history.state, '', alvo + location.search + location.hash);
+  } catch {}
 }
 function linkCondo() { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/` : `${BASE_SITE}c/#${cid}`; }
 function linkConvite(cod) { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/convite/#${cod}` : `${BASE_SITE}convite/#${cid}/${cod}`; }
@@ -1812,6 +1827,14 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
+  // Sair do condomínio (morador): tira a casa da pessoa do mapa e o nome dela da lista. Dois toques para confirmar.
+  $('#btn-sair-condo').addEventListener('click', async () => {
+    const b = $('#btn-sair-condo');
+    if (!b.dataset.confirma) { b.dataset.confirma = '1'; b.className = 'btn btn-p btn-perigo'; b.textContent = 'Toque de novo para sair'; setTimeout(() => { if (b.isConnected) { delete b.dataset.confirma; b.className = 'btn btn-p btn-fantasma'; b.textContent = 'Sair deste condomínio'; } }, 4000); return; }
+    delete b.dataset.confirma; b.className = 'btn btn-p btn-fantasma'; b.textContent = 'Sair deste condomínio';
+    if (usuario && casaPorId(usuario.uid)) { try { await fb.fs.deleteDoc(fb.casa(cid, usuario.uid)); } catch (e) { console.error(e); } }
+    limparForm(); await sairDoCondo();
+  });
   $('#btn-add-morador').addEventListener('click', () => adicionarMorador());
   $('#f-email-morador').addEventListener('input', aoDigitarMorador);
   $('#f-email-morador').addEventListener('focus', () => { if (ehMorador()) carregarDiretorio(); if ($('#f-email-morador').value.trim().length >= 2) aoDigitarMorador(); });
@@ -2008,10 +2031,23 @@ function aplicarRota() {
   if (!r.c) {
     const ultimo = ls.get('hw.ultimo', null);
     if (!r.inicio && ultimo && CODIGO.test(ultimo)) { location.replace('#' + ultimo); return; }
-    fecharCondo(); return;
+    fecharCondo(); ajustarEndereco(); return;
   }
-  abrirCondo(r.c);
+  abrirCondo(r.c); ajustarEndereco();
 }
+
+/* ---------- tela de abertura ---------- */
+// Fica na frente até o login e o condomínio carregarem (no mínimo um instante, no máximo 8 s). Tocar nela fecha.
+const splashInicio = Date.now();
+(function vigiarSplash() {
+  const sp = document.getElementById('splash'); if (!sp) return;
+  const frases = ['Acordando o Drácula…', 'Soltando os morcegos…', 'Acendendo as abóboras…', 'Chamando os fantasmas…', 'Contando os doces…'];
+  let i = 0; const tf = setInterval(() => { const t = document.getElementById('splash-txt'); if (t) t.textContent = frases[++i % frases.length]; }, 1100);
+  const sair = () => { clearInterval(tf); clearInterval(tv); window.__splashMs = Date.now() - splashInicio; sp.classList.add('saindo'); setTimeout(() => sp.remove(), 500); };
+  sp.addEventListener('click', sair);
+  const pronto = () => authPronto && (!cid || (condoCarregado && papelCarregado));
+  const tv = setInterval(() => { const t = Date.now() - splashInicio; if ((pronto() && t > 1200) || t > 8000) sair(); }, 120);
+})();
 
 /* ---------- início ---------- */
 async function iniciar() {

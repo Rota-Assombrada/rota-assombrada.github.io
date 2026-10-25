@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<base href="/">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0a16">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://www.googletagmanager.com https://apis.google.com https://www.google.com/recaptcha/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.google-analytics.com https://www.googletagmanager.com https://tile.openstreetmap.org https://server.arcgisonline.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com https://nominatim.openstreetmap.org https://routing.openstreetmap.de https://photon.komoot.io https://content-firebaseappcheck.googleapis.com https://www.google.com/recaptcha/ http://127.0.0.1:8080 http://127.0.0.1:9099 https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/ http://127.0.0.1:9099 https://rota-assombrada.firebaseapp.com https://accounts.google.com https://apis.google.com; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -32,9 +33,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=48">
+<link rel="stylesheet" href="css/estilo.css?v=52">
 </head>
 <body>
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="splash-lua"></div>
+  <div class="splash-bat b1"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b2"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div><div class="splash-bat b3"><svg viewBox="0 0 34 18" fill="#7b5cc0"><path d="M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z"/></svg></div>
+  <div class="splash-fantasma f1"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div><div class="splash-fantasma f2"><svg viewBox="0 0 40 46"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="#fff"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></div>
+  <div class="splash-centro">
+    <div class="splash-drac"><svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><ellipse cx="80" cy="164" rx="46" ry="5" fill="#000" opacity=".35"/><g class="capa"><path d="M18 74 L80 58 L142 74 L150 162 L10 162 Z" fill="#1a0f2e"/><path d="M30 80 L80 66 L130 80 L136 160 L24 160 Z" fill="#b3123b"/></g><path d="M44 100 L80 88 L116 100 L118 160 L42 160 Z" fill="#1a0f2e"/><path d="M66 96 L80 108 L94 96 L94 160 L66 160 Z" fill="#f4f1fb"/><path d="M74 104 l6 10 6-10 z" fill="#b3123b"/><path d="M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z" fill="#b3123b"/><path d="M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z" fill="#2a1846"/><ellipse cx="80" cy="56" rx="30" ry="34" fill="#dcd6f0"/><path d="M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z" fill="#14091f"/><path d="M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z" fill="#dcd6f0"/><g class="olhos"><ellipse cx="68" cy="56" rx="6" ry="7" fill="#fff"/><ellipse cx="92" cy="56" rx="6" ry="7" fill="#fff"/><circle cx="69" cy="57" r="3.4" fill="#b3123b"/><circle cx="93" cy="57" r="3.4" fill="#b3123b"/><circle cx="70" cy="55.5" r="1.1" fill="#fff"/><circle cx="94" cy="55.5" r="1.1" fill="#fff"/></g><path d="M60 46 l14 4 M100 46 l-14 4" stroke="#14091f" stroke-width="3" stroke-linecap="round"/><ellipse cx="62" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><ellipse cx="98" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><g class="boca"><path d="M68 72 Q80 82 92 72 Q80 78 68 72 Z" fill="#4a0d1e"/><path d="M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z" fill="#fff"/></g></svg></div>
+    <div class="splash-titulo">Rota <span>Assombrada</span></div>
+    <div class="splash-barra"><i></i></div>
+    <p class="splash-txt" id="splash-txt">Acordando o Drácula…</p>
+  </div>
+  <div class="splash-abo"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg></div>
+</div>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
 <div class="cenario" aria-hidden="true">
   <div class="estrelas"></div><div class="lua"></div>
@@ -224,6 +237,7 @@
           </div>
         </form>
       </div>
+      <div class="sair-condo" id="sair-condo" hidden><button type="button" class="btn btn-p btn-fantasma" id="btn-sair-condo">Sair deste condomínio</button><p class="dica">Tira você da lista de moradores e a sua casa do mapa. Para voltar, use um convite ou peça para entrar de novo.</p></div>
     </section>
 
     <section id="painel-organizador" class="painel" hidden>
@@ -293,7 +307,7 @@
     <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M30 6c3 2 4 6 4 10" stroke="#4f7a24" stroke-width="5" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="46" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="32" cy="38" rx="17" ry="22" fill="#ff8a1f"/><path d="M20 32l6 7h-10zM44 32l-6 7h10z" fill="#ffd84a"/><path d="M18 46q14 12 28 0l-5 2-4-3-5 3-5-3-4 3z" fill="#ffd84a"/></svg>
     <p>Feito com travessuras por <b>Bruno Couto</b></p>
     <p class="creditos-sub">Rota Assombrada · mapas © OpenStreetMap</p>
-    <p class="creditos-sub">O site conta visitas e erros de forma anônima, sem anúncios, para melhorar o app.</p>
+    <p class="creditos-sub">O site conta visitas e erros de forma anônima, sem anúncios, para melhorar o app. <a href="privacidade/">Privacidade</a></p>
   </footer>
 
   <nav class="abas" id="abas" aria-label="Seções" hidden>
@@ -307,6 +321,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=48"></script>
+<script type="module" src="js/app.js?v=52"></script>
 </body>
 </html>
