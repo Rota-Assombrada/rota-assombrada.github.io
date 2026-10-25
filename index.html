@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=34">
+<link rel="stylesheet" href="css/estilo.css?v=35">
 </head>
 <body>
 <div class="barra-carga" id="barra-carga" hidden role="progressbar" aria-label="Carregando"></div>
@@ -54,7 +54,8 @@
         <svg class="abobora-logo" viewBox="0 0 120 112" aria-hidden="true"><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg>
         <h1 class="titulo">Rota <span>Assombrada</span></h1>
       </div>
-      <div class="topo-botoes"><button id="btn-conta" class="btn btn-conta carregando" aria-label="Carregando perfil"><span class="spinner" aria-hidden="true"></span><span>Carregando perfil…</span></button>
+      <div class="topo-botoes"><button id="btn-avisos" class="btn btn-icone btn-avisos" hidden aria-label="Avisos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="bolha" id="bolha-avisos" hidden></span></button>
+      <button id="btn-conta" class="btn btn-conta carregando" aria-label="Carregando perfil"><span class="spinner" aria-hidden="true"></span><span>Carregando perfil…</span></button>
       <div class="dica-musica" id="dica-musica" hidden role="status">Toque aqui para ligar a música!</div>
       <button id="btn-musica" class="btn btn-icone" aria-pressed="false" aria-label="Ligar música de fundo" title="Música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button></div>
     </div>
@@ -273,7 +274,7 @@
 
   <footer class="creditos">
     <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M30 6c3 2 4 6 4 10" stroke="#4f7a24" stroke-width="5" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="46" cy="38" rx="13" ry="20" fill="#e86f0c"/><ellipse cx="32" cy="38" rx="17" ry="22" fill="#ff8a1f"/><path d="M20 32l6 7h-10zM44 32l-6 7h10z" fill="#ffd84a"/><path d="M18 46q14 12 28 0l-5 2-4-3-5 3-5-3-4 3z" fill="#ffd84a"/></svg>
-    <p>Feito com carinho por <b>Bruno Couto</b></p>
+    <p>Feito com travessuras por <b>Bruno Couto</b></p>
     <p class="creditos-sub">Rota Assombrada · mapas © OpenStreetMap</p>
     <p class="creditos-sub">O site conta visitas e erros de forma anônima, sem anúncios, para melhorar o app.</p>
   </footer>
@@ -289,6 +290,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=34"></script>
+<script type="module" src="js/app.js?v=35"></script>
 </body>
 </html>

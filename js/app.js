@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=34';
+import CONFIG from './config.js?v=35';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -61,6 +61,65 @@ const consoleErro = console.error.bind(console);
 console.error = (...a) => { consoleErro(...a); registrarErro(a.map(x => (x && (x.code || x.message)) || x).join(' '), false); };
 let ultimaTela = '';
 function contarTela(nome) { if (nome === ultimaTela) return; ultimaTela = nome; evento_('page_view', {page_title: nome, page_location: `${location.origin}/${nome}`}); }
+
+/* ---------- avisos dentro do app (sininho) ---------- */
+// Montados no próprio celular a partir do que ele já pode ver: nada novo é gravado no banco.
+const IC_SINO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+function lerAvisos() { return cid ? ls.get(`hw.${cid}.avisos`, []) : []; }
+function gravarAvisos(l) { if (cid) ls.set(`hw.${cid}.avisos`, l.slice(0, 30)); }
+function notificar(id, texto, opts = {}) {
+  if (!cid) return; const l = lerAvisos(); if (l.some(a => a.id === id)) return;
+  l.unshift({id, texto: String(texto).slice(0, 200), acao: opts.acao || '', ts: Date.now(), lido: false}); gravarAvisos(l);
+  renderSino(); toast(texto, 5000); SFX.plim();
+  if (opts.festa) { SFX.festa(); explodir(innerWidth / 2, innerHeight / 3); }
+  if (opts.falar && vozAuto) setTimeout(() => falaDracula(opts.falar), 700);
+  try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('Rota Assombrada', {body: texto, icon: 'img/icone-512.png', tag: id}); } catch {}
+}
+function renderSino() {
+  const b = $('#btn-avisos'); if (!b) return; b.hidden = !cid;
+  const n = lerAvisos().filter(a => !a.lido).length; const bolha = $('#bolha-avisos');
+  bolha.hidden = !n; bolha.textContent = n > 9 ? '9+' : n; b.setAttribute('aria-label', n ? `Avisos: ${n} novos` : 'Avisos');
+}
+function abrirAvisos() {
+  const l = lerAvisos(); const quando = ts => new Date(ts).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  const rotuloAcao = {participar: 'Cadastrar minha casa', organizador: 'Abrir o Admin', mapa: 'Ver o mapa'};
+  const podeSistema = 'Notification' in window && Notification.permission === 'default';
+  $('#folha-in').innerHTML = `<div class="avisos"><h3>Avisos</h3>
+    ${l.length ? `<ul class="lista-avisos">${l.map(a => `<li class="${a.lido ? '' : 'novo'}"><p>${h(a.texto)}</p><span class="dica">${quando(a.ts)}</span>${a.acao ? `<button class="btn btn-p btn-fantasma" data-aviso-ir="${h(a.acao)}">${rotuloAcao[a.acao] || 'Abrir'}</button>` : ''}</li>`).join('')}</ul>` : '<p class="dica">Nenhum aviso por enquanto. Quando você for aprovado, ou alguém pedir para entrar, aparece aqui.</p>'}
+    ${podeSistema ? `<div class="acoes"><button class="btn btn-primario" data-aviso-sistema>Avisar no celular também</button></div><p class="dica">Funciona com o app aberto ou em segundo plano. No iPhone, só com o site salvo na Tela de Início.</p>` : ''}
+  </div>`;
+  $('#folha').hidden = false;
+  gravarAvisos(l.map(a => ({...a, lido: true}))); renderSino();
+}
+// Vigias: comparam o que mudou desde a última vez que este celular viu.
+function vigiarPapel() {
+  if (!cid || !usuario || !papelCarregado) return;
+  const chave = `hw.${cid}.papelVisto.${usuario.uid}`; const visto = ls.get(chave, null); const nome = (condo && condo.nome) || 'o condomínio';
+  if (visto === 'pendente' && (papel === 'morador' || papel === 'admin')) notificar(`aprovado-${usuario.uid}`, `Você foi aprovado em ${nome}! Já pode cadastrar sua casa.`, {acao: 'participar', festa: true, falar: 'Muahaha! Você foi aprovado! Agora cadastre sua casa e prepare os doces.'});
+  if (visto === 'morador' && papel === 'admin') notificar(`admin-${usuario.uid}`, `Agora você é admin de ${nome}.`, {acao: 'organizador'});
+  if ((visto === 'morador' || visto === 'admin') && papel === '') notificar(`saiu-${usuario.uid}-${Date.now()}`, `Você não faz mais parte de ${nome}.`);
+  ls.set(chave, papel);
+}
+function vigiarPedidos() {
+  if (!cid || !ehAdmin() || !membrosCarregados) return;
+  const chave = `hw.${cid}.pedidosVistos`; const visto = ls.get(chave, null); const pend = membros.filter(m => m.papel === 'pendente');
+  if (visto) pend.filter(m => !visto.includes(m.id)).forEach(m => notificar(`pedido-${m.id}`, `${m.nome || 'Alguém'} pediu para entrar no condomínio.`, {acao: 'organizador'}));
+  ls.set(chave, pend.map(m => m.id));
+}
+function vigiarCasasAtribuidas() {
+  if (!cid || !usuario || !casasCarregadas || !meuHashAqui) return;
+  casas.filter(c => souResponsavel(c) && c.uid !== usuario.uid).forEach(c => notificar(`atrib-${ano}-${c.id}`, `A casa ${nomeCasaTxt(c)} foi colocada no seu nome. Confira os dados.`, {acao: 'participar'}));
+}
+function vigiarEvento() {
+  if (!cid || !condo) return;
+  const ca = `hw.${cid}.anoVisto`; const anoVisto = ls.get(ca, null); const atual = anoAtualDoCondo();
+  if (anoVisto && atual > anoVisto) notificar(`ano-${atual}`, `Começou o Halloween de ${atual}! Cadastre sua casa de novo.`, {acao: 'participar', festa: true});
+  ls.set(ca, atual);
+  if (!ano || ano !== atual) return;
+  const cv = `hw.${cid}.${ano}.avisoVisto`; const visto = ls.get(cv, null); const av = (eventoDoc && eventoDoc.avisos) || '';
+  if (visto !== null && av && av !== visto) notificar(`recado-${ano}-${av.slice(0, 40)}`, `Recado do condomínio: ${av}`, {acao: 'mapa'});
+  if (eventoDoc) ls.set(cv, av);
+}
 
 /* ---------- carregamentos: barra no topo, esqueletos e spinners ---------- */
 let cargas = 0, barraTimer = null;
@@ -273,7 +332,7 @@ function trocarAno(novo) {
   casas = []; casasCarregadas = false; podeVerCasas = false; cargaInicio('casas'); eventoDoc = null; casaAnoPassado = null;
   visitadas = new Set(lsa.get('visitadas', [])); roteiro = lsa.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null;
-  subs.evento = fb.fs.onSnapshot(fb.evento(cid, ano), s => { eventoDoc = s.exists() ? s.data() : null; montarEvento(); renderTudoCondo(); }, e => console.error(e));
+  subs.evento = fb.fs.onSnapshot(fb.evento(cid, ano), s => { eventoDoc = s.exists() ? s.data() : null; montarEvento(); renderTudoCondo(); vigiarEvento(); }, e => console.error(e));
   montarEvento(); renderSeletorAno();
   if (papelCarregado) assinarCasas();
   renderTudoCondo();
@@ -317,17 +376,17 @@ function assinarMembro() {
     if (snap.metadata.hasPendingWrites) return;
     const novo = snap.exists() ? snap.data().papel : '';
     if (papelCarregado && novo === papel && !snap.metadata.fromCache) { if (!podeVerCasas && ehMorador()) assinarCasas(); return; }
-    papel = novo; papelCarregado = true; aoMudarPapel();
+    papel = novo; papelCarregado = true; aoMudarPapel(); vigiarPapel();
   },
     e => { console.error(e); papel = ''; papelCarregado = true; aoMudarPapel(); });
 }
 function aoMudarPapel() {
-  atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); });
+  atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); vigiarCasasAtribuidas(); });
   assinarCasas();
   parar('membros', 'convites', 'atribuicoes');
   membros = []; convites = []; atribuicoes = {}; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
-    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
+    subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); vigiarPedidos(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
     subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, d.data().email])); renderAdmin(); }, e => console.error(e));
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
@@ -347,7 +406,7 @@ function assinarCasas() {
   if (condo && !condo.eventoAtual && ano === anoAtualDoCondo()) {
     subs.casasAntigas = fb.fs.onSnapshot(fb.casasAntigas(cid), s => { casasFormatoAtual = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); }, () => { casasFormatoAtual = []; });
   }
-  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casasDoEvento = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); },
+  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casasDoEvento = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); vigiarCasasAtribuidas(); },
     e => {
       podeVerCasas = false; casas = []; casasDoEvento = []; parar('casas', 'casasAntigas');
       const vaiTentar = e.code !== 'permission-denied' || (ehMorador() && tentativasCasas < 4);
@@ -516,7 +575,7 @@ function renderListaCasas() {
     const aberta = abertaAgora(c); const vis = visitadas.has(c.id);
     const etqs = [aberta ? 'Aberta agora' : 'Fora do horário'].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
-      <span class="casa-num" aria-hidden="true">${h(c.numero)}</span>
+      <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
       <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span></span>
       ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
     </button></li>`;
@@ -1098,12 +1157,12 @@ function renderAdmin() {
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 function mostrarInicio() {
-  contarTela('inicio');
+  contarTela('inicio'); setTimeout(renderSino, 0);
   $('#painel-inicio').hidden = false; ['mapa', 'roteiro', 'participar', 'organizador'].forEach(a => { $('#painel-' + a).hidden = true; });
   $('#abas').hidden = true; $('#linha-condo').hidden = true; $('#placar').innerHTML = ''; abaAtual = 'inicio';
   renderCabecalho(); renderInicio(); window.scrollTo({top: 0});
 }
-function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); renderGpsCartao(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
+function mostrarCondo() { $('#painel-inicio').hidden = true; $('#abas').hidden = false; renderTudoCondo(); renderGpsCartao(); renderSino(); irAba(ls.get('hw.aba', 'mapa') === 'organizador' ? 'mapa' : ls.get('hw.aba', 'mapa')); }
 let listaCondosCarregada = false;
 function cartaoCondo(id, nome, extra = '') {
   if (!CODIGO.test(id)) return `<li><div class="resultado"><span class="res-ic">${IC.casa}</span><span class="res-txt"><b>${h(nome)}</b><span>código antigo ${h(id)}: não abre na versão nova</span></span><button class="btn btn-p btn-primario" data-migrar="${h(id)}">Atualizar código</button></div></li>`;
@@ -1291,6 +1350,11 @@ function ligarEventos() {
   window.addEventListener('hashchange', aplicarRota);
 
   $('#btn-musica').addEventListener('click', () => alternarMusica());
+  $('#btn-avisos').addEventListener('click', abrirAvisos);
+  document.addEventListener('click', async e => {
+    const ir = e.target.closest('[data-aviso-ir]'); if (ir) { fecharFolha(); irAba(ir.dataset.avisoIr); return; }
+    if (e.target.closest('[data-aviso-sistema]')) { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Pronto! O celular também vai avisar.' : 'Tudo bem, os avisos ficam só no sininho.'); if (r === 'granted') abrirAvisos(); } catch { toast('Este navegador não deixa avisar fora do app.'); } }
+  });
   $('#btn-conta').addEventListener('click', async () => {
     if (!usuario) { fb.entrar(); return; }
     const b = $('#btn-conta');
