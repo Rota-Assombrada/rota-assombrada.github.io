@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=62">
+<link rel="stylesheet" href="css/estilo.css?v=63">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -210,7 +210,7 @@
               <div class="campo"><span class="rotulo-campo" id="r-hf">Fecha às</span><input type="hidden" id="f-hf"><div class="hora-sel" data-hora="f-hf" data-rotulo="Fecha às"></div></div>
             </div>
           </div>
-          <div class="campo"><label for="f-obs">Observações</label><textarea id="f-obs" maxlength="240" placeholder="Toque a campainha duas vezes; a abóbora gigante fica na garagem."></textarea></div>
+          <div class="campo"><label for="f-obs">Recado da casa</label><textarea id="f-obs" maxlength="140" aria-describedby="f-obs-cont" placeholder="Toque a campainha duas vezes; a abóbora gigante fica na garagem."></textarea><span class="ajuda contador" id="f-obs-cont" aria-live="polite">0 de 140 letras</span></div>
           <div class="campo">
             <span class="rotulo">Onde fica *</span>
             <p class="dica" id="dica-mapa-casa">Escreva a rua e o número: a abóbora vai sozinha para o endereço. Para ajustar, destrave o mapa. A vista de satélite (botão das camadas) ajuda a achar o telhado.</p>
@@ -322,6 +322,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=62"></script>
+<script type="module" src="js/app.js?v=63"></script>
 </body>
 </html>

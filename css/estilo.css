@@ -735,7 +735,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 /* Recado da casa como balão de fala (lista e ficha da casa) */
 .balao-obs{position:relative;display:block;margin-top:10px;padding:7px 12px;border-radius:14px;background:#f7f1ff;color:#1a1428;box-shadow:0 3px 0 rgba(0,0,0,.25)}
 .balao-obs::before{content:"";position:absolute;left:16px;top:-8px;border:8px solid transparent;border-top:0;border-bottom-color:#f7f1ff}
-.mini-obs{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.86rem;font-weight:700;line-height:1.35}
+.mini-obs{display:block;font-size:.86rem;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
 .balao-ficha{margin-top:16px;padding:10px 14px}
 .balao-quem{display:block;font-size:.7rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#6a3fd8;margin-bottom:2px}
 .balao-txt{display:block;font-weight:700;line-height:1.4}
@@ -746,3 +746,6 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 
 .res-txt .balao-obs .balao-quem{color:#6a3fd8}
 .res-txt .balao-ficha{margin-top:12px;padding:8px 12px}
+
+.contador{align-self:flex-end;font-variant-numeric:tabular-nums}
+.contador.quase{color:var(--abobora);font-weight:800}

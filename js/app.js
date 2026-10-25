@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=62';
+import CONFIG from './config.js?v=63';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1307,6 +1307,13 @@ async function adicionarMorador(aoSalvar) {
   const d = noDiretorio(hsh);
   return incluirPessoa({h: hsh, nome: d ? d.nome : '', email: e}, aoSalvar) || moradoresForm.some(x => x.h === hsh);
 }
+// Recado curto (até 140) para caber inteiro no balão da lista. Recados antigos maiores continuam valendo.
+const MAX_RECADO = 140;
+function contarRecado() {
+  const n = [...$('#f-obs').value].length, el = $('#f-obs-cont');
+  el.textContent = n > MAX_RECADO ? `${n} letras: recados antigos podem ficar assim, mas ao editar o limite é ${MAX_RECADO}` : `${n} de ${MAX_RECADO} letras`;
+  el.classList.toggle('quase', n >= MAX_RECADO - 15);
+}
 function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]').map(b => b.dataset.k); return {rua: $('#f-rua').value.trim().slice(0, 60), numero: $('#f-numero').value.trim().slice(0, 20), familia: $('#f-familia').value.trim().slice(0, 60), oferece: pega('#f-oferece'), flags: pega('#f-flags'), horaInicio: $('#f-hora-evento').checked ? '' : $('#f-hi').value, horaFim: $('#f-hora-evento').checked ? '' : $('#f-hf').value, obs: $('#f-obs').value.trim().slice(0, 240), lat: pinCasa?.lat, lng: pinCasa?.lng}; }
 let versaoForm = 0;
 function preencherForm(c) {
@@ -1317,7 +1324,7 @@ function preencherForm(c) {
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
   pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa); travarMapaCasa(true); confirmouLonge = '';
-  carregarMoradores();
+  carregarMoradores(); contarRecado();
 }
 /* ---------- mapa do cadastro e endereço automático ---------- */
 let mapaCasa = null, marcadorCasa = null, confirmouLonge = '';
@@ -1979,6 +1986,7 @@ function ligarEventos() {
   $('#sugestoes-morador').addEventListener('click', e => { const b = e.target.closest('[data-sugestao]'); if (b) escolherSugestao(+b.dataset.sugestao); });
   $('#lista-moradores').addEventListener('click', e => { const b = e.target.closest('[data-tirar-morador]'); if (!b) return; moradoresForm = moradoresForm.filter(x => x.h !== b.dataset.tirarMorador); moradoresMexidos = true; renderMoradores(); toast('Tirado da lista. Salve a casa para valer.'); });
   $('#faixa-edicao').addEventListener('click', e => { if (e.target.closest('[data-sair-edicao]')) sairEdicao(); });
+  $('#f-obs').addEventListener('input', contarRecado);
   $('#f-hora-evento').addEventListener('change', e => { if (!e.target.checked) { if (hm($('#f-hi').value) == null) $('#f-hi').value = evento.horaInicio || '18:00'; if (hm($('#f-hf').value) == null) $('#f-hf').value = evento.horaFim || '21:00'; } mostrarHorasCasa(); });
   $('#btn-excluir-minha').addEventListener('click', async () => {
     const b = $('#btn-excluir-minha'); if (!editandoId) return;
