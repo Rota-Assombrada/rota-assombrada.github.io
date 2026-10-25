@@ -378,3 +378,52 @@ test('formato antigo: admin lê e limpa as casas antigas ao migrar', async () =>
   await assertSucceeds(deleteDoc(doc(db, 'condominios/VALE2/casas/velha')));
   await assertFails(deleteDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/casas/velha')));
 });
+
+// ---------- casa atribuída a um e-mail ----------
+const hashDe = (cid, email) => createHash('sha256').update(`${cid}:${email.toLowerCase()}`).digest('hex');
+async function casaAtribuida(email) {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('adminA'), donoHash: hashDe('VALE2', email)}));
+}
+test('atribuição: admin cria casa atribuída a um e-mail e guarda o e-mail na lista só de admins', async () => {
+  const db = como('adminA', 'a@x.com');
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('adminA'), donoHash: hashDe('VALE2', 'ana@x.com')}));
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/atribuicoes/x77'), {email: 'ana@x.com', ano: 2026, atualizadoEm: agora}));
+  await assertSucceeds(getDoc(doc(db, 'condominios/VALE2/atribuicoes/x77')));
+});
+test('atribuição: o e-mail fica escondido de moradores e visitantes', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/atribuicoes/x77'), {email: 'ana@x.com', ano: 2026, atualizadoEm: agora}));
+  await assertFails(getDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/atribuicoes/x77')));
+  await assertFails(getDocs(collection(visitante(), 'condominios/VALE2/atribuicoes')));
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/atribuicoes/x77'), {email: 'eu@x.com', ano: 2026, atualizadoEm: agora}));
+});
+test('atribuição: quem entra com o e-mail edita e assume a casa', async () => {
+  await casaAtribuida('ana@x.com');
+  const db = como('ana', 'Ana@X.com');
+  await assertSucceeds(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('ana'), donoHash: hashDe('VALE2', 'ana@x.com'), obs: 'editado pela Ana'}));
+});
+test('atribuição: o responsável pode tirar a casa do mapa', async () => {
+  await casaAtribuida('ana@x.com');
+  await assertSucceeds(deleteDoc(doc(como('ana', 'ana@x.com'), 'condominios/VALE2/eventos/2026/casas/x77')));
+});
+test('atribuição: outro e-mail NÃO edita nem apaga', async () => {
+  await casaAtribuida('ana@x.com');
+  const db = como('bia', 'bia@x.com');
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('bia'), donoHash: hashDe('VALE2', 'ana@x.com')}));
+  await assertFails(deleteDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77')));
+});
+test('atribuição: o responsável NÃO passa a casa para outro e-mail nem para outra conta', async () => {
+  await casaAtribuida('ana@x.com');
+  const db = como('ana', 'ana@x.com');
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('ana'), donoHash: hashDe('VALE2', 'bia@x.com')}));
+  await assertFails(setDoc(doc(db, 'condominios/VALE2/eventos/2026/casas/x77'), {...casaBase('bia'), donoHash: hashDe('VALE2', 'ana@x.com')}));
+});
+test('atribuição: hash de outro condomínio NÃO vale aqui', async () => {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'condominios/VALE2/eventos/2026/casas/x78'), {...casaBase('adminA'), donoHash: hashDe('XUTR2', 'ana@x.com')}));
+  await assertFails(setDoc(doc(como('ana', 'ana@x.com'), 'condominios/VALE2/eventos/2026/casas/x78'), {...casaBase('ana'), donoHash: hashDe('XUTR2', 'ana@x.com')}));
+});
+test('atribuição: morador NÃO se atribui a casa de outro nem muda o hash da própria', async () => {
+  await assertFails(setDoc(doc(como('morM', 'm@x.com'), 'condominios/VALE2/eventos/2026/casas/morM'), {...casaBase('morM'), donoHash: hashDe('VALE2', 'outro@x.com')}));
+});
+test('atribuição: hash fora do formato é recusado', async () => {
+  await assertFails(setDoc(doc(como('adminA', 'a@x.com'), 'condominios/VALE2/eventos/2026/casas/x79'), {...casaBase('adminA'), donoHash: 'ana@x.com'}));
+});

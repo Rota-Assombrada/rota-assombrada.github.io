@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=27';
+import CONFIG from './config.js?v=29';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -67,6 +67,12 @@ let papel = '';                 // '' | 'pendente' | 'morador' | 'admin' no cond
 let papelCarregado = false;
 let podeVerCasas = false;
 let casasCarregadas = false, membrosCarregados = false, convitesCarregados = false, authPronto = false;
+let atribuicoes = {};     // casaId -> e-mail (só admin lê)
+let meuHashAqui = '';     // SHA-256 de "codigo:meu-email": acha as casas atribuídas a mim
+const hashAtribuicao = (c, email) => sha256hex(`${c}:${String(email || '').trim().toLowerCase()}`);
+async function atualizarMeuHash() { meuHashAqui = usuario && cid && crypto.subtle ? await hashAtribuicao(cid, usuario.email) : ''; }
+const souResponsavel = c => !!c && !!meuHashAqui && c.donoHash === meuHashAqui;
+const minhaCasa = () => usuario ? (casaPorId(usuario.uid) || casas.find(souResponsavel) || null) : null;
 let membros = [], convites = [];
 let conviteDaRota = null;
 let modo = null;                // null | 'casa' | 'portaria'
@@ -155,6 +161,8 @@ const fb = {
   evento: (id, a) => fb.fs.doc(fb.db, 'condominios', id, 'eventos', String(a)),
   eventos: id => fb.fs.collection(fb.db, 'condominios', id, 'eventos'),
   casasAntigas: id => fb.fs.collection(fb.db, 'condominios', id, 'casas'),
+  atribuicao: (id, casaId) => fb.fs.doc(fb.db, 'condominios', id, 'atribuicoes', casaId),
+  atribuicoes: id => fb.fs.collection(fb.db, 'condominios', id, 'atribuicoes'),
   busca: id => fb.fs.doc(fb.db, 'busca', id),
   buscas: () => fb.fs.collection(fb.db, 'busca'),
   criador: uid => fb.fs.doc(fb.db, 'criadores', uid),
@@ -179,7 +187,7 @@ function limparCasa(c) {
   return {rua: s(c.rua, 60), numero: s(c.numero, 20), familia: s(c.familia, 60),
     oferece: [...new Set((c.oferece || []).filter(k => OFERECE.some(o => o[0] === k)))],
     flags: [...new Set((c.flags || []).filter(k => FLAGS.some(o => o[0] === k)))],
-    horaInicio: hora(c.horaInicio), horaFim: hora(c.horaFim), obs: s(c.obs, 240),
+    horaInicio: hora(c.horaInicio), horaFim: hora(c.horaFim), obs: s(c.obs, 240), donoHash: /^[0-9a-f]{64}$/.test(c.donoHash || '') ? c.donoHash : '',
     lat: +c.lat, lng: +c.lng, uid: s(c.uid, 128), criadoEm: +c.criadoEm || Date.now(), atualizadoEm: Date.now()};
 }
 async function sha256hex(txt) {
@@ -200,7 +208,7 @@ const subs = {};
 function parar(...nomes) { nomes.forEach(n => { if (subs[n]) { try { subs[n](); } catch {} delete subs[n]; } }); }
 function abrirCondo(novo) {
   if (novo === cid && subs.condo) { tentarConvite(); return; }
-  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'evento', 'eventos');
+  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos');
   cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
   partida = lsc.get('partida', 'gps'); ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
@@ -264,7 +272,7 @@ async function passarParaAnos() {
   } catch (e) { console.error('Não consegui passar para eventos por ano', e); migrandoAnos = false; }
 }
 function fecharCondo() {
-  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'evento', 'eventos'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
+  parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
   cid = null; condo = null; casas = []; papel = ''; podeVerCasas = false; membros = []; convites = []; roteiro = null;
   mostrarInicio();
 }
@@ -283,11 +291,13 @@ function assinarMembro() {
     e => { console.error(e); papel = ''; papelCarregado = true; aoMudarPapel(); });
 }
 function aoMudarPapel() {
+  atualizarMeuHash().then(() => { atualizarParticipar(); renderPins(); });
   assinarCasas();
-  parar('membros', 'convites');
-  membros = []; convites = []; membrosCarregados = false; convitesCarregados = false;
+  parar('membros', 'convites', 'atribuicoes');
+  membros = []; convites = []; atribuicoes = {}; membrosCarregados = false; convitesCarregados = false;
   if (ehAdmin() && cid) {
     subs.membros = fb.fs.onSnapshot(fb.membros(cid), s => { membrosCarregados = true; membros = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { membrosCarregados = true; console.error(e); renderAdmin(); });
+    subs.atribuicoes = fb.fs.onSnapshot(fb.atribuicoes(cid), s => { atribuicoes = Object.fromEntries(s.docs.map(d => [d.id, d.data().email])); renderAdmin(); }, e => console.error(e));
     subs.convites = fb.fs.onSnapshot(fb.convites(cid), s => { convitesCarregados = true; convites = s.docs.map(d => ({id: d.id, ...d.data()})); renderAdmin(); }, e => { convitesCarregados = true; console.error(e); renderAdmin(); });
   }
   tentarConvite();
@@ -378,7 +388,7 @@ function filtrada(c) {
   if (filtros.naoVisitadas && visitadas.has(c.id)) return false;
   return true;
 }
-const podeEditar = c => !!c && (ehAdmin() || (ehMorador() && !!meuUid() && c.uid === meuUid()));
+const podeEditar = c => !!c && (ehAdmin() || (ehMorador() && !!meuUid() && c.uid === meuUid()) || souResponsavel(c));
 
 /* ---------- links para o app de mapas do celular ---------- */
 // De onde sai a navegação até a casa c. Partida "GPS": sem origem, o app de mapas usa a posição atual do celular.
@@ -866,7 +876,57 @@ function preencherForm(c) {
   $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hi').value = c.horaInicio || ''; $('#f-hf').value = c.horaFim || ''; $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
-  pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins();
+  pinCasa = typeof c.lat === 'number' ? {lat: c.lat, lng: c.lng} : null; atualizarForm(); renderPins(); atualizarMapaCasa(!!pinCasa);
+}
+/* ---------- mapa do cadastro e endereço automático ---------- */
+let mapaCasa = null, marcadorCasa = null;
+function iconeCasaPin() { return L.divIcon({className: 'pin-wrap', iconSize: [46, 52], iconAnchor: [23, 50], html: `<div class="pin pin-arrastar">${PIN_SVG}<span class="num">${h(($('#f-numero') && $('#f-numero').value.trim()) || '?')}</span></div>`}); }
+function iniciarMapaCasa() {
+  if (mapaCasa || !$('#mapa-casa') || $('#form-casa').hidden) return;
+  const centro = pinCasa || (condo && condo.centro) || posicao || {lat: CONFIG.centro[0], lng: CONFIG.centro[1]};
+  mapaCasa = L.map('mapa-casa', {zoomControl: true}).setView([centro.lat, centro.lng], pinCasa ? 18 : Math.max((condo && condo.zoom) || 17, 17));
+  const noite = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, className: 'tiles-noite', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'});
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Imagens &copy; Esri'});
+  noite.addTo(mapaCasa); L.control.layers({'Noite': noite, 'Satélite': satelite}, null, {position: 'topright'}).addTo(mapaCasa);
+  if (evento.portaria) L.marker([evento.portaria.lat, evento.portaria.lng], {icon: iconeMarcador(IC.porta, 'portaria'), interactive: false}).addTo(mapaCasa);
+  mapaCasa.on('click', e => definirPinCasa(e.latlng, false));
+  atualizarMapaCasa();
+}
+function atualizarMapaCasa(centrar) {
+  if (!mapaCasa) return;
+  setTimeout(() => mapaCasa.invalidateSize(), 60);
+  if (!pinCasa) { if (marcadorCasa) { marcadorCasa.remove(); marcadorCasa = null; } return; }
+  if (!marcadorCasa) {
+    marcadorCasa = L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeCasaPin(), draggable: true, autoPan: true, zIndexOffset: 1000}).addTo(mapaCasa);
+    marcadorCasa.on('dragend', () => { const ll = marcadorCasa.getLatLng(); definirPinCasa(ll, false, true); });
+  } else { marcadorCasa.setLatLng([pinCasa.lat, pinCasa.lng]); marcadorCasa.setIcon(iconeCasaPin()); }
+  if (centrar) mapaCasa.setView([pinCasa.lat, pinCasa.lng], Math.max(mapaCasa.getZoom(), 18));
+}
+function definirPinCasa(ll, centrar, arrastou) {
+  pinCasa = {lat: +(+ll.lat).toFixed(6), lng: +(+ll.lng).toFixed(6)};
+  atualizarForm(); atualizarMapaCasa(centrar); SFX.plop();
+  if (!arrastou && !centrar) { const d = $('#dica-mapa-casa'); d.textContent = 'Abóbora no lugar! Se precisar, arraste para ajustar.'; }
+}
+let ultimoGeo = 0, geoBuscando = false;
+async function acharPeloEndereco(automatico) {
+  const rua = $('#f-rua').value.trim(), num = $('#f-numero').value.trim(); const dica = $('#dica-mapa-casa');
+  if (!rua) { if (!automatico) { dica.textContent = 'Escreva a rua primeiro.'; $('#f-rua').focus(); } return; }
+  if (geoBuscando) return;
+  const espera = 1100 - (Date.now() - ultimoGeo); if (espera > 0) await new Promise(r => setTimeout(r, espera));   // limite de 1 consulta por segundo do Nominatim
+  geoBuscando = true; ultimoGeo = Date.now(); const btn = $('#btn-achar-endereco'); const txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${SPIN} Procurando…`;
+  try {
+    const q = new URLSearchParams({format: 'jsonv2', limit: '3', countrycodes: 'br', 'accept-language': 'pt-BR', q: [num ? `${rua}, ${num}` : rua, condo && condo.cidade].filter(Boolean).join(', ')});
+    const c = (condo && condo.centro) || null;
+    if (c) { q.set('viewbox', `${c.lng - 0.03},${c.lat + 0.03},${c.lng + 0.03},${c.lat - 0.03}`); q.set('bounded', '1'); }
+    const r = await carga(fetch(`https://nominatim.openstreetmap.org/search?${q}`, {headers: {Accept: 'application/json'}, referrerPolicy: 'strict-origin'}));
+    const lista = r.ok ? await r.json() : [];
+    if (!lista.length) { dica.textContent = 'Não achei esse endereço no mapa. Toque no mapa onde fica a casa.'; if (!automatico) SFX.boo(); return; }
+    const a = lista[0]; const exato = ['house', 'building', 'residential', 'apartments'].includes(a.type) || a.addresstype === 'building' || a.addresstype === 'house';
+    definirPinCasa({lat: +a.lat, lng: +a.lon}, true, true);
+    dica.textContent = exato ? 'Achei o endereço! Confira se a abóbora está na sua casa e arraste se precisar.' : 'Achei a rua, mas não o número. Arraste a abóbora até a sua casa.';
+    SFX.plim();
+  } catch (e) { console.error(e); dica.textContent = 'A busca de endereço não respondeu. Toque no mapa onde fica a casa.'; }
+  finally { geoBuscando = false; btn.disabled = false; btn.innerHTML = txt; }
 }
 function limparForm() { editandoId = null; pinCasa = null; preencherForm({}); $('#form-erro').hidden = true; }
 async function salvarSeguro(fn, msg) {
@@ -916,13 +976,14 @@ function atualizarParticipar() {
   if (!usuario) html = `<button type="button" class="btn btn-google btn-grande" data-acao-acesso="entrar">${IC.google} Entrar com Google</button><p class="dica">Usamos o login só para saber que a casa é sua. Seu e-mail não aparece no mapa.</p>`;
   else if (!papelCarregado) html = `<p class="res-carregando">${SPIN} Conferindo seu acesso…</p><span class="skel skel-campo"></span><span class="skel skel-campo"></span><span class="skel skel-btn largo"></span>`;
   else if (!ehMorador() && papel === 'pendente') html = `<p>Seu pedido está com o admin. Assim que aprovar, você cadastra a casa aqui.</p>`;
-  else if (!ehMorador()) html = `<button type="button" class="btn btn-primario btn-grande" data-acao-acesso="pedir">Pedir para entrar no condomínio</button><p class="dica">Só moradores aprovados colocam casas no mapa.</p>`;
+  else if (!ehMorador() && !minhaCasa()) html = `<button type="button" class="btn btn-primario btn-grande" data-acao-acesso="pedir">Pedir para entrar no condomínio</button><p class="dica">Só moradores aprovados colocam casas no mapa.</p>`;
   else if (!ehAnoAtual() && !ehAdmin()) html = `<p>Este é o Halloween de ${ano}, que já passou. Para cadastrar sua casa, volte para ${anoAtualDoCondo()}.</p><button type="button" class="btn btn-primario" data-ano-atual>Ir para ${anoAtualDoCondo()}</button>`;
   gate.innerHTML = html; gate.hidden = !html; form.hidden = !!html;
+  if (!html && abaAtual === 'participar') setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80);
   $('#participar-intro').textContent = html ? (usuario ? '' : 'Para colocar sua casa no mapa, entre com sua conta Google. Assim só você consegue mexer nela.')
     : criandoOutra ? 'Cadastrando a casa de outra família. Ela fica sob sua responsabilidade de admin.'
     : 'Marque a casa no mapa (ou use o GPS na porta) e conte o que vai rolar.';
-  if (!html && !editandoId && !criandoOutra && !jaAbriuMinhaCasa) { const minha = casaPorId(usuario.uid); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
+  if (!html && !editandoId && !criandoOutra && !jaAbriuMinhaCasa) { const minha = minhaCasa(); if (minha) { jaAbriuMinhaCasa = true; editandoId = minha.id; preencherForm(minha); } }
   verificarCasaAnoPassado();
   atualizarForm();
 }
@@ -937,7 +998,9 @@ async function verificarCasaAnoPassado() {
   mostrar();
 }
 function atualizarForm() {
-  const minha = editandoId && usuario && editandoId === usuario.uid;
+  const minha = editandoId && usuario && (editandoId === usuario.uid || souResponsavel(casaPorId(editandoId)));
+  const campo = $('#campo-email-dono'); campo.hidden = !ehAdmin();
+  if (ehAdmin() && document.activeElement !== $('#f-email-dono')) $('#f-email-dono').value = editandoId ? (atribuicoes[editandoId] || '') : (campo.dataset.reter || '');
   $('#btn-enviar-txt').textContent = editandoId ? 'Salvar alterações' : 'Salvar casa no mapa';
   $('#participar-titulo').textContent = minha ? 'Minha casa' : editandoId ? 'Editar casa' : criandoOutra ? 'Nova casa (admin)' : 'Cadastrar minha casa';
   $('#btn-cancelar-edicao').hidden = !(editandoId && !minha) && !criandoOutra;
@@ -976,7 +1039,7 @@ function renderAdmin() {
     return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}</span></div>${sou ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
-  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h(dono(c.uid) || 'Cadastrada por admin')}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
+  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h(atribuicoes[c.id] ? `Responsável: ${atribuicoes[c.id]}` : (dono(c.uid) || 'Cadastrada por admin'))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 function mostrarInicio() {
@@ -1046,7 +1109,7 @@ async function migrarCondo(antigo) {
     b.set(fb.busca(novo), {nome, cidade, prefixos: prefixosBusca(nome, cidade), publico, atualizadoEm: agora});
     membrosS.docs.forEach(m => { const x = m.data(); b.set(fb.membro(novo, m.id), {uid: m.id, papel: ['admin', 'morador', 'pendente'].includes(x.papel) ? x.papel : 'pendente', nome: s(x.nome, 80), email: s(x.email, 160), convite: s(x.convite, 40), criadoEm: x.criadoEm || agora, atualizadoEm: agora}); });
     if (!membrosS.docs.some(m => m.id === usuario.uid)) b.set(fb.membro(novo, usuario.uid), {uid: usuario.uid, papel: 'admin', nome: usuario.nome.slice(0, 80), email: usuario.emailToken.slice(0, 160), convite: '', criadoEm: agora, atualizadoEm: agora});
-    casasS.docs.forEach(c => b.set(fb.casaAno(novo, ANO_HOJE, c.id), limparCasa({...c.data(), uid: c.data().uid || usuario.uid})));
+    casasS.docs.forEach(c => b.set(fb.casaAno(novo, ANO_HOJE, c.id), limparCasa({...c.data(), donoHash: '', uid: c.data().uid || usuario.uid})));
     convitesS.docs.forEach(c => { const x = c.data(); if (/^[A-Za-z0-9]{8,40}$/.test(c.id)) b.set(fb.convite(novo, c.id), {papel: 'morador', ativo: !!x.ativo, expiraEm: +x.expiraEm || agora, criadoPor: s(x.criadoPor || usuario.uid, 128), criadoEm: +x.criadoEm || agora}); });
     await b.commit();
     const apagar = fb.fs.writeBatch(fb.db);
@@ -1132,7 +1195,7 @@ function irAba(nome) {
   if (rolarRoteiro) setTimeout(() => $(roteiro ? '#guia' : '#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}), 120);
   ['mapa', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
   if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
-  if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') atualizarParticipar();
+  if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') { atualizarParticipar(); setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80); }
   if (!rolarRoteiro) window.scrollTo({top: 0, behavior: 'auto'});
 }
 async function copiar(txt) { try { await navigator.clipboard.writeText(txt); toast('Copiado!'); SFX.plim(); } catch { toast(txt, 6000); } }
@@ -1221,11 +1284,12 @@ function ligarEventos() {
 
   // participar
   $('#form-casa').addEventListener('click', e => { const c = e.target.closest('.chip[data-multi]'); if (c) c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true')); });
-  $('#btn-marcar-casa').addEventListener('click', () => { modo = 'casa'; modoVoltar = 'participar'; irAba('mapa'); renderModo(); if (pinCasa) mapa.setView([pinCasa.lat, pinCasa.lng], 18); else if (posicao) mapa.setView([posicao.lat, posicao.lng], 18); $('#mapa').scrollIntoView({behavior: 'smooth', block: 'center'}); });
   $('#btn-usar-gps').addEventListener('click', () => {
     if (!('geolocation' in navigator)) { toast('Sem GPS neste aparelho. Marque no mapa.'); return; }
-    toast('Pegando sua posição…'); navigator.geolocation.getCurrentPosition(p => { pinCasa = {lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6)}; atualizarForm(); renderPins(); SFX.plim(); toast(`Posição marcada (precisão ${Math.round(p.coords.accuracy)} m). Se não estiver na porta de casa, ajuste no mapa.`, 4000); }, () => toast('Não consegui pegar o GPS. Marque no mapa.'), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+    toast('Pegando sua posição…'); navigator.geolocation.getCurrentPosition(p => { definirPinCasa({lat: p.coords.latitude, lng: p.coords.longitude}, true); toast(`Posição marcada (precisão ${Math.round(p.coords.accuracy)} m). Se não estiver na porta de casa, arraste a abóbora.`, 4000); }, () => toast('Não consegui pegar o GPS. Toque no mapa onde fica a casa.'), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
   });
+  $('#btn-achar-endereco').addEventListener('click', () => acharPeloEndereco(false));
+  ['#f-rua', '#f-numero'].forEach(sel => $(sel).addEventListener('change', () => { if (!pinCasa && $('#f-rua').value.trim() && $('#f-numero').value.trim()) acharPeloEndereco(true); if (marcadorCasa) marcadorCasa.setIcon(iconeCasaPin()); }));
   $('#btn-repetir').addEventListener('click', () => { if (!casaAnoPassado || !casaAnoPassado.dados) return; const {uid, criadoEm, atualizadoEm, ...dados} = casaAnoPassado.dados; preencherForm(dados); $('#repetir-casa').hidden = true; SFX.plim(); toast('Casa do ano passado copiada. Confira os horários e salve.', 4000); });
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   $('#btn-cancelar-edicao').addEventListener('click', () => { criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); });
@@ -1244,9 +1308,22 @@ function ligarEventos() {
     const antiga = editandoId ? casaPorId(editandoId) : null;
     if (antiga && !podeEditar(antiga)) { toast('Só quem cadastrou ou um admin pode editar esta casa.'); return; }
     const id = editandoId || (criandoOutra && ehAdmin() ? novoId() : usuario.uid);
-    const casa = {...d, uid: antiga ? antiga.uid : usuario.uid, criadoEm: antiga ? antiga.criadoEm : Date.now()};
-    const ok = await salvarSeguro(() => fb.fs.setDoc(fb.casa(cid, id), limparCasa(casa)), editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
-    if (ok) { const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
+    // Admin pode atribuir a casa a um e-mail; o responsável, ao salvar, assume a casa.
+    const emailDono = ehAdmin() ? $('#f-email-dono').value.trim().toLowerCase().slice(0, 160) : '';
+    if (emailDono && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailDono)) { erro.textContent = 'Confira o e-mail do responsável.'; erro.hidden = false; $('#f-email-dono').focus(); return; }
+    let donoHash = antiga ? (antiga.donoHash || '') : '';
+    if (ehAdmin()) donoHash = emailDono ? await hashAtribuicao(cid, emailDono) : '';
+    const uidNovo = antiga ? (souResponsavel(antiga) && !ehAdmin() ? usuario.uid : antiga.uid) : usuario.uid;
+    const casa = {...d, uid: uidNovo, donoHash, criadoEm: antiga ? antiga.criadoEm : Date.now()};
+    const ok = await salvarSeguro(() => {
+      if (!ehAdmin()) return fb.fs.setDoc(fb.casa(cid, id), limparCasa(casa));
+      const b = fb.fs.writeBatch(fb.db);
+      b.set(fb.casa(cid, id), limparCasa(casa));
+      if (emailDono) b.set(fb.atribuicao(cid, id), {email: emailDono, ano, atualizadoEm: Date.now()}); else if (atribuicoes[id]) b.delete(fb.atribuicao(cid, id));
+      return b.commit();
+    }, emailDono ? `Casa salva e atribuída a ${emailDono}.` : editandoId ? 'Casa atualizada!' : 'Casa no mapa! Boa caçada.');
+    if (ok && emailDono && !membros.some(m => (m.email || '').toLowerCase() === emailDono)) setTimeout(() => toast('Essa pessoa ainda não está no condomínio. Mande um convite para ela entrar e ver a casa.', 6000), 3000);
+    if (ok) { $('#campo-email-dono').dataset.reter = ''; const eraOutra = criandoOutra || (editandoId && editandoId !== usuario.uid && !souResponsavel(antiga)); criandoOutra = false; limparForm(); jaAbriuMinhaCasa = !eraOutra ? false : jaAbriuMinhaCasa; irAba(eraOutra ? 'organizador' : 'mapa'); if (!eraOutra) mapa.setView([casa.lat, casa.lng], 18); }
   });
 
   // admin

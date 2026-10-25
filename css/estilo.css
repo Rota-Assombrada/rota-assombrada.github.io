@@ -502,3 +502,11 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .acoes-bv .btn{min-height:44px}
 .linha-condo .sel-ano{width:auto;max-width:104px;flex:0 0 auto}
 .linha-condo .pill-btn{flex:1 1 auto}
+
+.campo-admin{padding:12px;border-radius:var(--raio-p);border:1px dashed var(--roxo);background:rgba(155,107,255,.08)}
+
+/* ===== Mapa do cadastro ===== */
+.mapa-casa-wrap{margin-top:8px}
+.mapa-casa{height:min(46vh,380px);min-height:260px}
+.pin-arrastar{animation:none;cursor:grab;filter:drop-shadow(0 0 10px rgba(141,240,106,.8)) drop-shadow(0 6px 6px rgba(0,0,0,.55))}
+.leaflet-marker-dragging .pin-arrastar{cursor:grabbing}
