@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=64';
+import CONFIG from './config.js?v=65';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1441,6 +1441,78 @@ async function salvarSeguro(fn, msg) {
   catch (e) { console.error(e); toast(e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para isso. Só o dono da casa ou um organizador pode mexer.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
   finally { tela.remove(); }
 }
+/* ---------- plaquinhas A4 com QR code (visitantes e moradores com convite) ---------- */
+// O QR é desenhado no próprio celular pela biblioteca qrcode-generator (cdnjs, com conferência de integridade).
+let qrLib = null;
+function carregarQR() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!qrLib) qrLib = new Promise((ok, erro) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    sc.integrity = 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1'; sc.crossOrigin = 'anonymous'; sc.referrerPolicy = 'no-referrer';
+    sc.onload = () => window.qrcode ? ok(window.qrcode) : erro(new Error('qr')); sc.onerror = () => { qrLib = null; erro(new Error('qr')); };
+    document.head.appendChild(sc);
+  });
+  return qrLib;
+}
+async function svgQR(texto) { const f = await carregarQR(); const q = f(0, 'H'); q.addData(texto); q.make(); return q.createSvgTag({cellSize: 8, margin: 3, scalable: true}); }
+const PL_BAT = "<svg viewBox=\"0 0 34 18\" fill=\"#7b5cc0\"><path d=\"M0 10C3 2 8 2 12 8c1-4 4-4 5 0 1-4 4-4 5 0 4-6 9-6 12 2-6-1-10 1-14 6-1-3-5-3-6 0-4-5-8-7-14-6z\"/></svg>";
+const PL_FANT = "<svg viewBox=\"0 0 40 46\"><path d=\"M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z\" fill=\"#fff\"/><circle cx=\"14\" cy=\"18\" r=\"3\" fill=\"#1a1428\"/><circle cx=\"26\" cy=\"18\" r=\"3\" fill=\"#1a1428\"/><ellipse cx=\"20\" cy=\"27\" rx=\"3\" ry=\"4\" fill=\"#1a1428\"/></svg>";
+const PL_DRAC = "<svg class=\"pl-drac-svg\" viewBox=\"0 0 160 170\" aria-hidden=\"true\"><ellipse cx=\"80\" cy=\"164\" rx=\"46\" ry=\"5\" fill=\"#000\" opacity=\".35\"/><g class=\"capa\"><path d=\"M18 74 L80 58 L142 74 L150 162 L10 162 Z\" fill=\"#1a0f2e\"/><path d=\"M30 80 L80 66 L130 80 L136 160 L24 160 Z\" fill=\"#b3123b\"/></g><path d=\"M44 100 L80 88 L116 100 L118 160 L42 160 Z\" fill=\"#1a0f2e\"/><path d=\"M66 96 L80 108 L94 96 L94 160 L66 160 Z\" fill=\"#f4f1fb\"/><path d=\"M74 104 l6 10 6-10 z\" fill=\"#b3123b\"/><path d=\"M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z\" fill=\"#b3123b\"/><path d=\"M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z\" fill=\"#2a1846\"/><ellipse cx=\"80\" cy=\"56\" rx=\"30\" ry=\"34\" fill=\"#dcd6f0\"/><path d=\"M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z\" fill=\"#14091f\"/><path d=\"M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z\" fill=\"#dcd6f0\"/><g class=\"olhos\"><ellipse cx=\"68\" cy=\"56\" rx=\"6\" ry=\"7\" fill=\"#fff\"/><ellipse cx=\"92\" cy=\"56\" rx=\"6\" ry=\"7\" fill=\"#fff\"/><circle cx=\"69\" cy=\"57\" r=\"3.4\" fill=\"#b3123b\"/><circle cx=\"93\" cy=\"57\" r=\"3.4\" fill=\"#b3123b\"/><circle cx=\"70\" cy=\"55.5\" r=\"1.1\" fill=\"#fff\"/><circle cx=\"94\" cy=\"55.5\" r=\"1.1\" fill=\"#fff\"/></g><path d=\"M60 46 l14 4 M100 46 l-14 4\" stroke=\"#14091f\" stroke-width=\"3\" stroke-linecap=\"round\"/><ellipse cx=\"62\" cy=\"68\" rx=\"5\" ry=\"3\" fill=\"#ff8fb0\" opacity=\".45\"/><ellipse cx=\"98\" cy=\"68\" rx=\"5\" ry=\"3\" fill=\"#ff8fb0\" opacity=\".45\"/><g class=\"boca\"><path d=\"M68 72 Q80 82 92 72 Q80 78 68 72 Z\" fill=\"#4a0d1e\"/><path d=\"M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z\" fill=\"#fff\"/></g></svg>";
+const PL_ABO = "<svg  viewBox=\"0 0 120 112\" aria-hidden=\"true\"><ellipse cx=\"60\" cy=\"106\" rx=\"40\" ry=\"5\" fill=\"#000\" opacity=\".35\"/><path d=\"M59 26c-1-9 2-16 8-20\" stroke=\"#4f7a24\" stroke-width=\"7\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M66 12c9-7 20-5 25 2-9 4-17 4-25-2z\" fill=\"#6fa83a\"/><path d=\"M70 14c-4 6-3 12 2 16\" stroke=\"#6fa83a\" stroke-width=\"2.5\" fill=\"none\" stroke-linecap=\"round\"/><ellipse cx=\"33\" cy=\"64\" rx=\"25\" ry=\"38\" fill=\"#e86f0c\"/><ellipse cx=\"87\" cy=\"64\" rx=\"25\" ry=\"38\" fill=\"#e86f0c\"/><ellipse cx=\"60\" cy=\"64\" rx=\"31\" ry=\"41\" fill=\"#ff8a1f\"/><ellipse cx=\"48\" cy=\"44\" rx=\"9\" ry=\"16\" fill=\"#ffb35c\" opacity=\".55\"/><ellipse cx=\"22\" cy=\"54\" rx=\"5\" ry=\"12\" fill=\"#ffb35c\" opacity=\".35\"/><path d=\"M44 26q-10 38 0 76M76 26q10 38 0 76\" stroke=\"#c25400\" stroke-width=\"2\" fill=\"none\" opacity=\".45\"/><g class=\"rosto\" fill=\"#ffd84a\"><path d=\"M30 52l13-14 9 18z\"/><path d=\"M90 52l-13-14-9 18z\"/><path d=\"M60 60l-6 9h12z\"/><path d=\"M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z\"/></g></svg>";
+// Convite da plaquinha: aproveita um válido até depois do evento; senão cria um que vale até 7 dias após o Halloween.
+async function conviteParaPlaca() {
+  const agora = Date.now(), m = momentosEvento(), ate = Math.max((m ? m.fim.getTime() : agora) + 7 * 864e5, agora + 30 * 864e5);
+  const bom = convites.filter(c => c.ativo && c.expiraEm >= (m ? m.fim.getTime() : agora + 864e5)).sort((a, b) => b.expiraEm - a.expiraEm)[0];
+  if (bom) return bom.id;
+  const cod = codigoAleatorio(12);
+  await fb.fs.setDoc(fb.convite(cid, cod), {papel: 'morador', ativo: true, expiraEm: ate, criadoPor: usuario.uid, criadoEm: agora});
+  return cod;
+}
+function quandoPlaca() {
+  const partes = [];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(evento.data || '')) { const [, mm, dd] = evento.data.split('-'); partes.push(`${+dd} de ${['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][+mm - 1]}`); }
+  const hh = t => { const [a, b] = String(t).split(':'); return b === '00' ? `${+a}h` : `${+a}h${b}`; };
+  if (evento.horaInicio && evento.horaFim) partes.push(`das ${hh(evento.horaInicio)} às ${hh(evento.horaFim)}`);
+  if (evento.avisos) partes.push(evento.avisos.slice(0, 40));
+  return partes;
+}
+async function imprimirPlaca(tipo) {
+  if (!cid || !condo || !ehAdmin()) return;
+  const b = $(tipo === 'moradores' ? '#btn-placa-moradores' : '#btn-placa-visitantes'); const txt = b.innerHTML; b.disabled = true; b.innerHTML = `${SPIN} Preparando…`;
+  try {
+    let link = linkCondo(), cod = '';
+    if (tipo === 'moradores') { cod = await conviteParaPlaca(); link = linkConvite(cod); }
+    const qr = await svgQR(link);
+    const t = tipo === 'moradores' ? {faixa: 'MORADOR, PARTICIPE!', cls: 'laranja', titulo: 'Sua casa vai <b>dar doces</b>?', cam: 'Coloque sua casa no mapa em 1 minuto', camSub: 'Entrada aprovada na hora: é só escanear e entrar com o Google.',
+        passos: ['Aponte a câmera e abra o convite', 'Entre com sua conta Google', 'Toque em "Participar" e marque sua casa'], extra: '<div class="pl-alerta">Só para moradores · não compartilhe este código</div>'}
+      : {faixa: 'BEM-VINDOS, CAÇADORES DE DOCES!', cls: '', titulo: 'Ache as casas que <b>dão doces</b>!', cam: 'Aponte a câmera do celular para o código', camSub: 'O mapa abre na hora. Não precisa instalar nada.',
+        passos: ['Aponte a câmera e abra o mapa', 'Veja as abóboras: cada uma é uma casa com doces', 'Toque em "Montar roteiro" e siga pelo Google Maps'], extra: ''};
+    let el = $('#impressao'); if (!el) { el = document.createElement('div'); el.id = 'impressao'; document.body.appendChild(el); }
+    el.className = 'placa';
+    el.innerHTML = `<div class="pl-est"></div><div class="pl-lua"></div>
+      <div class="pl-bat" style="left:22mm;top:20mm">${PL_BAT}</div><div class="pl-bat" style="left:60mm;top:10mm;width:11mm">${PL_BAT}</div><div class="pl-bat" style="right:58mm;top:26mm;width:12mm">${PL_BAT}</div>
+      <div class="pl-fant" style="left:12mm;bottom:10mm;width:13mm">${PL_FANT}</div><div class="pl-fant" style="right:14mm;bottom:12mm;width:11mm">${PL_FANT}</div>
+      <div class="pl-conteudo">
+        <div class="pl-faixa ${t.cls}">${t.faixa}</div>
+        <div class="pl-marca">Rota <span>Assombrada</span></div>
+        <div class="pl-titulo">${t.titulo}</div>
+        <div class="pl-condo">${h(condo.nome)}</div>
+        <div class="pl-quando">${quandoPlaca().map(x => `<span>${h(x)}</span>`).join('')}</div>
+        <div class="pl-qr">${qr}<div class="pl-drac">${PL_DRAC}</div><div class="pl-abo">${PL_ABO}</div></div>
+        <div class="pl-cam">${t.cam}<small>${t.camSub}</small></div>
+        <div class="pl-passos">${t.passos.map((p, i) => `<div class="pl-passo"><b>${i + 1}</b>${h(p)}</div>`).join('')}</div>
+        ${t.extra}
+      </div>
+      <div class="pl-rodape"><span>${h((tipo === 'moradores' ? '' : link).replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span>Feito com travessuras por <b>Bruno Couto</b></div>`;
+    paginaImpressao(0); document.body.classList.add('imprimindo'); evento_('placa', {tipo});
+    setTimeout(() => window.print(), 80);
+  } catch (e) { console.error(e); toast('Não consegui montar a plaquinha. Confira a internet e tente de novo.'); }
+  finally { b.disabled = false; b.innerHTML = txt; }
+}
+// margem da folha muda conforme o que vai imprimir: lista (12 mm) ou plaquinha (sem margem, fundo até a borda)
+function paginaImpressao(mm) { let st = document.getElementById('estilo-pagina'); if (!st) { st = document.createElement('style'); st.id = 'estilo-pagina'; document.head.appendChild(st); } st.textContent = `@page{size:A4;margin:${mm}mm}`; }
+
 /* ---------- PDF da lista com mapa (impressão do próprio celular: "Salvar como PDF") ---------- */
 // O mapa vira uma imagem: os quadradinhos do OpenStreetMap (estilo claro, gasta menos tinta) num canvas, com as abóboras numeradas.
 function carregarImagem(url) { return new Promise((ok, erro) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = erro; i.src = url; }); }
@@ -1479,6 +1551,7 @@ async function imprimirLista() {
     const partes = [evento.nome, evento.data ? fmtData(evento.data) + (ano ? `/${ano}` : '') : '', evento.horaInicio && evento.horaFim ? `${evento.horaInicio} às ${evento.horaFim}` : ''].filter(Boolean);
     const linhas = lista.map(c => { const {ini, fim} = horario(c); return `<tr><td class="imp-num">${h(c.numero)}</td><td>${h(c.rua || '')}</td><td>${h(c.familia || '')}</td><td>${ini && fim ? `${h(ini)}–${h(fim)}` : ''}</td><td>${(c.oferece || []).map(k => h(rotuloDe(OFERECE, k))).join(', ')}</td><td>${(c.flags || []).map(k => h(rotuloDe(FLAGS, k))).join(', ')}${c.obs ? `${(c.flags || []).length ? '. ' : ''}${h(c.obs)}` : ''}</td></tr>`; }).join('');
     let el = $('#impressao'); if (!el) { el = document.createElement('div'); el.id = 'impressao'; document.body.appendChild(el); }
+    el.className = ''; paginaImpressao(12);
     el.innerHTML = `<div class="imp-topo"><div class="imp-marca">Rota <span>Assombrada</span></div><div class="imp-link">${h(linkCondo().replace(/^https?:\/\//, ''))}</div></div>
       <h1>${h(condo.nome)}</h1><p class="imp-sub">${h(partes.join(' · '))}${evento.avisos ? ` · ${h(evento.avisos)}` : ''}</p>
       ${img ? `<img class="imp-mapa" src="${img}" alt="Mapa das casas participantes">` : ''}
@@ -1985,6 +2058,8 @@ function ligarEventos() {
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
   $('#btn-imprimir').addEventListener('click', imprimirLista);
+  $('#btn-placa-visitantes').addEventListener('click', () => imprimirPlaca('visitantes'));
+  $('#btn-placa-moradores').addEventListener('click', () => imprimirPlaca('moradores'));
   // Sair do condomínio (morador): tira a casa da pessoa do mapa e o nome dela da lista. Dois toques para confirmar.
   $('#btn-sair-condo').addEventListener('click', async () => {
     const b = $('#btn-sair-condo');

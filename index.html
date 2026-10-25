@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=64">
+<link rel="stylesheet" href="css/estilo.css?v=65">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -259,6 +259,12 @@
         <div class="acoes"><button class="btn btn-primario" id="btn-novo-convite">Gerar convite</button></div>
         <ul class="lista-casas" id="lista-convites"></ul>
       </div>
+      <div class="cartao" id="card-placas">
+        <h2>Plaquinhas para imprimir</h2>
+        <p class="dica">Folhas A4 com QR code para as entradas do condomínio. Abre a impressão do celular: escolha "Salvar como PDF" ou imprima direto.</p>
+        <div class="acoes"><button class="btn btn-primario" id="btn-placa-visitantes">Placa de visitantes</button><button class="btn btn-fantasma" id="btn-placa-moradores">Placa de moradores (com convite)</button></div>
+        <p class="dica">A de moradores usa um convite: quem escanear entra direto como morador, sem aprovação. Coloque só na entrada de moradores e desative o convite em "Convites" depois do Halloween.</p>
+      </div>
       <div class="cartao" id="card-ano">
         <h2>Evento do ano</h2>
         <p class="dica" id="ano-status"></p>
@@ -322,6 +328,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=64"></script>
+<script type="module" src="js/app.js?v=65"></script>
 </body>
 </html>

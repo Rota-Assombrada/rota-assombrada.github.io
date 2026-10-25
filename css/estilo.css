@@ -705,7 +705,6 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 /* ---------- impressão (PDF da lista com mapa) ---------- */
 #impressao{display:none}
 @media print{
-  @page{size:A4;margin:12mm}
   body.imprimindo{background:#fff!important;color:#111!important}
   body.imprimindo>*:not(#impressao){display:none!important}
   body.imprimindo #impressao{display:block;color:#111;font-family:Nunito,Arial,sans-serif}
@@ -754,3 +753,38 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .chip-nome{font-size:.85rem}
 .chip-mais{border-style:dashed;color:var(--abobora)}
 #ajuda-familia b{color:var(--abobora)}
+
+/* ---------- plaquinha A4 (impressão) ---------- */
+#impressao.placa{position:relative;width:210mm;height:296mm;overflow:hidden;font-family:Nunito,Arial,sans-serif;color:#f7f1ff;background:radial-gradient(120% 70% at 50% 105%,#3a1d5e 0%,#15102a 55%,#0d0a16 100%);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#impressao.placa *{box-sizing:border-box}
+#impressao.placa .pl-est{position:absolute;inset:0;background-image:radial-gradient(2px 2px at 12% 10%,#fff 60%,transparent 61%),radial-gradient(1.5px 1.5px at 28% 5%,#fff 60%,transparent 61%),radial-gradient(2px 2px at 70% 8%,#ffe9b0 60%,transparent 61%),radial-gradient(1.5px 1.5px at 88% 30%,#fff 60%,transparent 61%),radial-gradient(1.5px 1.5px at 6% 40%,#fff 60%,transparent 61%)}
+#impressao.placa .pl-lua{position:absolute;right:16mm;top:12mm;width:34mm;height:34mm;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fffbe6,#fff3c4 55%,#e9d58b);box-shadow:0 0 18mm 6mm rgba(255,243,196,.28)}
+#impressao.placa .pl-bat{position:absolute;width:16mm}
+#impressao.placa .pl-fant{position:absolute;opacity:.9}
+#impressao.placa .pl-conteudo{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;height:272mm;padding:14mm 16mm 4mm}
+#impressao.placa .pl-conteudo>*{margin-top:0!important}
+#impressao.placa .pl-faixa{display:inline-block;padding:2.5mm 7mm;border-radius:3mm;background:#8df06a;color:#06200a;font-weight:900;font-size:15pt;letter-spacing:.08em;transform:rotate(-2deg);box-shadow:0 1.5mm 0 #3f8f2a}
+#impressao.placa .pl-faixa.laranja{background:linear-gradient(180deg,#ffa348,#ff8a1f 55%,#ff6a00);color:#1c0b00;box-shadow:0 1.5mm 0 #b84a00}
+#impressao.placa .pl-marca{font-family:Creepster,Impact,sans-serif;font-size:58pt;line-height:.95;margin-top:6mm;text-shadow:0 0 6mm rgba(255,138,31,.6),0 1mm 0 #4a1d00}
+#impressao.placa .pl-marca span{color:#ff8a1f}
+#impressao.placa .pl-titulo{font-size:27pt;font-weight:900;line-height:1.1;margin-top:5mm}
+#impressao.placa .pl-titulo b{color:#ff8a1f}
+#impressao.placa .pl-condo{font-size:14pt;font-weight:800;color:#e7defa;margin-top:3mm}
+#impressao.placa .pl-quando{display:flex;flex-wrap:wrap;justify-content:center;gap:3mm;margin-top:4mm;font-size:13pt;font-weight:900}
+#impressao.placa .pl-quando span{padding:2mm 4.5mm;border-radius:99mm;border:.5mm solid #6a3fd8;background:rgba(106,63,216,.25)}
+#impressao.placa .pl-qr{position:relative;margin-top:7mm;padding:4mm;border-radius:6mm;background:#fff;box-shadow:0 0 0 2mm #ff8a1f}
+#impressao.placa .pl-qr svg{display:block;width:86mm;height:86mm}
+#impressao.placa .pl-abo{position:absolute;width:36mm;right:-42mm;bottom:-2mm}
+#impressao.placa .pl-qr .pl-drac{position:absolute;width:38mm;left:-44mm;top:50%;transform:translateY(-50%)}
+#impressao.placa .pl-cam{font-size:18pt;font-weight:900}
+#impressao.placa .pl-cam small{display:block;font-size:12pt;font-weight:700;color:#e7defa;margin-top:1.5mm}
+#impressao.placa .pl-passos{display:flex;gap:4mm;width:100%}
+#impressao.placa .pl-passo{flex:1;padding:5mm 3mm;border-radius:4mm;background:rgba(28,21,48,.85);border:.4mm solid #3b2f5c;font-size:12pt;font-weight:800;color:#e7defa;line-height:1.25}
+#impressao.placa .pl-passo b{display:flex;align-items:center;justify-content:center;width:9mm;height:9mm;margin:0 auto 2mm;border-radius:50%;background:#ff8a1f;color:#1c0b00;font-size:13pt}
+#impressao.placa .pl-alerta{margin-top:5mm;padding:2.5mm 6mm;border-radius:99mm;background:linear-gradient(180deg,#ff4d5e,#e8102b 60%,#b80018);color:#fff;font-weight:900;font-size:12pt;letter-spacing:.04em;border:.6mm solid #fff}
+
+#impressao.placa .pl-drac svg{width:100%;height:auto}
+#impressao.placa .pl-rodape{position:absolute;left:0;right:0;bottom:7mm;text-align:center;font-size:10pt;font-weight:800;color:rgba(231,222,250,.7);z-index:2}
+#impressao.placa .pl-rodape span{display:block;font-size:12pt;color:#fff3c4;margin-bottom:1mm}
+#impressao.placa .pl-rodape b{color:#ff8a1f}
+@media print{body.imprimindo #impressao.placa{display:block;color:#f7f1ff}}
