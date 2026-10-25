@@ -804,3 +804,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 /* splash que continua o da página de redirecionamento: sem animação de entrada */
 .splash.continua .splash-drac .dracula{animation:flutuar 4s ease-in-out infinite}
 .splash.continua .splash-titulo{animation:none}
+
+.gps-procurando{justify-content:flex-start;text-align:left;margin:0}
+.gps-procurando>span:not(.spin){flex:1;min-width:0}
+.gps-procurando b{color:var(--abobora)}

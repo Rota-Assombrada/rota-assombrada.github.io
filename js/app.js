@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=70';
+import CONFIG from './config.js?v=71';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -756,7 +756,7 @@ function renderGpsCartao() {
   if (posicao || !('geolocation' in navigator)) { c.hidden = true; return; }
   if (gpsErro === 1) c.innerHTML = `<b>A localização está bloqueada</b><p class="dica">${IOS ? 'No iPhone: abra Ajustes, Privacidade e Segurança, Serviços de Localização. Deixe ligado e, em <b>Sites do Safari</b>, escolha <b>Durante o Uso</b>. Depois, no Safari, toque em "aA" na barra de endereço, Ajustes do Site, Localização: Permitir. Recarregue a página.' : 'Toque no cadeado ao lado do endereço, Permissões, Localização: Permitir. Confira também se a localização do celular está ligada. Recarregue a página.'}</p><button class="btn btn-fantasma btn-p" data-ligar-gps>Tentar de novo</button>`;
   else if (gpsErro === 2 || gpsErro === 3) c.innerHTML = `<b>Não achei o GPS</b><p class="dica">Ligue a localização do celular${IOS ? ' em Ajustes, Privacidade e Segurança, Serviços de Localização' : ''} e tente de novo. Se abriu pelo WhatsApp, abra no ${IOS ? 'Safari' : 'Chrome'}.</p><button class="btn btn-primario btn-p" data-ligar-gps>Tentar de novo</button>`;
-  else if (gpsWatch != null) c.innerHTML = `<p class="res-carregando">${SPIN} Procurando satélites… Se o celular perguntar, toque em <b>Permitir</b>.</p>`;
+  else if (gpsWatch != null) c.innerHTML = `<p class="res-carregando gps-procurando">${SPIN}<span>Procurando satélites… Se o celular perguntar, toque em <b>Permitir</b>.</span></p>`;
   else c.innerHTML = `<b>Ligue o GPS para ver onde você está</b><p class="dica">O celular vai perguntar se pode usar sua localização: toque em <b>Permitir</b>.</p><button class="btn btn-primario" data-ligar-gps>${IC.alvo} Ligar GPS</button>`;
   // O Drácula acompanha o pedido do GPS (tocar nele faz o som dele, como no resto do cenário).
   c.innerHTML = `<div class="gps-linha"><div class="gps-txt">${c.innerHTML}</div><div class="gps-drac">${DRACULA}</div></div>`;
