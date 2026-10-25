@@ -806,7 +806,8 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .splash.continua .splash-titulo{animation:none}
 
 .gps-procurando{justify-content:flex-start;text-align:left;margin:0}
-.gps-procurando>span:not(.spin){flex:1;min-width:0}
+.gps-procurando>span:not(.spinner){flex:1;min-width:0}
+.gps-procurando>.spinner{flex:none}
 .gps-procurando b{color:var(--abobora)}
 
 /* doces esgotados: abóbora roxa + aviso na lista (a casa continua na rota) */
