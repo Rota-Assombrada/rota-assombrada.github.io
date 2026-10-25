@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=55';
+import CONFIG from './config.js?v=56';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -377,6 +377,7 @@ async function passarParaAnos() {
 function fecharCondo() {
   parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos'); ['condo', 'casas', 'membros', 'convites'].forEach(cargaFim);
   cid = null; condo = null; casas = []; papel = ''; podeVerCasas = false; membros = []; convites = []; roteiro = null;
+  $('#contagem').hidden = true; clearInterval(timerContagem); timerContagem = null;
   mostrarInicio();
 }
 function assinarMembro() {
@@ -1381,6 +1382,90 @@ async function salvarSeguro(fn, msg) {
   catch (e) { console.error(e); toast(e && /permission/i.test(String(e.message || e.code)) ? 'Sem permissão para isso. Só o dono da casa ou um organizador pode mexer.' : 'Não consegui salvar agora. Tente de novo.', 5000); return false; }
   finally { tela.remove(); }
 }
+/* ---------- PDF da lista com mapa (impressão do próprio celular: "Salvar como PDF") ---------- */
+// O mapa vira uma imagem: os quadradinhos do OpenStreetMap (estilo claro, gasta menos tinta) num canvas, com as abóboras numeradas.
+function carregarImagem(url) { return new Promise((ok, erro) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = erro; i.src = url; }); }
+async function mapaEstatico(pontos, W, H) {
+  const X = (lng, z) => (lng + 180) / 360 * 256 * 2 ** z;
+  const Y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 256 * 2 ** z; };
+  const pad = 50; let z = 18, xs, ys;
+  for (; z >= 3; z--) { xs = pontos.map(p => X(p.lng, z)); ys = pontos.map(p => Y(p.lat, z)); if (Math.max(...xs) - Math.min(...xs) <= W - 2 * pad && Math.max(...ys) - Math.min(...ys) <= H - 2 * pad) break; }
+  const ox = (Math.max(...xs) + Math.min(...xs)) / 2 - W / 2, oy = (Math.max(...ys) + Math.min(...ys)) / 2 - H / 2;
+  const esc = 2, cv = document.createElement('canvas'); cv.width = W * esc; cv.height = H * esc; const g = cv.getContext('2d'); g.scale(esc, esc);
+  g.fillStyle = '#eef0f2'; g.fillRect(0, 0, W, H);
+  const pedidos = [];
+  for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + W) / 256); tx++) for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + H) / 256); ty++)
+    pedidos.push(carregarImagem(`https://tile.openstreetmap.org/${z}/${tx}/${ty}.png`).then(img => g.drawImage(img, tx * 256 - ox, ty * 256 - oy)).catch(() => {}));
+  await Promise.all(pedidos);
+  pontos.forEach(p => {
+    const x = X(p.lng, z) - ox, y = Y(p.lat, z) - oy;
+    g.beginPath(); g.arc(x, y, p.tipo === 'portaria' ? 14 : 17, 0, Math.PI * 2);
+    g.fillStyle = p.tipo === 'portaria' ? '#fff3c4' : '#ff8a1f'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#3a1d00'; g.stroke();
+    const t = String(p.rotulo).slice(0, 4); g.fillStyle = '#1c0b00'; g.font = `900 ${t.length > 3 ? 11 : 14}px Nunito, Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x, y + 0.5);
+  });
+  g.font = '600 11px Arial, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'bottom';
+  const cred = '© colaboradores do OpenStreetMap'; const lw = g.measureText(cred).width;
+  g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(W - lw - 12, H - 18, lw + 12, 18); g.fillStyle = '#333'; g.fillText(cred, W - 6, H - 4);
+  return cv.toDataURL('image/png');
+}
+async function imprimirLista() {
+  if (!cid || !condo || !casas.length) { toast('Ainda não tem casas para imprimir.'); return; }
+  const b = $('#btn-imprimir'); const txt = b.innerHTML; b.disabled = true; b.innerHTML = `${SPIN} Preparando…`;
+  try {
+    const lista = casas.filter(c => typeof c.lat === 'number').slice().sort((a, c) => (a.rua || '').localeCompare(c.rua || '', 'pt') || String(a.numero).localeCompare(String(c.numero), 'pt', {numeric: true}));
+    const pontos = lista.map(c => ({lat: c.lat, lng: c.lng, rotulo: c.numero}));
+    if (evento.portaria) pontos.push({lat: evento.portaria.lat, lng: evento.portaria.lng, rotulo: 'P', tipo: 'portaria'});
+    let img = ''; try { img = await mapaEstatico(pontos, 1000, 620); } catch (e) { console.error(e); }
+    const partes = [evento.nome, evento.data ? fmtData(evento.data) + (ano ? `/${ano}` : '') : '', evento.horaInicio && evento.horaFim ? `${evento.horaInicio} às ${evento.horaFim}` : ''].filter(Boolean);
+    const linhas = lista.map(c => { const {ini, fim} = horario(c); return `<tr><td class="imp-num">${h(c.numero)}</td><td>${h(c.rua || '')}</td><td>${h(c.familia || '')}</td><td>${ini && fim ? `${h(ini)}–${h(fim)}` : ''}</td><td>${(c.oferece || []).map(k => h(rotuloDe(OFERECE, k))).join(', ')}</td><td>${(c.flags || []).map(k => h(rotuloDe(FLAGS, k))).join(', ')}${c.obs ? `${(c.flags || []).length ? '. ' : ''}${h(c.obs)}` : ''}</td></tr>`; }).join('');
+    let el = $('#impressao'); if (!el) { el = document.createElement('div'); el.id = 'impressao'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="imp-topo"><div class="imp-marca">Rota <span>Assombrada</span></div><div class="imp-link">${h(linkCondo().replace(/^https?:\/\//, ''))}</div></div>
+      <h1>${h(condo.nome)}</h1><p class="imp-sub">${h(partes.join(' · '))}${evento.avisos ? ` · ${h(evento.avisos)}` : ''}</p>
+      ${img ? `<img class="imp-mapa" src="${img}" alt="Mapa das casas participantes">` : ''}
+      <p class="imp-legenda"><span class="imp-bola"></span> casa participante (número da casa)${evento.portaria ? ' &nbsp; <span class="imp-bola imp-p"></span> portaria' : ''}</p>
+      <h2>${lista.length} casa${lista.length > 1 ? 's' : ''} participante${lista.length > 1 ? 's' : ''}</h2>
+      <table><thead><tr><th>Nº</th><th>Rua</th><th>Família</th><th>Horário</th><th>Oferece</th><th>Avisos</th></tr></thead><tbody>${linhas}</tbody></table>
+      <p class="imp-rodape">Gerado em ${new Date().toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})} · Feito com travessuras por Bruno Couto</p>`;
+    // espera a imagem do mapa ficar pronta antes de abrir a impressão
+    const im = el.querySelector('img'); if (im && !im.complete) await new Promise(ok => { im.onload = im.onerror = ok; });
+    document.body.classList.add('imprimindo'); evento_('pdf_lista', {casas: lista.length});
+    setTimeout(() => { window.print(); }, 60);
+  } finally { b.disabled = false; b.innerHTML = txt; }
+}
+window.addEventListener('afterprint', () => { document.body.classList.remove('imprimindo'); });
+
+/* ---------- contagem regressiva para o Halloween ---------- */
+// Usa a data e o horário do evento no relógio do celular. Antes do dia: dias, horas, minutos e segundos.
+// No dia: quanto falta para começar. Durante: "está acontecendo". Depois: até o ano que vem.
+function momentosEvento() {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(evento.data || '')) return null;
+  const ini = new Date(`${evento.data}T${hm(evento.horaInicio) != null ? evento.horaInicio : '00:00'}:00`);
+  let fim = new Date(`${evento.data}T${hm(evento.horaFim) != null ? evento.horaFim : '23:59'}:00`);
+  if (fim <= ini) fim = new Date(fim.getTime() + 864e5);
+  return {dia: new Date(`${evento.data}T00:00:00`), ini, fim};
+}
+const doisDig = n => String(n).padStart(2, '0');
+let timerContagem = null;
+function renderContagem() {
+  const box = $('#contagem'); const m = cid && condo ? momentosEvento() : null;
+  if (!m || !ehAnoAtual()) { box.hidden = true; clearInterval(timerContagem); timerContagem = null; return; }
+  const agora = Date.now(); let html = '';
+  if (agora < m.dia.getTime()) {
+    const t = Math.floor((m.ini.getTime() - agora) / 1000);
+    const d = Math.floor(t / 86400), hh = Math.floor(t % 86400 / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60;
+    html = `<span class="cd-rotulo">Faltam para o Halloween</span><div class="cd-caixas">${[[d, d === 1 ? 'dia' : 'dias'], [doisDig(hh), 'horas'], [doisDig(mm), 'min'], [doisDig(ss), 'seg']].map(([v, r]) => `<span class="cd-caixa"><b>${v}</b><small>${r}</small></span>`).join('')}</div>`;
+  } else if (agora < m.ini.getTime()) {
+    const t = Math.floor((m.ini.getTime() - agora) / 1000), hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60;
+    html = `<span class="cd-rotulo">Hoje é dia!</span><span class="cd-frase">Começa às <b>${h(evento.horaInicio)}</b>. Faltam <b>${hh ? hh + 'h ' : ''}${doisDig(mm)}min ${doisDig(ss)}s</b></span>`;
+  } else if (agora < m.fim.getTime()) {
+    html = `<span class="cd-rotulo cd-agora">Está acontecendo agora!</span><span class="cd-frase">Até <b>${h(evento.horaFim || '23:59')}</b>. Boa caçada!</span>`;
+  } else {
+    html = `<span class="cd-rotulo">O Halloween de ${h(String(ano || ''))} acabou</span><span class="cd-frase">Até o ano que vem!</span>`;
+  }
+  box.innerHTML = html; box.hidden = false;
+  box.classList.toggle('cd-dia', agora >= m.dia.getTime() && agora < m.fim.getTime());
+  if (!timerContagem) timerContagem = setInterval(renderContagem, 1000);
+}
 function renderCabecalho() {
   if (!cid) { $('#sub-evento').textContent = 'Mapa e roteiro do Halloween do seu condomínio.'; return; }
   $('#linha-condo').hidden = false;
@@ -1677,7 +1762,7 @@ async function criarCondo(nome, cidade) {
 }
 function renderTudoCondo() {
   if (!cid) return;
-  renderCabecalho(); renderPlacar(); renderAcesso(); renderPins(); renderRoteiro(); atualizarParticipar();
+  renderCabecalho(); renderPlacar(); renderContagem(); renderAcesso(); renderPins(); renderRoteiro(); atualizarParticipar();
   $('#aba-organizador').hidden = !ehAdmin();
   if (abaAtual === 'organizador') renderAdmin();
 }
@@ -1833,6 +1918,7 @@ function ligarEventos() {
   document.addEventListener('click', e => { if (e.target.closest('[data-ano-atual]')) { anoEscolhido = null; trocarAno(anoAtualDoCondo()); } });
   const sairEdicao = () => { const deOutra = criandoOutra || editandoId; criandoOutra = false; limparForm(); jaAbriuMinhaCasa = false; atualizarParticipar(); window.scrollTo({top: 0}); if (deOutra && minhaCasa()) toast('De volta à sua casa.'); };
   $('#btn-cancelar-edicao').addEventListener('click', sairEdicao);
+  $('#btn-imprimir').addEventListener('click', imprimirLista);
   // Sair do condomínio (morador): tira a casa da pessoa do mapa e o nome dela da lista. Dois toques para confirmar.
   $('#btn-sair-condo').addEventListener('click', async () => {
     const b = $('#btn-sair-condo');

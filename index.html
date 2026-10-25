@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=55">
+<link rel="stylesheet" href="css/estilo.css?v=56">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -79,6 +79,7 @@
     </div>
     <p class="sub" id="sub-evento"></p>
     <div class="placar" id="placar"></div>
+    <div class="contagem" id="contagem" hidden aria-live="off"></div>
   </header>
 
   <main>
@@ -176,7 +177,7 @@
         </div>
         <div id="mapa-vazio"></div>
         <div class="cartao" id="card-lista-casas" hidden>
-          <h2>Casas participantes <span class="pill" id="total-lista-casas"></span></h2>
+          <div class="titulo-acao"><h2>Casas participantes <span class="pill" id="total-lista-casas"></span></h2><button type="button" class="btn btn-p btn-fantasma" id="btn-imprimir">PDF com mapa</button></div>
           <p class="dica" id="ordem-lista-casas"></p>
           <ul class="lista-casas-mapa" id="lista-casas-mapa"></ul>
         </div>
@@ -321,6 +322,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=55"></script>
+<script type="module" src="js/app.js?v=56"></script>
 </body>
 </html>
