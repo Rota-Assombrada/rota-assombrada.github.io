@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=61';
+import CONFIG from './config.js?v=62';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -710,7 +710,7 @@ function renderListaCasas() {
     const etqs = [statusCasa(c).texto].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
       <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
-      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs"><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
+      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
       ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
     </button></li>`;
   }).join('');

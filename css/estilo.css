@@ -742,5 +742,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .res-txt .balao-obs,.res-txt .balao-obs .mini-obs,.balao-obs .balao-txt{color:#1a1428}
 .res-txt .balao-obs{margin-top:10px;font-size:inherit}
 /* perninha do balão apontando para a abóbora: na lista ela fica à esquerda; na ficha, logo acima */
-.res-txt .balao-obs::before{left:-8px;top:50%;transform:translateY(-50%);border:8px solid transparent;border-left:0;border-right-color:#f7f1ff}
 .balao-ficha::before{left:26px}
+
+.res-txt .balao-obs .balao-quem{color:#6a3fd8}
+.res-txt .balao-ficha{margin-top:12px;padding:8px 12px}
