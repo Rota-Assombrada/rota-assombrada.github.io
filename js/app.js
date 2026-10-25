@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=60';
+import CONFIG from './config.js?v=61';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -38,6 +38,10 @@ const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox=
 
 const OFERECE = [['doces','Doces e balas'],['chocolate','Chocolate'],['brincadeira','Brincadeira ou susto'],['decoracao','Casa decorada'],['lembrancinha','Lembrancinha']];
 const FLAGS = [['pequenos','Amigável para pequenos'],['cachorro','Tem cachorro'],['alergia','Opção sem açúcar/alergia'],['assustadora','Bem assustadora']];
+// Casas sem nome de família ganham um nome divertido, sempre o mesmo para a mesma casa (vem do id dela).
+// Ao salvar sem nome, é esse que fica gravado.
+const NOMES_DIVERTIDOS = ["Casa do Fantasma Cócegas", "Toca do Morcego Banguela", "Mansão da Abóbora Risonha", "Castelo do Drácula Dorminhoco", "Cripta do Esqueleto Dançarino", "Casa da Bruxa Distraída", "Covil do Lobisomem Fofinho", "Casa do Vampiro Vegetariano", "Toca da Aranha Tricoteira", "Mansão do Fantasma Tímido", "Casa da Múmia Enrolada", "Castelo do Morcego Cantor", "Casa do Zumbi Educado", "Toca do Gato Preto Sortudo", "Casa da Caveira Sorridente", "Mansão do Caldeirão Borbulhante", "Casa do Fantasminha Camarada", "Cripta do Conde Comilão", "Casa da Bruxinha Atrapalhada", "Toca do Lobinho Uivador", "Casa do Monstro Cheiroso", "Castelo da Abóbora Gigante", "Casa do Fantasma Soneca", "Toca do Morcego de Óculos", "Casa da Teia Brilhante", "Mansão do Esqueleto Tossidor", "Casa do Vampiro Banguela", "Toca da Coruja Curiosa", "Casa do Duende Travesso", "Cripta da Múmia Cansada", "Casa do Fantasma Gargalhada", "Castelo do Lobisomem Cabeludo", "Casa da Bruxa do Pirulito", "Toca do Morceguinho Feliz", "Casa do Ogro Dorminhoco", "Mansão da Vassoura Voadora", "Casa do Zumbi Dançarino", "Toca da Aranha Cabeluda", "Casa do Fantasma Sem Lençol", "Castelo do Conde Chocolate", "Casa da Abóbora Banguela", "Cripta do Esqueleto Piadista", "Casa do Monstrinho do Armário", "Toca do Gato de Botas Pretas", "Casa da Bruxa Gulosa", "Mansão do Fantasma Cantor", "Casa do Vampiro Assustado", "Toca do Lobisomem Penteado", "Casa da Caveira Cheirosa", "Castelo do Morcego Acrobata", "Casa do Fantasma Esquecido", "Toca do Sapo Enfeitiçado", "Casa da Poção Colorida", "Mansão do Drácula Desastrado", "Casa do Zumbi Preguiçoso", "Cripta da Abóbora Falante", "Casa do Morcego Doceiro", "Toca da Bruxa Sonolenta", "Casa do Esqueleto Saltitante", "Castelo do Fantasma Bagunceiro", "Casa da Múmia Dançarina", "Toca do Monstro Verde", "Casa do Lobisomem Envergonhado", "Mansão da Aranha Dançarina", "Casa do Vampiro Dentuço", "Toca da Coruja Sabichona", "Casa do Fantasma das Balas", "Castelo da Bruxa Risonha", "Casa do Caldeirão Mágico", "Cripta do Conde Bocejo", "Casa da Abóbora Brilhante", "Toca do Morcego Bagunceiro", "Casa do Esqueleto Friorento", "Mansão do Zumbi Comilão", "Casa da Bruxa do Chapéu Torto", "Toca do Gato Fantasma", "Casa do Fantasma Pipoqueiro", "Castelo do Lobisomem Dançarino", "Casa da Teia Grudenta", "Toca do Duende Doceiro", "Casa do Vampiro Dorminhoco", "Mansão da Caveira Dançarina", "Casa do Monstro Cosquento", "Cripta do Fantasma Assobiador", "Casa da Abóbora Sapeca", "Toca do Morcego Distraído", "Casa do Drácula Docinho", "Castelo da Múmia Mandona", "Casa do Zumbi Cantor", "Toca da Aranha Sorridente", "Casa do Fantasma Pirulito", "Mansão da Bruxa Bondosa", "Casa do Esqueleto Tagarela", "Toca do Lobisomem Dorminhoco", "Casa da Vassoura Preguiçosa", "Castelo do Vampiro Sapeca", "Casa do Morcego Chocolateiro", "Cripta da Abóbora Medrosa", "Casa do Fantasma Arrepio", "Toca do Monstrinho Guloso", "Casa da Bruxa Confeiteira", "Mansão do Conde Cócegas", "Casa do Zumbi Sorridente", "Toca da Caveira Tagarela", "Casa do Lobisomem Doceiro", "Castelo do Fantasma Dançarino", "Casa da Múmia Gulosa", "Toca do Morcego Soneca", "Casa do Esqueleto Comilão", "Mansão da Abóbora Dançarina", "Casa do Vampiro Cantor", "Cripta da Bruxa Esquecida", "Casa do Fantasma Travesso", "Toca do Gato Bruxo", "Casa do Monstro Bocejo", "Castelo da Aranha Doceira", "Casa do Drácula Sapeca", "Toca da Abóbora Risadinha", "Casa do Zumbi Distraído", "Mansão do Morcego Comilão"];
+function nomeDivertido(id) { let x = 2166136261; for (const ch of String(id || 'casa')) { x ^= ch.charCodeAt(0); x = Math.imul(x, 16777619) >>> 0; } return NOMES_DIVERTIDOS[x % NOMES_DIVERTIDOS.length]; }
 const rotuloDe = (lista, k) => (lista.find(o => o[0] === k) || [k, k])[1];
 
 /* ---------- métricas e erros (Google Analytics do Firebase) ---------- */
@@ -414,7 +418,8 @@ function aoMudarPapel() {
 }
 let tentativasCasas = 0, casasDoEvento = [], casasFormatoAtual = [];
 function juntarCasas() {
-  const m = new Map(casasFormatoAtual.map(c => [c.id, c])); casasDoEvento.forEach(c => m.set(c.id, c)); casas = [...m.values()];
+  const m = new Map(casasFormatoAtual.map(c => [c.id, c])); casasDoEvento.forEach(c => m.set(c.id, c));
+  casas = [...m.values()].map(c => (c.familia && String(c.familia).trim()) ? c : {...c, familia: nomeDivertido(c.id), nomeAuto: true});
 }
 function assinarCasas() {
   parar('casas', 'casasAntigas'); if (!cid || !ano) return;
@@ -705,7 +710,7 @@ function renderListaCasas() {
     const etqs = [statusCasa(c).texto].concat((c.oferece || []).map(k => rotuloDe(OFERECE, k)), (c.flags || []).filter(k => k === 'pequenos' || k === 'cachorro').map(k => rotuloDe(FLAGS, k)));
     return `<li><button type="button" class="casa-item ${vis ? 'visitada' : ''} ${aberta ? '' : 'fechada'}" data-ver-casa="${h(c.id)}">
       <span class="pin pin-lista ${aberta ? '' : 'fechada'} ${vis ? 'visitada' : ''}" aria-hidden="true">${PIN_SVG}<span class="num">${h(c.numero)}</span></span>
-      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="mini-obs">“${h(c.obs)}”</span>` : ''}</span>
+      <span class="res-txt"><b>${c.familia ? h(c.familia) : nomeCasa(c)}</b><span>${c.familia ? nomeCasa(c) : 'Casa participante'}${comGps ? ' · ' + fmtM(distM(posicao, c)) : ''}</span><span class="mini-etq">${etqs.map(h).join(' · ')}</span>${c.obs ? `<span class="balao-obs"><span class="mini-obs">${h(c.obs)}</span></span>` : ''}</span>
       ${vis ? `<span class="casa-visitada" title="Visitada">${IC.check}</span>` : '<span class="res-seta" aria-hidden="true">›</span>'}
     </button></li>`;
   }).join('');
@@ -1064,7 +1069,7 @@ function cartaoCasa(c, idx) {
     .concat((c.oferece || []).map(k => `<span class="etq">${IC.doce}${h(rotuloDe(OFERECE, k))}</span>`))
     .concat((c.flags || []).map(k => `<span class="etq ${k === 'cachorro' || k === 'assustadora' ? 'alerta' : ''}">${k === 'cachorro' ? IC.cachorro : k === 'pequenos' ? IC.crianca : IC.susto}${h(rotuloDe(FLAGS, k))}</span>`));
   const dist = posicao ? `<span class="etq">${IC.navegar}${fmtM(distM(posicao, c))} de você</span>` : '';
-  return `<div class="casa-titulo"><div class="num-grande">${h(c.numero)}</div><div><h3>${c.familia ? h(c.familia) : nomeCasa(c)}</h3><div class="end">${c.familia ? nomeCasa(c) : 'Casa participante'}${idx != null ? ` · parada ${idx + 1}` : ''}</div></div></div><div class="etiquetas">${etq.join('')}${dist}</div>${c.obs ? `<p class="obs">“${h(c.obs)}”</p>` : ''}`;
+  return `<div class="casa-titulo"><div class="num-grande">${h(c.numero)}</div><div><h3>${c.familia ? h(c.familia) : nomeCasa(c)}</h3><div class="end">${c.familia ? nomeCasa(c) : 'Casa participante'}${idx != null ? ` · parada ${idx + 1}` : ''}</div></div></div><div class="etiquetas">${etq.join('')}${dist}</div>${c.obs ? `<div class="balao-obs balao-ficha"><span class="balao-quem">Recado da casa</span><span class="balao-txt">${h(c.obs)}</span></div>` : ''}`;
 }
 function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
@@ -1306,6 +1311,8 @@ function lerForm() { const pega = sel => $$(sel + ' .chip[aria-pressed="true"]')
 let versaoForm = 0;
 function preencherForm(c) {
   versaoForm++;
+  const idDica = editandoId || (!criandoOutra && usuario ? usuario.uid : '');
+  $('#f-familia').placeholder = idDica ? `Se deixar vazio: ${nomeDivertido(idDica)}` : 'Se deixar vazio, a casa ganha um nome divertido';
   $('#f-rua').value = c.rua || ''; $('#f-numero').value = c.numero || ''; $('#f-familia').value = c.familia || ''; $('#f-hora-evento').checked = !(c.horaInicio || c.horaFim); $('#f-hi').value = c.horaInicio || evento.horaInicio || '18:00'; $('#f-hf').value = c.horaFim || evento.horaFim || '21:00'; mostrarHorasCasa(); $('#f-obs').value = c.obs || '';
   $$('#f-oferece .chip').forEach(b => b.setAttribute('aria-pressed', String((c.oferece || []).includes(b.dataset.k))));
   $$('#f-flags .chip').forEach(b => b.setAttribute('aria-pressed', String((c.flags || []).includes(b.dataset.k))));
@@ -2006,6 +2013,7 @@ function ligarEventos() {
     if (antiga && !podeEditar(antiga)) { toast('Só quem cadastrou ou um admin pode editar esta casa.'); return; }
     if (!editandoId && !criandoOutra && casaPorId(usuario.uid)) { toast('Você já tem uma casa no mapa. Abrindo ela para editar.'); editandoId = usuario.uid; preencherForm(casaPorId(usuario.uid)); return; }
     const id = editandoId || (criandoOutra && ehAdmin() ? novoId() : usuario.uid);
+    if (!d.familia) d.familia = nomeDivertido(id);   // sem nome: ganha o nome divertido desta casa
     // Moradores: a casa guarda só o SHA-256 de "codigo:email"; os e-mails ficam em atribuicoes/, que só os moradores da casa e os admins leem.
     // Se a lista não carregou (sem rede), mantém os moradores que já estavam.
     // E-mail digitado sem tocar em "Adicionar" entra junto ao salvar. Nome digitado sem escolher na lista: avisa.
