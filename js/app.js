@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=75';
+import CONFIG from './config.js?v=76';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -331,8 +331,11 @@ function abrirCondo(novo) {
   partidaEscolhida = lsc.get('partida', ''); partida = partidaEscolhida || 'gps'; ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
   visitadas = new Set(); roteiro = null; rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid); checarPaginaPrevia(cid);
+  vigiarCarga();
   mostrarCondo();
   subs.condo = fb.fs.onSnapshot(fb.condo(cid), snap => {
+    // sem conexão o Firestore responde do cache vazio: "não existe" ali não quer dizer nada, continua esperando o servidor
+    if (!snap.exists() && snap.metadata.fromCache) return;
     condoCarregado = true; cargaFim('condo');
     if (!snap.exists()) { condo = null; renderTudoCondo(); return; }
     condo = snap.data();
@@ -403,7 +406,7 @@ function assinarMembro() {
   papelCarregado = false;
   // Espera o servidor confirmar (sem gravação pendente): as regras só enxergam o papel depois disso.
   subs.membro = fb.fs.onSnapshot(fb.membro(cid, usuario.uid), {includeMetadataChanges: true}, snap => {
-    if (snap.metadata.hasPendingWrites) return;
+    if (snap.metadata.hasPendingWrites || (!snap.exists() && snap.metadata.fromCache)) return;
     const novo = snap.exists() ? snap.data().papel : '';
     if (papelCarregado && novo === papel && !snap.metadata.fromCache) { if (!podeVerCasas && ehMorador()) assinarCasas(); return; }
     papel = novo; papelCarregado = true; aoMudarPapel(); vigiarPapel();
@@ -440,7 +443,7 @@ function assinarCasas() {
   if (condo && !condo.eventoAtual && ano === anoAtualDoCondo()) {
     subs.casasAntigas = fb.fs.onSnapshot(fb.casasAntigas(cid), s => { casasFormatoAtual = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); }, () => { casasFormatoAtual = []; });
   }
-  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casasDoEvento = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); vigiarCasasAtribuidas(); },
+  subs.casas = fb.fs.onSnapshot(fb.casas(cid), s => { if (s.empty && s.metadata.fromCache && !casasCarregadas) return; tentativasCasas = 0; podeVerCasas = true; casasCarregadas = true; cargaFim('casas'); casasDoEvento = s.docs.map(d => ({id: d.id, ...d.data()})); juntarCasas(); aoMudarDados(); vigiarCasasAtribuidas(); },
     e => {
       podeVerCasas = false; casas = []; casasDoEvento = []; parar('casas', 'casasAntigas');
       const vaiTentar = e.code !== 'permission-denied' || (ehMorador() && tentativasCasas < 4);
@@ -2392,6 +2395,36 @@ setInterval(conferirVersao, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) conferirVersao(); });
 setTimeout(conferirVersao, 20000);
 
+/* ---------- carga travada ---------- */
+// Às vezes (rede ruim, Safari voltando do fundo) a conexão em tempo real fica muda e a tela não sai do "carregando".
+// Aos 10 s reabre a conexão do Firestore; aos 20 s oferece recarregar e mostra em que etapa parou (a etapa vai anônima para as métricas).
+let vigiaCarga = 0;
+function etapaTravada() {
+  if (!fb.pronto) return 'firebase';
+  if (!authPronto) return 'login';
+  if (!cid) return '';
+  if (!condoCarregado) return 'condomínio';
+  if (!papelCarregado) return 'acesso';
+  if (condo && !casasCarregadas) return 'casas';
+  return '';
+}
+function vigiarCarga() {
+  const minha = ++vigiaCarga;
+  setTimeout(async () => {
+    if (minha !== vigiaCarga) return; const etapa = etapaTravada(); if (!etapa) return;
+    evento_('carga_lenta', {etapa});
+    if (fb.pronto && etapa !== 'login') { try { await fb.fs.disableNetwork(fb.db); await fb.fs.enableNetwork(fb.db); } catch (e) { console.error(e); } }
+    setTimeout(() => {
+      if (minha !== vigiaCarga) return; const ainda = etapaTravada(); if (!ainda || document.querySelector('.aviso-carga')) return;
+      evento_('carga_travada', {etapa: ainda});
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao aviso-carga';
+      b.innerHTML = `${IC.carregando}<span>Está demorando… Toque para recarregar<small>Parou em: ${h(ainda)}</small></span>`;
+      b.addEventListener('click', () => location.reload()); document.body.appendChild(b);
+      const t = setInterval(() => { if (!etapaTravada()) { clearInterval(t); b.remove(); } }, 1000);
+    }, 10000);
+  }, 10000);
+}
+
 /* ---------- tela de abertura ---------- */
 // Fica na frente até o login e o condomínio carregarem (no mínimo um instante, no máximo 8 s). Tocar nela fecha.
 const splashInicio = Date.now();
@@ -2411,6 +2444,7 @@ const splashInicio = Date.now();
 /* ---------- início ---------- */
 async function iniciar() {
   iniciarMapa(); ligarEventos(); renderFiltros(); renderParticipar(); renderModo(); renderConta(); cargaInicio('app');
+  vigiarCarga();
   if (!CONFIG.firebase || !CONFIG.firebase.apiKey) { toast('Configure o Firebase em js/config.js.', 8000); return; }
   try { await fb.init(); } catch (e) { console.error(e); cargaFim('app'); authPronto = true; renderConta(); toast('Não consegui conectar. Confira sua internet e recarregue.', 8000); return; }
   cargaFim('app');

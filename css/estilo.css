@@ -823,3 +823,6 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .acoes-folha>.btn-esgotou{grid-column:1/-1}
 
 .balao-esgotado .balao-quem,.res-txt .balao-esgotado .balao-quem{color:#9b6bff}
+.aviso-carga{top:calc(12px + env(safe-area-inset-top,0px));bottom:auto;z-index:3000;width:max-content;max-width:calc(100vw - 32px);text-align:left;border-radius:18px;background:linear-gradient(180deg,#ffb35c,var(--abobora));color:var(--no-abobora);box-shadow:0 8px 24px rgba(0,0,0,.45),0 4px 0 var(--abobora-escura)}
+.aviso-carga svg{animation:girar .9s linear infinite}
+.aviso-carga small{display:block;font-weight:700;opacity:.75}
