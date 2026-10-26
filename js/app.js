@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=74';
+import CONFIG from './config.js?v=75';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1108,7 +1108,7 @@ function abrirFolha(id) {
     <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small></a>
     <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
     <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
-    ${podeEditar(c) ? `<button class="btn ${c.esgotado ? 'btn-sucesso' : 'btn-fantasma'} btn-esgotou" data-acao="esgotou" data-id="${h(id)}">${c.esgotado ? 'Voltei a ter doces' : 'Acabaram os doces'}</button><button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button>` : ''}
+    ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button><button class="btn ${c.esgotado ? 'btn-sucesso' : 'btn-fantasma'} btn-esgotou" data-acao="esgotou" data-id="${h(id)}">${IC.doce} ${c.esgotado ? 'Voltei a ter doces' : 'Acabaram os doces'}</button>` : ''}
   </div><div class="nav-extra"><span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a></div>`;
   $('#folha').hidden = false; SFX.plop();
 }
