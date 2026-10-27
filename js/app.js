@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=81';
+import CONFIG from './config.js?v=82';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -641,10 +641,10 @@ function linksNav(c) {
   };
 }
 const linkPrincipal = c => linksNav(c).google;   // Google Maps é o recomendado, no iPhone também
-// Rota completa no Google Maps, na ordem otimizada. O formato "?api=1&waypoints=" corta em 9 paradas sem avisar;
-// o formato de caminho (/maps/dir/A/B/C/...) aceitou 20 paradas a pé no teste. Até 25 casas por link; acima disso, partes.
-// Primeiro trecho vazio (/maps/dir//...) = sair de onde o celular está.
-const CASAS_POR_LINK = 25;
+// Rota completa no Google Maps, na ordem otimizada. O formato de caminho (/maps/dir/A/B/C/...) funcionava no navegador,
+// mas o app do Google Maps no celular ignorava as paradas do meio. O formato oficial "?api=1&waypoints=" abre no app
+// com todas as paradas, até 9 paradas + destino: 10 casas por link; acima disso, partes. Sem origin = sai de onde o celular está.
+const CASAS_POR_LINK = 10;
 function partesRotaGoogle() {
   if (!roteiro) return [];
   const ordem = roteiro.ordem.map((id, i) => ({c: casaPorId(id), n: i + 1})).filter(x => x.c && !visitadas.has(x.c.id));
@@ -655,8 +655,8 @@ function partesRotaGoogle() {
   const partes = [];
   for (let k = 0; k < ordem.length; k += CASAS_POR_LINK) {
     const bloco = ordem.slice(k, k + CASAS_POR_LINK), dest = bloco[bloco.length - 1].c;
-    const caminho = [o ? coord(o) : '', ...bloco.map(x => coord(x.c))].join('/');
-    partes.push({url: `https://www.google.com/maps/dir/${caminho}/data=!4m2!4m1!3e2`,
+    const paradas = bloco.slice(0, -1).map(x => coord(x.c)).join('|');
+    partes.push({url: `https://www.google.com/maps/dir/?api=1${o ? `&origin=${coord(o)}` : ''}&destination=${coord(dest)}${paradas ? `&waypoints=${encodeURIComponent(paradas)}` : ''}&travelmode=walking`,
       de: bloco[0].n, ate: bloco[bloco.length - 1].n, casas: bloco.length});
     o = dest;
   }
@@ -1644,9 +1644,21 @@ async function imprimirLista() {
       <p class="imp-rodape">Gerado em ${new Date().toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})} · Feito com travessuras por Bruno Couto</p>`;
     // espera a imagem do mapa ficar pronta antes de abrir a impressão
     const im = el.querySelector('img'); if (im && !im.complete) await new Promise(ok => { im.onload = im.onerror = ok; });
-    document.body.classList.add('imprimindo'); evento_('pdf_lista', {casas: lista.length});
-    setTimeout(() => { window.print(); }, 60);
-  } finally { b.disabled = false; b.innerHTML = txt; }
+    // O Safari do iPhone só deixa imprimir logo depois de um toque: depois de baixar o mapa o toque já "venceu" e ele ignora.
+    // Por isso a impressão abre num segundo toque, na folha de "pronto".
+    const arquivo = img ? new File([Uint8Array.from(atob(img.split(',')[1]), ch => ch.charCodeAt(0))], `mapa-halloween-${cid}.png`, {type: 'image/png'}) : null;
+    const podeCompartilhar = !!(arquivo && navigator.canShare && navigator.canShare({files: [arquivo]}));
+    $('#folha-in').innerHTML = `<div class="placa-pronta"><h3>Lista com mapa pronta!</h3>${img ? `<img src="${img}" alt="Prévia do mapa">` : ''}
+      <div class="acoes acoes-pdf"><button class="btn btn-primario" data-lista="imprimir">Abrir PDF</button>${podeCompartilhar ? '<button class="btn btn-fantasma" data-lista="mapa">Compartilhar só o mapa</button>' : ''}</div>
+      <p class="dica">No iPhone: toque em <b>Abrir PDF</b>, depois no botão de compartilhar e em <b>Salvar em Arquivos</b> ou <b>Imprimir</b>. Se nada abrir, abra o site pelo Safari em vez do ícone da tela de início.</p></div>`;
+    $('#folha-in').onclick = async e => {
+      const x = e.target.closest('[data-lista]'); if (!x) return;
+      if (x.dataset.lista === 'imprimir') { paginaImpressao(12); document.body.classList.add('imprimindo'); evento_('pdf_lista', {casas: lista.length}); window.print(); return; }
+      try { await navigator.share({files: [arquivo], title: 'Mapa do Halloween'}); } catch {}
+    };
+    $('#folha').hidden = false; SFX.plim();
+  } catch (e) { console.error(e); toast('Não consegui montar a lista. Confira a internet e tente de novo.'); }
+  finally { b.disabled = false; b.innerHTML = txt; }
 }
 window.addEventListener('afterprint', () => { document.body.classList.remove('imprimindo'); });
 
