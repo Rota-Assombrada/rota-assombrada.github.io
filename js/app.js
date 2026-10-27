@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=76';
+import CONFIG from './config.js?v=77';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1814,7 +1814,10 @@ function renderAdmin() {
     return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}${prot ? ` · <span class="etq-protegido">${prot}</span>` : ''}</span></div>${sou || trava ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
-  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort((a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true})).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...(rotulosAtribuicao(atribuicoes[c.id]).length ? [`+ ${rotulosAtribuicao(atribuicoes[c.id]).join(', ')}`] : [])].join(' '))}</span></div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
+  const porEndereco = (a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true});
+  const ordem = ls.get('hw.ordemCasas', 'novas'); $('#ordem-casas').value = ordem;
+  const quando = ts => ts ? new Date(ts).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(', ', ' às ') : '';
+  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort(ordem === 'endereco' ? porEndereco : (a, b) => (+b.criadoEm || 0) - (+a.criadoEm || 0) || porEndereco(a, b)).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...(rotulosAtribuicao(atribuicoes[c.id]).length ? [`+ ${rotulosAtribuicao(atribuicoes[c.id]).join(', ')}`] : [])].join(' '))}</span>${c.criadoEm ? `<span class="quando-casa">${IC.relogio} Cadastrada em ${h(quando(+c.criadoEm))}</span>` : ''}</div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
 }
 async function conferirEnderecos() {
@@ -2106,6 +2109,7 @@ function ligarEventos() {
     delete b.dataset.confirma; b.textContent = 'Parar navegação'; b.classList.remove('confirmar'); pararNavegacao();
   });
   $('#btn-pular').addEventListener('click', pularParada);
+  $('#ordem-casas').addEventListener('change', e => { ls.set('hw.ordemCasas', e.target.value); renderAdmin(); });
   $('#btn-falar').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
   $('#opt-voz').addEventListener('change', e => { vozAuto = e.target.checked; ls.set('hw.voz', vozAuto); if (vozAuto) falar('Guia por voz ligado. Vamos caçar doces!'); else { try { speechSynthesis.cancel(); } catch {} } });
   $('#opt-auto-chegada').addEventListener('change', e => { autoChegada = e.target.checked; ls.set('hw.autochegada', autoChegada); if (autoChegada) ligarGPS(false); });
