@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=77';
+import CONFIG from './config.js?v=78';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2318,8 +2318,8 @@ function abrirBoasVindas(perm) {
     <h3>Antes da caçada começar</h3>
     <p>Dois ajustes rápidos para o Conde guiar você pelas casas.</p>
     <div class="passo" id="bv-som"><span class="passo-ic">${IC_SOM}</span><div><b>Ligue o som</b>
-      <p class="dica">Tire o celular do silencioso e aumente o volume. O guia fala o caminho e os botões fazem barulhos divertidos.</p>
-      <div class="acoes-bv"><button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><button class="btn btn-primario" data-bv="musica" id="bv-musica">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} ${AUDIO.tocando ? 'Desligar música' : 'Ligar música'}</button></div><p class="dica" id="bv-som-resp" hidden>Ouviu a risada? Se não, aumente o volume e toque de novo.</p></div></div>
+      <p class="dica">Tire o celular do silencioso e aumente o volume. O guia fala o caminho e os botões fazem barulhos divertidos.</p></div>
+      <div class="acoes-bv"><button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><button class="btn btn-primario" data-bv="musica" id="bv-musica">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} ${AUDIO.tocando ? 'Desligar música' : 'Ligar música'}</button></div><p class="dica" id="bv-som-resp" hidden>Ouviu a risada? Se não, aumente o volume e toque de novo.</p></div>
     <div class="passo" id="bv-gps"><span class="passo-ic">${IC_GPS}</span><div><b>Ligue o GPS</b>
       <p class="dica">Ele mostra onde você está no mapa e avisa quando chegar em cada casa.</p><div id="bv-gps-corpo">${passoGPS}</div></div></div>
     <div class="acoes"><button class="btn btn-primario btn-grande" data-bv="fim">Vamos lá!</button></div>
