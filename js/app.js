@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=79';
+import CONFIG from './config.js?v=80';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1785,6 +1785,23 @@ function ajustarEndereco() {
 function linkCondo() { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/` : `${BASE_SITE}c/#${cid}`; }
 function linkConvite(cod) { return paginaPrevia[cid] ? `${BASE_SITE}c/${cid}/convite/#${cod}` : `${BASE_SITE}convite/#${cid}/${cod}`; }
 function campoLivre(sel) { const el = $(sel); return el && document.activeElement !== el; }
+// Casas de um membro: a que ele criou ou em que foi colocado como morador (pelo e-mail ou pelo hash do e-mail).
+const hashDeEmail = new Map();
+function casasDoMembro(m) {
+  const email = String(m.email || '').trim().toLowerCase();
+  if (email && cid && crypto.subtle && !hashDeEmail.has(cid + ':' + email)) { hashDeEmail.set(cid + ':' + email, ''); hashAtribuicao(cid, email).then(x => { hashDeEmail.set(cid + ':' + email, x); renderAdmin(); }); }
+  const hm = hashDeEmail.get(cid + ':' + email) || '';
+  return casas.filter(c => c.uid === m.id || (hm && hashesDaCasa(c).includes(hm)) || (email && rotulosAtribuicao(atribuicoes[c.id]).concat(((atribuicoes[c.id] || {}).moradores || []).map(p => p.email || '')).some(x => String(x).toLowerCase() === email)));
+}
+// Busca nas listas de membros e de casas (sem acento, em qualquer parte do texto).
+function filtrarAdmin() {
+  [['#busca-membros', '#lista-membros'], ['#busca-casas', '#lista-casas']].forEach(([i, l]) => {
+    const q = semAcento(($(i) || {}).value || '').trim(); let vistos = 0;
+    $$(l + ' > li[data-busca]').forEach(li => { const ok = !q || q.split(/\s+/).every(t => li.dataset.busca.includes(t)); li.hidden = !ok; if (ok) vistos++; });
+    const vazio = $(l + ' > .li-nada'); if (vazio) vazio.remove();
+    if (q && !vistos) $(l).insertAdjacentHTML('afterbegin', '<li class="li-nada"><div class="info"><span>Nada encontrado com essa busca.</span></div></li>');
+  });
+}
 function renderAdmin() {
   if (!ehAdmin() || !cid || !condo) return;
   $('#link-condo').textContent = linkCondo();
@@ -1809,16 +1826,21 @@ function renderAdmin() {
   if (convitesCarregados) $('#lista-convites').innerHTML = cs.length ? cs.map(c => { const vale = c.ativo && c.expiraEm > agora; const ate = new Date(c.expiraEm).toLocaleDateString('pt-BR');
     return `<li><div class="info"><b class="mono">${h(c.id)}</b><span>${vale ? `Válido até ${ate}` : c.ativo ? 'Expirado' : 'Desativado'}</span></div><div class="acoes">${vale ? `<button class="btn btn-p btn-fantasma" data-copiar-convite="${h(c.id)}">${IC.copiar} Copiar</button><a class="btn btn-p btn-sucesso" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Convite para o mapa do Halloween de ${condo.nome} (só para moradores, não repasse): ${linkConvite(c.id)}`)}">WhatsApp</a><button class="btn btn-p btn-fantasma" data-desativar="${h(c.id)}">Desativar</button>` : `<button class="btn btn-p btn-fantasma" data-apagar-convite="${h(c.id)}">${IC.lixo} Apagar</button>`}</div></li>`; }).join('') : '<li><div class="info"><span>Nenhum convite ainda.</span></div></li>';
   $('#total-membros').textContent = ativos.length;
+  const quando = ts => ts ? new Date(ts).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(', ', ' às ') : '';
   if (membrosCarregados) $('#lista-membros').innerHTML = ativos.length ? ativos.sort((a, b) => (a.papel === 'admin' ? 0 : 1) - (b.papel === 'admin' ? 0 : 1) || (a.nome || '').localeCompare(b.nome || '')).map(m => { const sou = usuario && m.id === usuario.uid;
     const prot = protegidos.get(m.id), trava = prot && !donoPlataforma;   // as regras do servidor também barram
-    return `<li><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}${prot ? ` · <span class="etq-protegido">${prot}</span>` : ''}</span></div>${sou || trava ? '' : `<div class="acoes"><button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button></div>`}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
+    const suas = casasDoMembro(m);
+    const busca = [m.nome, m.email, ...suas.map(c => `${c.rua} ${c.numero} ${c.familia || ''}`)].join(' ');
+    const editar = suas.map(c => `<button class="btn btn-p btn-fantasma btn-linha" data-editar="${h(c.id)}">${IC.editar} Editar casa${suas.length > 1 ? ' ' + h(c.numero) : ''}</button>`).join('');
+    const papel = sou || trava ? '' : `<button class="btn btn-p btn-fantasma" data-papel="${h(m.id)}" data-novo="${m.papel === 'admin' ? 'morador' : 'admin'}">${m.papel === 'admin' ? 'Tirar admin' : 'Tornar admin'}</button><button class="btn btn-p btn-fantasma" data-remover="${h(m.id)}">${IC.lixo} Remover</button>`;
+    return `<li data-busca="${h(semAcento(busca))}"><div class="info"><b>${h(m.nome || 'Sem nome')}${sou ? ' (você)' : ''}</b><span>${h(m.email)} · ${m.papel === 'admin' ? 'Admin' : 'Morador'}${prot ? ` · <span class="etq-protegido">${prot}</span>` : ''}</span>${suas.length ? `<span class="quando-casa">${IC.casa} ${suas.map(c => nomeCasa(c)).join(' · ')}</span>` : ''}${m.criadoEm ? `<span class="quando-casa">${IC.relogio} Entrou em ${h(quando(+m.criadoEm))}</span>` : ''}</div>${editar || papel ? `<div class="acoes">${editar}${papel}</div>` : ''}</li>`; }).join('') : '<li><div class="info"><span>Ninguém ainda.</span></div></li>';
   $('#total-casas').textContent = casas.length;
   const dono = uid => { const m = membros.find(x => x.id === uid); return m ? m.nome || m.email : ''; };
   const porEndereco = (a, b) => (a.rua || '').localeCompare(b.rua || '') || String(a.numero).localeCompare(String(b.numero), 'pt', {numeric: true});
   const ordem = ls.get('hw.ordemCasas', 'novas'); $('#ordem-casas').value = ordem;
-  const quando = ts => ts ? new Date(ts).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(', ', ' às ') : '';
-  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort(ordem === 'endereco' ? porEndereco : (a, b) => (+b.criadoEm || 0) - (+a.criadoEm || 0) || porEndereco(a, b)).map(c => `<li><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...(rotulosAtribuicao(atribuicoes[c.id]).length ? [`+ ${rotulosAtribuicao(atribuicoes[c.id]).join(', ')}`] : [])].join(' '))}</span>${c.criadoEm ? `<span class="quando-casa">${IC.relogio} Cadastrada em ${h(quando(+c.criadoEm))}</span>` : ''}</div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
+  $('#lista-casas').innerHTML = (casas.length ? casas.slice().sort(ordem === 'endereco' ? porEndereco : (a, b) => (+b.criadoEm || 0) - (+a.criadoEm || 0) || porEndereco(a, b)).map(c => `<li data-busca="${h(semAcento([c.rua, c.numero, c.familia, dono(c.uid), ...rotulosAtribuicao(atribuicoes[c.id])].join(' ')))}"><div class="info"><b>${nomeCasa(c)}${c.familia ? ' · ' + h(c.familia) : ''}</b><span>${h([dono(c.uid) || 'Cadastrada por admin', ...(rotulosAtribuicao(atribuicoes[c.id]).length ? [`+ ${rotulosAtribuicao(atribuicoes[c.id]).join(', ')}`] : [])].join(' '))}</span>${c.criadoEm ? `<span class="quando-casa">${IC.relogio} Cadastrada em ${h(quando(+c.criadoEm))}</span>` : ''}</div><div class="acoes"><button class="btn btn-p btn-fantasma" data-editar="${h(c.id)}">${IC.editar} Editar</button><button class="btn btn-p btn-fantasma" data-excluir="${h(c.id)}">${IC.lixo} Excluir</button></div></li>`).join('') : '<li><div class="info"><span>Nenhuma casa ainda.</span></div></li>')
     + `<li class="li-acao"><button class="btn btn-p btn-primario" id="btn-casa-outra">${IC.casa} Cadastrar casa de outra família</button></li>`;
+  filtrarAdmin();
 }
 async function conferirEnderecos() {
   const alvo = $('#conferencia'); const btn = $('#btn-conferir'); const lista = casas.filter(c => c.rua && c.numero && typeof c.lat === 'number');
@@ -2109,6 +2131,7 @@ function ligarEventos() {
     delete b.dataset.confirma; b.textContent = 'Parar navegação'; b.classList.remove('confirmar'); pararNavegacao();
   });
   $('#btn-pular').addEventListener('click', pularParada);
+  ['#busca-membros', '#busca-casas'].forEach(i => $(i).addEventListener('input', filtrarAdmin));
   $('#ordem-casas').addEventListener('change', e => { ls.set('hw.ordemCasas', e.target.value); renderAdmin(); });
   $('#btn-falar').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
   $('#opt-voz').addEventListener('change', e => { vozAuto = e.target.checked; ls.set('hw.voz', vozAuto); if (vozAuto) falar('Guia por voz ligado. Vamos caçar doces!'); else { try { speechSynthesis.cancel(); } catch {} } });

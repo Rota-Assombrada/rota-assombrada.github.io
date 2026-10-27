@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=79">
+<link rel="stylesheet" href="css/estilo.css?v=80">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -296,11 +296,13 @@
       </div>
       <div class="cartao">
         <h2>Membros <span class="pill" id="total-membros">0</span></h2>
+        <label class="busca busca-p" for="busca-membros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="sr">Buscar membro</span><input type="search" id="busca-membros" placeholder="Nome, e-mail ou casa" autocomplete="off" enterkeyhint="search" maxlength="60"></label>
         <ul class="lista-casas" id="lista-membros"></ul>
       </div>
       <div class="cartao">
         <div class="titulo-ordem"><h2>Casas cadastradas <span class="pill" id="total-casas"></span></h2><label for="ordem-casas" class="sr">Ordenar casas</label><select id="ordem-casas" class="sel-ano"><option value="novas">Mais novas</option><option value="endereco">Endereço</option></select></div>
         <div class="acoes"><button class="btn btn-fantasma" id="btn-conferir">Conferir endereços das casas</button></div>
+        <label class="busca busca-p" for="busca-casas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="sr">Buscar casa</span><input type="search" id="busca-casas" placeholder="Rua, número ou família" autocomplete="off" enterkeyhint="search" maxlength="60"></label>
         <div id="conferencia"></div>
         <ul class="lista-casas" id="lista-casas"></ul>
         <div class="acoes">
@@ -330,6 +332,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=79"></script>
+<script type="module" src="js/app.js?v=80"></script>
 </body>
 </html>

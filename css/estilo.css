@@ -839,3 +839,10 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .passo #bv-gps-corpo .btn{width:calc(100% + 54px);margin:12px 0 0 -54px;min-height:50px;justify-content:center}
 #bv-som-resp{flex-basis:100%;margin:0}
 .passo>.acoes-bv{flex:0 0 100%}
+.busca.busca-p{max-width:none;margin:14px 0 4px;border-width:2px;border-color:var(--borda);box-shadow:none}
+.busca.busca-p svg{width:20px;height:20px;color:var(--fg3)}
+.busca.busca-p input{min-height:44px;font-size:1rem}
+.busca.busca-p:focus-within{border-color:var(--abobora);box-shadow:0 0 0 4px rgba(255,138,31,.15)}
+.lista-casas>li[hidden]{display:none}
+#lista-membros li .acoes{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+.lista-casas li .acoes .btn-linha{grid-column:1/-1}
