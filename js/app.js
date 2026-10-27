@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=80';
+import CONFIG from './config.js?v=81';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -192,7 +192,7 @@ let editandoId = null;
 let criandoOutra = false;       // admin cadastrando casa de outra pessoa
 let jaAbriuMinhaCasa = false;
 let abaAtual = 'mapa';
-let centrouCondo = false;
+let centrouCondo = false, ajustouPinos = false;
 let posicao = null;             // {lat,lng,acc,heading,t}
 let rumo = null;                // bússola em graus, se disponível
 const casaPorId = id => casas.find(c => c.id === id);
@@ -247,7 +247,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, sincronizando: sincronizandoIndice})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -327,7 +327,7 @@ function abrirCondo(novo) {
   if (novo === cid && subs.condo) { tentarConvite(); return; }
   parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos');
   cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
-  jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; modo = null;
+  jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; ajustouPinos = false; modo = null;
   partidaEscolhida = lsc.get('partida', ''); partida = partidaEscolhida || 'gps'; ano = null; anoEscolhido = null; eventoDoc = null; eventosAnos = []; casaAnoPassado = null; migrandoAnos = false;
   visitadas = new Set(); roteiro = null; rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
   ls.set('hw.ultimo', cid); checarPaginaPrevia(cid);
@@ -346,7 +346,7 @@ function abrirCondo(novo) {
     lembrarRecente(cid, condo.nome);
     tentarConvite();
     if (!centrouCondo && condo.centro) { centrouCondo = true; mapa.setView([condo.centro.lat, condo.centro.lng], condo.zoom || 17); }
-    renderTudoCondo();
+    renderTudoCondo(); caberPinos();
   }, e => { console.error(e); condoCarregado = true; cargaFim('condo'); cargaFim('casas'); casasCarregadas = true; toast('Não consegui abrir este condomínio.'); renderTudoCondo(); });
   subs.eventos = fb.fs.onSnapshot(fb.eventos(cid), s => { eventosAnos = s.docs.map(d => +d.id).filter(Boolean).sort((a, b) => b - a); renderSeletorAno(); }, e => console.error(e));
   assinarMembro();
@@ -457,6 +457,16 @@ function aoMudarDados() {
   if (roteiro && podeVerCasas && rotaChave !== chaveRoteiro()) { carregarRotaLinha(); if (!trecho) atualizarTrecho(false); }
   renderCabecalho(); renderPlacar(); renderPins(); renderRoteiro(); renderAcesso(); atualizarParticipar();
   if (abaAtual === 'organizador') renderAdmin();
+  caberPinos();
+}
+// A visão salva no admin pode deixar casas de fora: na primeira carga, se algum pino ficar fora da tela, afasta até caber todos.
+function caberPinos() {
+  if (ajustouPinos || !mapa || !casasCarregadas || !condoCarregado || (condo && condo.centro && !centrouCondo)) return;
+  const tam = mapa.getSize(); if (!tam.x || !tam.y) return;
+  ajustouPinos = true;
+  const pts = casas.filter(c => typeof c.lat === 'number').map(c => [c.lat, c.lng]); if (evento.portaria) pts.push([evento.portaria.lat, evento.portaria.lng]);
+  if (!pts.length || mapa.getBounds().pad(-0.06).contains(L.latLngBounds(pts))) return;
+  mapa.fitBounds(pts, {padding: [40, 40], maxZoom: Math.max((condo && condo.zoom) || 17, 17)});
 }
 
 /* ---------- entrar no condomínio ---------- */
@@ -1705,7 +1715,7 @@ function renderAcesso() {
   ac.innerHTML = html; ac.hidden = !html;
   const mostraMapa = !html && !!condo;
   const estava = !bloco.hidden; bloco.hidden = !mostraMapa;
-  if (mostraMapa && !estava) setTimeout(() => mapa.invalidateSize(), 50);
+  if (mostraMapa && !estava) setTimeout(() => { mapa.invalidateSize(); caberPinos(); }, 50);
 }
 function atualizarParticipar() {
   if (!cid) return;
@@ -2017,7 +2027,7 @@ function irAba(nome) {
   abaAtual = nome; ls.set('hw.aba', nome); contarTela(nome === 'organizador' ? 'admin' : nome);
   if (rolarRoteiro) setTimeout(() => $(roteiro ? '#guia' : '#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}), 120);
   ['mapa', 'participar', 'organizador'].forEach(a => { const p = $('#painel-' + a); p.hidden = a !== nome; if (a === nome) { p.style.animation = 'none'; void p.offsetWidth; p.style.animation = ''; } $('#aba-' + a).setAttribute('aria-current', a === nome ? 'page' : 'false'); });
-  if (nome === 'mapa') { setTimeout(() => mapa && mapa.invalidateSize(), 50); renderPins(); }
+  if (nome === 'mapa') { setTimeout(() => { if (mapa) { mapa.invalidateSize(); caberPinos(); } }, 50); renderPins(); }
   renderContagem();
   if (nome === 'mapa') renderRoteiro(); if (nome === 'organizador') renderAdmin(); if (nome === 'participar') { atualizarParticipar(); setTimeout(() => { iniciarMapaCasa(); atualizarMapaCasa(); }, 80); }
   if (!rolarRoteiro) window.scrollTo({top: 0, behavior: 'auto'});
@@ -2081,7 +2091,7 @@ function ligarEventos() {
   $('#filtros').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; filtros[c.dataset.filtro] = !filtros[c.dataset.filtro]; ls.set('hw.filtros', filtros); renderFiltros(); renderPins(); });
   $('#aviso-cancelar').addEventListener('click', () => { modo = null; renderModo(); if (modoVoltar !== 'mapa') irAba(modoVoltar); modoVoltar = 'mapa'; });
   $('#btn-centrar').addEventListener('click', () => { modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); if (modoSeguir) toast('Seguindo você no mapa.'); });
-  mapa.on('dragstart', () => { modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); });
+  mapa.on('dragstart', () => { ajustouPinos = true; modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); });
   $('#btn-ver-todas').addEventListener('click', verTodas);
   document.addEventListener('click', e => { if (e.target.closest('[data-ligar-gps]')) { gpsErro = null; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); } });
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
