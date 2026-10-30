@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=82">
+<link rel="stylesheet" href="css/estilo.css?v=83">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -135,6 +135,29 @@
             <button class="btn btn-icone" id="btn-centrar" aria-label="Seguir minha posição" title="Onde estou"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></button>
             <button class="btn btn-icone" id="btn-ver-todas" aria-label="Ver todas as casas" title="Ver todas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg></button>
           </div>
+          <div class="cam-topo" id="cam-topo" hidden>
+            <div class="cam-topo-in">
+              <div class="cam-seta" id="cam-seta" aria-hidden="true"></div>
+              <div class="cam-txt">
+                <p class="cam-instrucao" id="cam-instrucao" aria-live="polite"></p>
+                <p class="cam-meta" id="cam-meta"></p>
+                <p class="cam-parada" id="cam-parada"></p>
+              </div>
+              <button type="button" class="btn btn-fantasma cam-fim-sair" id="cam-fim-sair" hidden>Sair</button>
+            </div>
+          </div>
+          <button type="button" class="btn cam-recentrar" id="cam-recentrar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>Recentralizar</button>
+          <div class="cam-base" id="cam-base" hidden>
+            <div class="cam-base-in">
+              <button type="button" class="btn btn-sucesso cam-cheguei" id="cam-cheguei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Cheguei! Próxima casa</button>
+              <div class="cam-linha">
+                <button type="button" class="btn btn-fantasma" id="cam-pular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l8 7-8 7z"/><path d="M17 5v14"/></svg>Pular</button>
+                <button type="button" class="btn btn-fantasma" id="cam-ouvir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir</button>
+                <a class="btn btn-fantasma cam-google" id="cam-google" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l19-9-9 19-2-8z"/></svg>Google Maps</a>
+                <button type="button" class="btn btn-fantasma" id="cam-sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>Sair</button>
+              </div>
+            </div>
+          </div>
         </div>
         <p class="gps-status" id="gps-status"></p>
         <div class="legenda"><span><i style="background:var(--abobora)"></i>Casa aberta</span><span><i style="background:#9a6c3c"></i>Fora do horário</span><span><i style="background:var(--veneno)"></i>Você / ordem do roteiro</span><span><i style="background:var(--lua)"></i>Portaria</span><span><i style="background:var(--roxo)"></i>Doces esgotados</span></div>
@@ -144,7 +167,8 @@
         <p class="guia-instrucao" id="guia-instrucao" hidden></p>
         <div class="guia-casa" id="guia-casa"></div>
         <div class="guia-acoes">
-          <a class="btn btn-primario btn-grande" id="btn-navegar" target="_blank" rel="noopener">Navegar no app do celular</a>
+          <button type="button" class="btn btn-primario btn-grande" id="btn-caminhar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h8"/></svg>Modo caminhada</button>
+          <a class="btn btn-fantasma" id="btn-navegar" target="_blank" rel="noopener">Navegar no app do celular</a>
           <button class="btn btn-fantasma" id="btn-falar">Ouvir</button>
           <button class="btn btn-fantasma" id="btn-pular">Pular</button>
           <button class="btn btn-sucesso btn-grande" id="btn-cheguei">Cheguei! Próxima casa</button>
@@ -332,6 +356,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=82"></script>
+<script type="module" src="js/app.js?v=83"></script>
 </body>
 </html>

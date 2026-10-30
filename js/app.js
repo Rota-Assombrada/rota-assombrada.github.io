@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=82';
+import CONFIG from './config.js?v=83';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -32,6 +32,20 @@ const IC = {
   carregando: svg('<path d="M12 3a9 9 0 1 0 9 9"/>'),
   copiar: svg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
   google: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>',
+};
+// Setas do modo caminhada, pelo "modifier" da manobra do roteador. A bússola aponta para a casa no mapa (norte para cima).
+const SETA = {
+  straight: svg('<path d="M12 20V4M6 10l6-6 6 6"/>'),
+  left: svg('<path d="M17 21v-8a4 4 0 0 0-4-4H5"/><path d="M9 5L5 9l4 4"/>'),
+  right: svg('<path d="M7 21v-8a4 4 0 0 1 4-4h8"/><path d="M15 5l4 4-4 4"/>'),
+  'slight left': svg('<path d="M15 21v-7L8 7"/><path d="M8 13V7h6"/>'),
+  'slight right': svg('<path d="M9 21v-7l7-7"/><path d="M16 13V7h-6"/>'),
+  'sharp left': svg('<path d="M16 21V5L6 15"/><path d="M6 9v6h6"/>'),
+  'sharp right': svg('<path d="M8 21V5l10 10"/><path d="M18 9v6h-6"/>'),
+  uturn: svg('<path d="M8 21V9a5 5 0 0 1 10 0v6"/><path d="M14 11l4 4 4-4"/>'),
+  arrive: svg('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
+  festa: svg('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>'),
+  bussola: g => svg(`<circle cx="12" cy="12" r="9.5"/><g transform="rotate(${g} 12 12)"><path d="M12 4.5l3 7.5H9z" fill="currentColor"/><path d="M12 19.5L9 12h6z"/></g>`),
 };
 const PIN_SVG = `<svg viewBox="0 0 46 52" aria-hidden="true"><path d="M23 50c-2-6-6-9-6-9h12s-4 3-6 9z" fill="#2a0d00"/><path d="M22 6c2 1 3 4 3 7" stroke="#4f7a24" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M25 8c4-3 9-2 11 1-4 2-8 2-11-1z" fill="#6fa83a"/><ellipse class="corpo" cx="12" cy="26" rx="10" ry="16" fill="#ff8a1f"/><ellipse class="corpo" cx="34" cy="26" rx="10" ry="16" fill="#ff8a1f"/><ellipse class="corpo" cx="23" cy="26" rx="15" ry="17" fill="#ff8a1f"/></svg>`;
 const PUMPKIN_BIG = `<div class="vazio-cena"><svg class="abobora-vazia" viewBox="0 0 120 112" aria-hidden="true"><ellipse cx="60" cy="106" rx="40" ry="5" fill="#000" opacity=".35"/><path d="M59 26c-1-9 2-16 8-20" stroke="#4f7a24" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M66 12c9-7 20-5 25 2-9 4-17 4-25-2z" fill="#6fa83a"/><path d="M70 14c-4 6-3 12 2 16" stroke="#6fa83a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="87" cy="64" rx="25" ry="38" fill="#e86f0c"/><ellipse cx="60" cy="64" rx="31" ry="41" fill="#ff8a1f"/><ellipse cx="48" cy="44" rx="9" ry="16" fill="#ffb35c" opacity=".55"/><ellipse cx="22" cy="54" rx="5" ry="12" fill="#ffb35c" opacity=".35"/><path d="M44 26q-10 38 0 76M76 26q10 38 0 76" stroke="#c25400" stroke-width="2" fill="none" opacity=".45"/><g class="rosto" fill="#ffd84a"><path d="M30 52l13-14 9 18z"/><path d="M90 52l-13-14-9 18z"/><path d="M60 60l-6 9h12z"/><path d="M26 72q34 30 68 0l-8 3-5 8-7-6-6 8-6-8-6 8-6-8-7 6-5-8z"/></g></svg><span class="fantasminha"><svg viewBox="0 0 40 46" aria-hidden="true"><path d="M20 2C9 2 4 10 4 20v24l5-5 5 5 6-5 6 5 5-5 5 5V20C36 10 31 2 20 2z" fill="currentColor"/><circle cx="14" cy="18" r="3" fill="#1a1428"/><circle cx="26" cy="18" r="3" fill="#1a1428"/><ellipse cx="20" cy="27" rx="3" ry="4" fill="#1a1428"/></svg></span></div>`;
@@ -247,7 +261,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -325,6 +339,7 @@ const subs = {};
 function parar(...nomes) { nomes.forEach(n => { if (subs[n]) { try { subs[n](); } catch {} delete subs[n]; } }); }
 function abrirCondo(novo) {
   if (novo === cid && subs.condo) { tentarConvite(); return; }
+  if (caminhando) sairCaminhada(true, true); caminhadaVista = false;
   parar('condo', 'membro', 'casas', 'casasAntigas', 'membros', 'convites', 'atribuicoes', 'evento', 'eventos');
   cid = novo; condo = null; condoCarregado = false; casas = []; casasCarregadas = false; cargaInicio('condo'); cargaInicio('casas'); papel = ''; papelCarregado = false; podeVerCasas = false; membros = []; convites = [];
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null; centrouCondo = false; ajustouPinos = false; modo = null;
@@ -363,6 +378,7 @@ function trocarAno(novo) {
   ano = novo; parar('casas', 'casasAntigas', 'evento');
   casas = []; casasCarregadas = false; podeVerCasas = false; cargaInicio('casas'); eventoDoc = null; casaAnoPassado = null;
   visitadas = new Set(lsa.get('visitadas', [])); roteiro = lsa.get('roteiro', null); rotaLinha = null; rotaPernas = null; rotaTrechos = null; rotaChave = ''; trecho = null;
+  if (caminhando) sairCaminhada(true, true); caminhadaVista = false;
   jaAbriuMinhaCasa = false; editandoId = null; criandoOutra = false; pinCasa = null;
   subs.evento = fb.fs.onSnapshot(fb.evento(cid, ano), s => { eventoDoc = s.exists() ? s.data() : null; montarEvento(); renderTudoCondo(); vigiarEvento(); }, e => console.error(e));
   montarEvento(); renderSeletorAno();
@@ -457,7 +473,7 @@ function aoMudarDados() {
   if (roteiro && podeVerCasas && rotaChave !== chaveRoteiro()) { carregarRotaLinha(); if (!trecho) atualizarTrecho(false); }
   renderCabecalho(); renderPlacar(); renderPins(); renderRoteiro(); renderAcesso(); atualizarParticipar();
   if (abaAtual === 'organizador') renderAdmin();
-  caberPinos();
+  caberPinos(); restaurarCaminhada();
 }
 // A visão salva no admin pode deixar casas de fora: na primeira carga, se algum pino ficar fora da tela, afasta até caber todos.
 function caberPinos() {
@@ -704,11 +720,16 @@ function renderPins() {
   const salva = editandoId && casaPorId(editandoId); const mudouPin = pinCasa && (!salva || salva.lat !== pinCasa.lat || salva.lng !== pinCasa.lng);
   if (pinCasa && (modo === 'casa' || (abaAtual === 'participar' && mudouPin))) camadaExtras.addLayer(L.marker([pinCasa.lat, pinCasa.lng], {icon: iconeMarcador(IC.casa, 'pin-temp'), interactive: false}));
   if (roteiro) {
+    // Trecho da vez: o caminho ao vivo (de onde a pessoa está até a próxima casa) em destaque; os trechos já feitos ficam apagados.
+    const iAtual = proximaParada(), iRef = iAtual < 0 ? Infinity : iAtual;
+    const viva = iAtual >= 0 && trecho && trecho.pts && trecho.casaId === roteiro.ordem[iAtual] ? trecho.pts : null;
     if (rotaTrechos && rotaChave === chaveRoteiro()) {
-      rotaTrechos.forEach(tr => {
-        if (tr.ruas) { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 9, opacity: .55, interactive: false, lineJoin: 'round'})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 5, opacity: .95, interactive: false, lineJoin: 'round'})); }
-        else { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 7, opacity: .45, interactive: false})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 4, dashArray: '2 9', lineCap: 'round', opacity: .95, interactive: false})); }
+      rotaTrechos.forEach((tr, i) => {
+        if (viva && i === iAtual) return; const f = i < iRef ? .3 : 1;
+        if (tr.ruas) { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 9, opacity: .55 * f, interactive: false, lineJoin: 'round'})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 5, opacity: .95 * f, interactive: false, lineJoin: 'round'})); }
+        else { camadaExtras.addLayer(L.polyline(tr.pts, {color: '#06200a', weight: 7, opacity: .45 * f, interactive: false})); camadaExtras.addLayer(L.polyline(tr.pts, {color: '#8df06a', weight: 4, dashArray: '2 9', lineCap: 'round', opacity: .95 * f, interactive: false})); }
       });
+      if (viva) { camadaExtras.addLayer(L.polyline(viva, {color: '#06200a', weight: 10, opacity: .6, interactive: false, lineJoin: 'round'})); camadaExtras.addLayer(L.polyline(viva, {color: '#8df06a', weight: 6, opacity: 1, interactive: false, lineJoin: 'round'})); }
     } else {
       const pts = [[roteiro.de.lat, roteiro.de.lng]].concat(roteiro.ordem.map(casaPorId).filter(Boolean).map(c => [c.lat, c.lng]));
       if (pts.length > 1) camadaExtras.addLayer(L.polyline(pts, {color: '#8df06a', weight: 3, dashArray: '6 8', opacity: .8, interactive: false}));
@@ -758,7 +779,9 @@ function ligarGPS(centrar) {
     if (!marcadorEu) { marcadorEu = L.marker([posicao.lat, posicao.lng], {icon: L.divIcon({className: 'eu-wrap', iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="eu"><i></i><b></b></div>'}), interactive: false, zIndexOffset: 2000}).addTo(mapa); circuloAcc = L.circle([posicao.lat, posicao.lng], {radius: posicao.acc, color: '#8df06a', weight: 1, fillOpacity: .08, interactive: false}).addTo(mapa); }
     else { marcadorEu.setLatLng([posicao.lat, posicao.lng]); circuloAcc.setLatLng([posicao.lat, posicao.lng]).setRadius(posicao.acc); }
     atualizarRumoVisual();
-    if ((centrar && !gpsCentrado) || modoSeguir) { mapa.setView([posicao.lat, posicao.lng], Math.max(mapa.getZoom(), 17)); gpsCentrado = true; }
+    // No modo caminhada entra no zoom 18; se a pessoa aproximar ou afastar (entre 16 e 19), respeita enquanto segue.
+    if (caminhando && modoSeguir) { const z = Math.min(19, Math.max(16, mapa.getZoom())); mapa.setView(centroDeslocado(posicao, z), z, {animate: !reduzMovimento}); gpsCentrado = true; }
+    else if ((centrar && !gpsCentrado) || modoSeguir) { mapa.setView([posicao.lat, posicao.lng], Math.max(mapa.getZoom(), 17)); gpsCentrado = true; }
     gpsErro = null; atualizarBoasVindasGPS(); renderGpsCartao(); aoMoverGPS();
     if (Date.now() - (window.__listaT || 0) > 15000) { window.__listaT = Date.now(); renderListaCasas(); } renderPartida(); if (!$('#guia').hidden) renderGuia();
   }, e => { gpsErro = e.code; atualizarBoasVindasGPS(); renderGpsCartao(); st.textContent = e.code === 1 ? (IOS ? 'Localização bloqueada no iPhone. Veja como liberar logo acima do mapa.' : 'Localização bloqueada. Libere nas configurações do navegador para este site.') : e.code === 2 ? 'O GPS do celular parece desligado. Ligue a localização nas configurações.' : 'Não consegui pegar sua posição agora.'; st.className = 'gps-status erro'; gpsWatch = null; }, {enableHighAccuracy: true, maximumAge: 3000, timeout: 20000});
@@ -871,12 +894,15 @@ async function atualizarTrecho(forcar) {
   if (trechoBuscando || (!forcar && Date.now() - trechoT < 15000 && trecho && trecho.casaId === c.id)) return trecho;
   trechoBuscando = true; trechoT = Date.now(); if (!$('#guia').hidden) renderGuia();
   try {
-    const d = await osrm('route', [de, c], 'overview=false&steps=true');
+    const d = await osrm('route', [de, c], 'overview=false&steps=true&geometries=geojson');
     const r = d.routes[0];
     const ok = encaixeOk(d.waypoints[0]) && encaixeOk(d.waypoints[1]) && plausivel(r.distance, de, c) && r.distance > 0;
-    trecho = ok ? {casaId: c.id, de, dist: r.distance, passos: r.legs[0].steps} : {casaId: c.id, de, reta: true};
+    // pts: a linha do trecho para desenhar no mapa; ini: onde cada passo começa nela (para medir até a próxima manobra).
+    if (ok) { const passos = r.legs[0].steps, pts = [[de.lat, de.lng]], ini = []; passos.forEach(s => { ini.push(pts.length); (s.geometry.coordinates || []).forEach(([lng, lat]) => pts.push([lat, lng])); }); pts.push([c.lat, c.lng]); trecho = {casaId: c.id, de, dist: r.distance, passos, pts, ini}; }
+    else trecho = {casaId: c.id, de, reta: true};
   } catch (e) { console.warn('Trecho a pé indisponível.', e); if (!trecho || trecho.casaId !== c.id) trecho = null; }
   finally { trechoBuscando = false; }
+  renderPins(); if (caminhando && modoSeguir && !posFresca()) posicionarCaminhada();
   if (!$('#guia').hidden) renderGuia();
   return trecho;
 }
@@ -916,16 +942,15 @@ async function montarRoteiro() {
   roteiro = {ordem: otimizar(pp.p, lista, matriz), de: pp.p, partida, criado: Date.now(), aPe: !!matriz}; lsa.set('roteiro', roteiro); anunciadoChegada = null; ultimaFalaDist = 0;
   rotaLinha = null; rotaPernas = null; rotaTrechos = null; trecho = null;
   SFX.sucesso(); renderRoteiro(); renderPins(); renderPlacar();
-  // O mapa já se ajusta às casas, mas a tela vai para o botão do Google Maps, que é o jeito recomendado de seguir a rota.
+  // O mapa já se ajusta às casas, mas a tela vai para o botão do Modo caminhada, que segue a rota no próprio mapa.
   const pontos = [pp.p, ...roteiro.ordem.map(casaPorId).filter(Boolean)].map(c => [c.lat, c.lng]);
   if (pontos.length > 1) mapa.fitBounds(pontos, {padding: [60, 60], maxZoom: 18});
-  const bn = $('#btn-navegar'); bn.scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'});
+  const bn = $('#btn-caminhar'); bn.scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'});
   bn.classList.remove('chamar'); void bn.offsetWidth; bn.classList.add('chamar'); setTimeout(() => bn.classList.remove('chamar'), 3600);
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
-  // A recomendação do Google Maps sempre é falada; os detalhes da primeira casa, só com o guia por voz ligado.
-  const partes = partesRotaGoogle().length;
-  const dica = `Recomendamos seguir a rota pelo Google Maps: toque no botão laranja, Rota completa no Google Maps.${partes > 1 ? ` Como são muitas casas, a rota vem em ${partes} partes.` : ''} `;
+  // A dica do Modo caminhada sempre é falada; os detalhes da primeira casa, só com o guia por voz ligado.
+  const dica = 'Toque em Modo caminhada para seguir pelo mapa, ou abra no Google Maps. ';
   const idxFala = proximaParada();
   const saindo = /^a /.test(pp.nome) ? 'da ' + pp.nome.slice(2) : /^o /.test(pp.nome) ? 'do ' + pp.nome.slice(2) : 'de ' + pp.nome;
   falar(`Roteiro pronto com ${n} casa${n > 1 ? 's' : ''}, saindo ${saindo}. ` + dica + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : ''));
@@ -950,7 +975,7 @@ function falaParada(idx) {
 let anunciadoChegada = null, ultimaFalaDist = 0, ultimaFalaT = 0;
 function aoMoverGPS() {
   if (!roteiro || !posicao) return; const idx = proximaParada(); if (idx < 0) return; const c = casaPorId(roteiro.ordem[idx]); const d = distM(posicao, c);
-  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) falar(`Chegou! ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. Pegue os doces e toque em Cheguei para a próxima.`); return; }
+  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); if (!caminhando) toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) falar(`Chegou! ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. Pegue os doces e toque em Cheguei para a próxima.`); return; }
   atualizarTrecho(false);
   const tr = trechoDe(c); const dRest = tr ? Math.max(d, tr.dist - distM(tr.de, posicao)) : d;
   if (vozAuto && d > 40 && Math.abs(dRest - ultimaFalaDist) >= 60 && Date.now() - ultimaFalaT > 25000 && !VOZ.falando) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); falar(tr ? `Faltam uns ${falaM(dRest)}. ${textoInstrucao(tr.passos, falaM)}` : `Faltam ${falaM(d)}, ${direcaoFala(posicao, c)}.`); }
@@ -958,19 +983,123 @@ function aoMoverGPS() {
 function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsa.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
 async function cheguei() {
   const idx = proximaParada(); if (idx < 0) return; evento_('chegou_na_casa'); marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
-  const b = $('#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
+  const b = $(caminhando ? '#cam-cheguei' : '#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
   const prox = proximaParada();
-  if (prox < 0) { toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
+  if (prox < 0) { if (!caminhando) toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
   else { await atualizarTrecho(true); if (vozAuto) falar('Boa! ' + falaParada(prox)); }
 }
 function pararNavegacao() {
-  evento_('navegacao_parada');
+  evento_('navegacao_parada'); sairCaminhada(false, true);
   roteiro = null; lsa.set('roteiro', null); trecho = null; rotaTrechos = null; rotaLinha = null; rotaPernas = null; rotaChave = ''; anunciadoChegada = null; modoSeguir = false;
   try { speechSynthesis.cancel(); } catch {} abaixarMusica(false);
   renderRoteiro(); renderPins(); renderPlacar(); SFX.pop(); toast('Navegação encerrada. As casas visitadas continuam marcadas.');
   $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
 }
 async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. ' + falaParada(prox)); } }
+
+/* ---------- modo caminhada: mapa em tela cheia seguindo a pessoa, instrução e botões juntos ---------- */
+let caminhando = false, caminhadaVista = false, fimFestejado = false, bloqueioTela = null;
+const posFresca = () => posicao && Date.now() - posicao.t < 60000 ? posicao : null;
+// Tela acesa enquanto anda: o celular apagando no meio do caminho faz perder a instrução e o GPS.
+async function manterTelaAcesa(on) {
+  try { if (on && 'wakeLock' in navigator) { const b = await navigator.wakeLock.request('screen'); if (caminhando) bloqueioTela = b; else b.release(); } else if (!on && bloqueioTela) { const b = bloqueioTela; bloqueioTela = null; await b.release(); } } catch {}
+}
+// O navegador solta a tela acesa quando a página some (trocar de app); ao voltar, pede de novo.
+document.addEventListener('visibilitychange', () => { if (!document.hidden && caminhando) manterTelaAcesa(true); });
+// Centro do mapa um pouco ao norte da pessoa: a bolinha fica no terço de baixo e sobra mais mapa à frente.
+function centroDeslocado(p, z) { const pt = mapa.project([p.lat, p.lng], z); pt.y -= mapa.getSize().y * 0.15; return mapa.unproject(pt, z); }
+// Distância ao longo do caminho: projeta a posição no segmento mais próximo da linha (plano local em metros, basta num condomínio).
+function acumulado(pts) { const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + distM({lat: pts[i - 1][0], lng: pts[i - 1][1]}, {lat: pts[i][0], lng: pts[i][1]})); return cum; }
+function posNaLinha(pts, cum, p) {
+  const kx = 111320 * Math.cos(p.lat * Math.PI / 180), ky = 110540; let melhor = Infinity, s = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const ax = (pts[i - 1][1] - p.lng) * kx, ay = (pts[i - 1][0] - p.lat) * ky, dx = (pts[i][1] - pts[i - 1][1]) * kx, dy = (pts[i][0] - pts[i - 1][0]) * ky, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0, qx = ax + t * dx, qy = ay + t * dy, d = qx * qx + qy * qy;
+    if (d < melhor) { melhor = d; s = cum[i - 1] + t * (cum[i] - cum[i - 1]); }
+  }
+  return s;
+}
+const SEM_MANOBRA = ['arrive', 'new name', 'continue', 'depart'];
+const maiuscula = t => t.charAt(0).toUpperCase() + t.slice(1);
+// Mesma escolha de passos do texto falado (pula passos < 8 m; manobra = próxima que não é chegada/mudança de nome/seguir).
+// Com GPS, mede a partir de onde a pessoa está na linha, então a distância diminui enquanto anda, entre uma busca e outra.
+function instrucaoAtual(tr, p) {
+  const ps = tr.passos || []; if (!ps.length) return {icone: 'arrive', texto: 'Siga até a casa', dist: tr.dist, resta: tr.dist};
+  if (!tr.cum && tr.pts) tr.cum = acumulado(tr.pts);
+  const cum = tr.cum, s = p && cum ? posNaLinha(tr.pts, cum, p) : 0, inicio = k => cum && tr.ini ? cum[tr.ini[k]] : ps.slice(0, k).reduce((t, x) => t + x.distance, 0);
+  let i = 0; for (let k = 1; k < ps.length; k++) if (inicio(k) <= s + 2) i = k;
+  while (i < ps.length - 1 && ps[i].distance < 8) i++;
+  const k = ps.findIndex((x, j) => j > i && !SEM_MANOBRA.includes(x.maneuver.type)), prox = k >= 0 ? ps[k] : null, ini = ps[i];
+  const fim = cum ? cum[cum.length - 1] : tr.dist, mod = prox && prox.maneuver.modifier;
+  const texto = prox ? `${maiuscula(MANOBRA[mod] || 'siga em frente')}${prox.name ? ' na ' + prox.name : ''}` : `Siga${ini.name ? ' pela ' + ini.name : ''} até a casa`;
+  return {icone: prox ? (SETA[mod] ? mod : 'straight') : 'arrive', texto, dist: Math.max(0, (prox ? inicio(k) : fim) - s), resta: Math.max(0, tr.dist - s)};
+}
+const minutosAPe = m => Math.max(1, Math.round(m / 70));
+// Só troca o conteúdo quando muda: o aviso para leitor de tela não repete e a seta não pisca a cada GPS.
+function poeTexto(el, t) { if (el.textContent !== t) el.textContent = t; }
+function poeHtml(el, k, html) { if (el.dataset.k !== k) { el.dataset.k = k; el.innerHTML = html; } }
+function renderRecentrar() { $('#cam-recentrar').hidden = !caminhando || modoSeguir; }
+function renderCaminhada() {
+  renderRecentrar(); if (!caminhando) return;
+  const idx = roteiro ? proximaParada() : -1, fim = idx < 0; let k, seta, instr, meta, parada = '', chegou = false;
+  if (fim) { k = 'fim'; seta = SETA.festa; instr = 'Roteiro concluído!'; meta = 'Sacola cheia? Feliz Halloween!'; parada = roteiro ? `${roteiro.ordem.length} paradas feitas` : ''; if (!fimFestejado) { fimFestejado = true; SFX.festa(); } }
+  else {
+    fimFestejado = false;
+    const c = casaPorId(roteiro.ordem[idx]), tr = trechoDe(c), de = origemAtual(idx);
+    parada = `Parada ${idx + 1} de ${roteiro.ordem.length} · Casa ${c.numero}${c.familia ? ' · ' + c.familia : ''}`;
+    if (anunciadoChegada === c.id) { chegou = true; k = 'arrive'; seta = SETA.arrive; instr = 'Você chegou!'; meta = 'Pegue os doces e toque em Cheguei'; }
+    else if (tr) { const ia = instrucaoAtual(tr, posFresca()); k = ia.icone; seta = SETA[ia.icone]; instr = ia.texto; meta = `${fmtM(ia.dist)} · ~${minutosAPe(ia.resta)} min`; }
+    else if (trechoBuscando && !(trecho && trecho.casaId === c.id)) { k = 'busca'; seta = SPIN; instr = 'Procurando o caminho pelas ruas…'; meta = `${fmtM(distM(de, c))} em linha reta`; }
+    else { const g = Math.round(rumoGraus(de, c) / 5) * 5 % 360, d = distM(de, c); k = 'bussola' + g; seta = SETA.bussola(g); instr = `Siga ${fmtM(d)} ${direcaoFala(de, c)}`; meta = `Sem caminho pelas ruas · ~${minutosAPe(d * 1.3)} min`; }
+    $('#cam-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id) && casaPorId(id)).length < 2;
+    const partes = partesRotaGoogle(); if (partes.length) $('#cam-google').href = partes[0].url;
+  }
+  poeHtml($('#cam-seta'), k, seta); $('#cam-seta').classList.toggle('chegou', chegou || fim); poeTexto($('#cam-instrucao'), instr); poeTexto($('#cam-meta'), meta); poeTexto($('#cam-parada'), parada);
+  const b = $('#cam-cheguei'); b.classList.toggle('chegou', chegou); b.classList.toggle('pulsar', chegou && !reduzMovimento);
+  ['#cam-cheguei', '#cam-pular', '#cam-ouvir', '#cam-google'].forEach(s => { $(s).hidden = fim; }); $('#cam-fim-sair').hidden = !fim; $('#cam-base').classList.toggle('fim', fim);
+  medirCaminhada();
+}
+// Altura real das barras: os botões do mapa, a atribuição e os avisos ficam fora de baixo delas.
+function medirCaminhada() {
+  if (!caminhando) return; const t = $('#cam-topo').getBoundingClientRect(), b = $('#cam-base').getBoundingClientRect(), st = document.body.style;
+  st.setProperty('--cam-topo-h', Math.round(t.bottom) + 'px'); st.setProperty('--cam-base-h', Math.round(innerHeight - b.top) + 'px');
+}
+// Com GPS, segue a pessoa; sem GPS, mostra o trecho inteiro até a próxima casa entre as duas barras.
+function posicionarCaminhada() {
+  if (!caminhando || !mapa) return; const p = posFresca(); if (p) { mapa.setView(centroDeslocado(p, 18), 18, {animate: false}); return; }
+  const idx = proximaParada(); if (idx < 0) return; const c = casaPorId(roteiro.ordem[idx]), de = origemAtual(idx);
+  const pts = trecho && trecho.casaId === c.id && trecho.pts ? trecho.pts : [[de.lat, de.lng], [c.lat, c.lng]];
+  const th = $('#cam-topo').getBoundingClientRect().bottom, bh = innerHeight - $('#cam-base').getBoundingClientRect().top;
+  mapa.fitBounds(pts, {paddingTopLeft: [20, th + 20], paddingBottomRight: [20, bh + 20], maxZoom: 18, animate: false});
+}
+function recentrarCaminhada() { modoSeguir = true; $('#btn-centrar').setAttribute('aria-pressed', 'true'); renderRecentrar(); ligarGPS(false); posicionarCaminhada(); }
+function entrarCaminhada(restaurando) {
+  if (!roteiro || !mapa || proximaParada() < 0) return;
+  if (abaAtual !== 'mapa') irAba('mapa'); fecharFolha();
+  caminhando = true; caminhadaVista = true; lsa.set('caminhando', true); document.body.classList.add('caminhando');
+  $('#cam-topo').hidden = false; $('#cam-base').hidden = false;
+  modoSeguir = true; $('#btn-centrar').setAttribute('aria-pressed', 'true');
+  // GPS sem centralizar aqui: a animação de zoom do ligarGPS(true) terminaria depois e desfaria o zoom 18 posicionado abaixo.
+  ligarGPS(false); manterTelaAcesa(true); renderPins(); renderCaminhada();
+  // O mapa muda de tamanho com a troca de layout: o Leaflet precisa medir de novo antes de posicionar.
+  setTimeout(() => { if (!caminhando) return; mapa.invalidateSize(); medirCaminhada(); posicionarCaminhada(); }, 60);
+  atualizarTrecho(true);
+  if (!restaurando) { SFX.plim(); evento_('modo_caminhada'); }
+}
+function sairCaminhada(manter, semRolar) {
+  if (!caminhando) return;
+  caminhando = false; if (!manter) lsa.set('caminhando', false); document.body.classList.remove('caminhando');
+  $('#cam-topo').hidden = true; $('#cam-base').hidden = true; $('#cam-recentrar').hidden = true;
+  modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); manterTelaAcesa(false); fimFestejado = false;
+  if (mapa) { mapa.invalidateSize(); setTimeout(() => mapa.invalidateSize(), 60); }
+  if (!semRolar && !manter && !$('#guia').hidden) $('#guia').scrollIntoView({behavior: 'auto', block: 'start'});
+  renderPins();
+}
+// Recarregou a página no meio do caminho: volta para o modo caminhada sozinho (uma vez por condomínio aberto).
+function restaurarCaminhada() {
+  if (caminhadaVista || caminhando || !roteiro || !mapa || !casasCarregadas || !podeVerCasas || $('#mapa-bloco').hidden) return;
+  caminhadaVista = true; if (lsa.get('caminhando', false) && proximaParada() >= 0) entrarCaminhada(true);
+}
 
 /* ---------- voz ---------- */
 const VOZ = {falando: false};
@@ -1139,7 +1268,7 @@ function renderGuia() {
     const c = casaPorId(roteiro.ordem[idx]); const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
     $('#guia-n').textContent = `${idx + 1} de ${roteiro.ordem.length}`; $('#guia-dist').textContent = tr ? `${fmtM(d)} a pé` : `${fmtM(d)} · ${direcaoFala(de, c)}`;
     const gi = $('#guia-instrucao'); if (tr) gi.textContent = textoInstrucao(tr.passos, fmtM); else gi.innerHTML = trechoBuscando ? `${SPIN} Procurando o caminho pelas ruas…` : ''; gi.hidden = !gi.innerHTML;
-    $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
+    $('#guia-casa').innerHTML = cartaoCasa(c); $('#btn-caminhar').hidden = false; $('#btn-cheguei').disabled = false; $('#btn-pular').disabled = roteiro.ordem.filter(id => !visitadas.has(id)).length < 2; $('#btn-falar').disabled = false;
     // Botão principal: todas as casas que faltam, na ordem otimizada (em partes se forem muitas). Embaixo, só a próxima.
     const partes = partesRotaGoogle(), faltam = partes.reduce((t, x) => t + x.casas, 0);
     const nav = $('#btn-navegar'); nav.removeAttribute('aria-disabled');
@@ -1151,9 +1280,10 @@ function renderGuia() {
       : `<span class="rotulo">Ou use</span><a href="${l.apple}" target="_blank" rel="noopener">Apple Maps</a><a href="${l.waze}" target="_blank" rel="noopener">Waze</a>`;
   } else {
     $('#guia-n').textContent = 'final'; $('#guia-dist').textContent = ''; $('#guia-instrucao').hidden = true; $('#guia-casa').innerHTML = `<div class="vazio">${PUMPKIN_BIG}<h3>Roteiro concluído!</h3><p>Sacola cheia? Feliz Halloween!</p></div>`;
-    $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; $('#btn-parar').textContent = 'Fechar roteiro'; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = ''; $('#partes-google').hidden = true;
+    $('#btn-caminhar').hidden = true; $('#btn-cheguei').disabled = true; $('#btn-pular').disabled = true; $('#btn-falar').disabled = true; $('#btn-parar').textContent = 'Fechar roteiro'; const nav = $('#btn-navegar'); nav.setAttribute('aria-disabled', 'true'); nav.removeAttribute('href'); $('#nav-extra').innerHTML = ''; $('#partes-google').hidden = true;
   }
   guia.hidden = false;
+  if (caminhando) renderCaminhada();
 }
 function renderRoteiro() {
   renderPartida();
@@ -1881,6 +2011,7 @@ async function conferirEnderecos() {
     : empilhadas.length ? '' : '<p class="ok-msg">Tudo certo: todas as casas estão perto do endereço cadastrado.</p>');
 }
 function mostrarInicio() {
+  if (caminhando) sairCaminhada(true, true);
   contarTela('inicio'); setTimeout(renderSino, 0);
   $('#painel-inicio').hidden = false; ['mapa', 'participar', 'organizador'].forEach(a => { $('#painel-' + a).hidden = true; });
   $('#abas').hidden = true; $('#linha-condo').hidden = true; $('#placar').innerHTML = ''; abaAtual = 'inicio';
@@ -2034,6 +2165,7 @@ function voltarParaMinhaCasa() {
 function irAba(nome) {
   if (!cid) return;
   if (nome === 'organizador' && !ehAdmin()) nome = 'mapa';
+  if (caminhando && nome !== 'mapa' && nome !== 'roteiro') sairCaminhada();
   // O roteiro mora embaixo do mapa: "ir ao roteiro" abre o mapa e rola até ele.
   const rolarRoteiro = nome === 'roteiro'; if (rolarRoteiro) nome = 'mapa';
   abaAtual = nome; ls.set('hw.aba', nome); contarTela(nome === 'organizador' ? 'admin' : nome);
@@ -2102,8 +2234,17 @@ function ligarEventos() {
   $$('.aba').forEach(b => b.addEventListener('click', () => { if (b.dataset.aba === 'participar') voltarParaMinhaCasa(); irAba(b.dataset.aba); }));
   $('#filtros').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; filtros[c.dataset.filtro] = !filtros[c.dataset.filtro]; ls.set('hw.filtros', filtros); renderFiltros(); renderPins(); });
   $('#aviso-cancelar').addEventListener('click', () => { modo = null; renderModo(); if (modoVoltar !== 'mapa') irAba(modoVoltar); modoVoltar = 'mapa'; });
-  $('#btn-centrar').addEventListener('click', () => { modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); if (modoSeguir) toast('Seguindo você no mapa.'); });
-  mapa.on('dragstart', () => { ajustouPinos = true; modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); });
+  $('#btn-centrar').addEventListener('click', () => { if (caminhando && !modoSeguir) { recentrarCaminhada(); return; } modoSeguir = !modoSeguir; $('#btn-centrar').setAttribute('aria-pressed', String(modoSeguir)); ligarGPS(true); renderRecentrar(); if (modoSeguir) toast('Seguindo você no mapa.'); });
+  mapa.on('dragstart', () => { ajustouPinos = true; modoSeguir = false; $('#btn-centrar').setAttribute('aria-pressed', 'false'); renderRecentrar(); });
+  // modo caminhada
+  $('#btn-caminhar').addEventListener('click', () => entrarCaminhada());
+  $('#cam-cheguei').addEventListener('click', cheguei);
+  $('#cam-pular').addEventListener('click', pularParada);
+  $('#cam-ouvir').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
+  $('#cam-sair').addEventListener('click', () => sairCaminhada());
+  $('#cam-fim-sair').addEventListener('click', () => sairCaminhada());
+  $('#cam-recentrar').addEventListener('click', recentrarCaminhada);
+  addEventListener('resize', () => { if (!caminhando) return; mapa.invalidateSize(); medirCaminhada(); });
   $('#btn-ver-todas').addEventListener('click', verTodas);
   document.addEventListener('click', e => { if (e.target.closest('[data-ligar-gps]')) { gpsErro = null; if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} gpsWatch = null; } ligarGPS(true); } });
   $('#btn-refazer').addEventListener('click', () => { roteiroAberto = true; $('#card-partida').hidden = false; $('#acoes-refazer').hidden = true; $('#card-partida').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'}); });
