@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=88';
+import CONFIG from './config.js?v=89';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1111,7 +1111,7 @@ function entrarCaminhada(restaurando) {
   if (!roteiro || !mapa || proximaParada() < 0) return;
   if (abaAtual !== 'mapa') irAba('mapa'); fecharFolha();
   caminhando = true; caminhadaVista = true; lsa.set('caminhando', true); document.body.classList.add('caminhando');
-  $('#cam-topo').hidden = false; $('#cam-base').hidden = false;
+  $('#cam-topo').hidden = false; $('#cam-base').hidden = false; const cd = $('#cam-drac'); if (cd && !cd.innerHTML) cd.innerHTML = DRACULA;
   modoSeguir = true; $('#btn-centrar').setAttribute('aria-pressed', 'true');
   // GPS sem centralizar aqui: a animação de zoom do ligarGPS(true) terminaria depois e desfaria o zoom 18 posicionado abaixo.
   ligarGPS(false); manterTelaAcesa(true); renderPins(); renderCaminhada();
@@ -1151,22 +1151,31 @@ if (temVoz()) { try { speechSynthesis.getVoices(); speechSynthesis.addEventListe
 
 /* ---------- narrador assombrado (clipes em audio/narrador, gerados fora do site) ---------- */
 // As falas fixas (roteiro pronto, chegou, próxima…) vêm de clipes curtos; o que muda (casa, distância, rua) a voz do celular fala em seguida.
-const NARRADOR_FALAS = ['pronto', 'caminhada', 'chegou', 'proxima', 'pulando', 'fim', 'voz'];
-const narradorClipes = new Map(); let narradorFonte = null;
+// Cada fala tem variações (pronto-1.mp3, pronto-2.mp3…) e o narrador sorteia uma, nunca a mesma duas vezes seguidas: não fica repetitivo.
+const NARRADOR_FALAS = {pronto: 3, caminhada: 2, chegou: 5, proxima: 5, pulando: 3, fim: 2, voz: 2, 'drac-som': 1, 'drac-bv': 2, 'drac-toque': 5, 'drac-roteiro': 2};
+const narradorClipes = new Map(), narradorUltimo = {}; let narradorFonte = null;
 async function carregarNarrador() {
   const c = narradorOn ? ctxAudio() : null; if (!c) return;
-  await Promise.all(NARRADOR_FALAS.filter(id => !narradorClipes.has(id)).map(async id => { narradorClipes.set(id, null); try { const r = await fetch(`audio/narrador/${id}.mp3?v=${VERSAO_APP}`); if (!r.ok) throw 0; narradorClipes.set(id, await c.decodeAudioData(await r.arrayBuffer())); } catch { narradorClipes.delete(id); } }));
+  const pedidos = [];
+  Object.entries(NARRADOR_FALAS).forEach(([id, n]) => { for (let k = 1; k <= n; k++) { const ch = `${id}-${k}`; if (narradorClipes.has(ch)) continue; narradorClipes.set(ch, null);
+    pedidos.push((async () => { try { const r = await fetch(`audio/narrador/${ch}.mp3?v=${VERSAO_APP}`); if (!r.ok) throw 0; narradorClipes.set(ch, await c.decodeAudioData(await r.arrayBuffer())); } catch { narradorClipes.delete(ch); } })()); } });
+  await Promise.all(pedidos);
 }
-function pararNarrador() { if (narradorFonte) { const s = narradorFonte; narradorFonte = null; try { s.onended = null; s.stop(); } catch {} VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); } }
+function clipeDe(id) {
+  const n = NARRADOR_FALAS[id] || 0, ops = [];
+  for (let k = 1; k <= n; k++) { const b = narradorClipes.get(`${id}-${k}`); if (b && !(n > 1 && k === narradorUltimo[id])) ops.push([k, b]); }
+  if (!ops.length) return null; const [k, b] = ops[Math.floor(Math.random() * ops.length)]; narradorUltimo[id] = k; return b;
+}
+function pararNarrador() { if (narradorFonte) { const s = narradorFonte; narradorFonte = null; try { s.onended = null; s.stop(); } catch {} VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); document.body.classList.remove('narrando'); } }
 // Toca o clipe e no fim chama depois(true). Sem clipe, narrador desligado ou áudio travado (página reaberta sem toque), chama depois(false) na hora:
 // a voz do celular diz a frase inteira e nada se perde.
 function narrar(id, depois) {
-  const buf = narradorOn ? narradorClipes.get(id) : null; const c = buf ? ctxAudio() : null;
+  const buf = narradorOn ? clipeDe(id) : null; const c = buf ? ctxAudio() : null;
   if (!buf || !c || c.state !== 'running') { if (depois) depois(false); return; }
   pararNarrador(); try { speechSynthesis.cancel(); } catch {}
   const s = c.createBufferSource(); s.buffer = buf; s.connect(AUDIO.master); narradorFonte = s;
-  VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando');
-  s.onended = () => { if (narradorFonte !== s) return; narradorFonte = null; VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); if (depois) depois(true); };
+  VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando'); document.body.classList.add('narrando');
+  s.onended = () => { if (narradorFonte !== s) return; narradorFonte = null; VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); document.body.classList.remove('narrando'); if (depois) depois(true); };
   s.start();
 }
 
@@ -1257,7 +1266,7 @@ Object.assign(SFX, {
   lua() { const c = ctxAudio(); if (!c) return; [659, 784, 988, 1319].forEach((f, i) => tocarTom(c.currentTime + i * .12, f, .9, 'sine', .08, AUDIO.master, {ataque: .01})); },
   aranha() { const c = ctxAudio(); if (!c) return; for (let i = 0; i < 6; i++) tocarTom(c.currentTime + i * .045, 300 + Math.random() * 400, .04, 'square', .05, AUDIO.master, {filtro: 1800, ataque: .002}); },
   festa() { SFX.sucesso(); setTimeout(() => SFX.risada(), 380); },
-  dracula() { SFX.risada(); const frases = ['Muahahaha!', 'Eu quero doces! Muahaha!', 'Boa noite, pequenos mortais!', 'Doces ou travessuras?']; setTimeout(() => falaDracula(frases[Math.floor(Math.random() * frases.length)]), 550); },
+  dracula() { SFX.risada(); const frases = ['Muahahaha!', 'Eu quero doces! Muahaha!', 'Boa noite, pequenos mortais!', 'Doces ou travessuras?']; carregarNarrador(); setTimeout(() => falaDracula(frases[Math.floor(Math.random() * frases.length)], null, 'drac-toque'), 550); },
 });
 function somDoBotao(b) {
   if (b.classList.contains('btn-primario')) return SFX.boing();
@@ -1311,7 +1320,9 @@ function abrirFolha(id) {
   $('#folha').hidden = false; SFX.plop();
 }
 function fecharFolha() { $('#folha').hidden = true; }
+const DICAS_DRAC = ['Monta o roteiro que eu te guio pelas ruas! Casa por casa, doce por doce.', 'Escolhe de onde a gente sai e eu acho o caminho mais curto… e mais assustador!', 'Toca em mim se tiver coragem. Muahaha!', 'Sacola grande, lanterna acesa. O resto é comigo!'];
 function renderPartida() {
+  const dc = $('#drac-rota'); if (dc && !dc.innerHTML) dc.innerHTML = `${DRACULA}<div class="balao balao-rota">${DICAS_DRAC[Math.floor(Math.random() * DICAS_DRAC.length)]}</div>`;
   const ops = [['gps', IC.alvo, posicao ? 'Onde estou agora (GPS)' : 'Onde estou (GPS)', posicao ? `Precisão ${Math.round(posicao.acc)} m` : 'Liga o GPS do celular']];
   if (evento.portaria) ops.push(['portaria', IC.porta, 'Portaria', 'Ponto de encontro do condomínio']);
   const sel = partida.startsWith('casa:') ? partida : '';
@@ -2260,6 +2271,7 @@ function ligarEventos() {
     ctxAudio();
     const b = e.target.closest('.btn, .aba, .chip, .opcao');
     if (b) { somDoBotao(b); if (!reduzMovimento && b.classList.contains('btn')) { b.classList.remove('tremendo'); void b.offsetWidth; b.classList.add('tremendo'); } return; }
+    if (e.target.closest('#drac-rota')) { carregarNarrador(); SFX.risada(); const d = $('#drac-rota .balao'); setTimeout(() => falaDracula(d ? d.textContent : DICAS_DRAC[0], null, 'drac-roteiro'), 400); return; }
     if (e.target.closest('.dracula')) { tocarCenario(e.clientX, e.clientY, e.target); return; }
     if (e.target.closest('input, textarea, select, label, a, .leaflet-container, .folha-in')) return;
     tocarCenario(e.clientX, e.clientY, e.target);
@@ -2539,9 +2551,10 @@ async function estadoPermissaoGPS() {
   try { const s = await navigator.permissions.query({name: 'geolocation'}); return s.state; } catch { return 'prompt'; }
 }
 const DRACULA = `<svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><ellipse cx="80" cy="164" rx="46" ry="5" fill="#000" opacity=".35"/><g class="capa"><path d="M18 74 L80 58 L142 74 L150 162 L10 162 Z" fill="#1a0f2e"/><path d="M30 80 L80 66 L130 80 L136 160 L24 160 Z" fill="#b3123b"/></g><path d="M44 100 L80 88 L116 100 L118 160 L42 160 Z" fill="#1a0f2e"/><path d="M66 96 L80 108 L94 96 L94 160 L66 160 Z" fill="#f4f1fb"/><path d="M74 104 l6 10 6-10 z" fill="#b3123b"/><path d="M26 64 L56 84 L46 50 Z M134 64 L104 84 L114 50 Z" fill="#b3123b"/><path d="M24 62 L54 82 L44 46 Z M136 62 L106 82 L116 46 Z" fill="#2a1846"/><ellipse cx="80" cy="56" rx="30" ry="34" fill="#dcd6f0"/><path d="M50 50 Q50 18 80 18 Q110 18 110 50 Q100 34 80 44 Q60 34 50 50 Z" fill="#14091f"/><path d="M48 54 l-6 -2 6 10z M112 54 l6 -2 -6 10z" fill="#dcd6f0"/><g class="olhos"><ellipse cx="68" cy="56" rx="6" ry="7" fill="#fff"/><ellipse cx="92" cy="56" rx="6" ry="7" fill="#fff"/><circle cx="69" cy="57" r="3.4" fill="#b3123b"/><circle cx="93" cy="57" r="3.4" fill="#b3123b"/><circle cx="70" cy="55.5" r="1.1" fill="#fff"/><circle cx="94" cy="55.5" r="1.1" fill="#fff"/></g><path d="M60 46 l14 4 M100 46 l-14 4" stroke="#14091f" stroke-width="3" stroke-linecap="round"/><ellipse cx="62" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><ellipse cx="98" cy="68" rx="5" ry="3" fill="#ff8fb0" opacity=".45"/><g class="boca"><path d="M68 72 Q80 82 92 72 Q80 78 68 72 Z" fill="#4a0d1e"/><path d="M72 73.5 l2.2 6 2.2-5.4 z M83.6 74.1 l2.2 5.4 2.2-6 z" fill="#fff"/></g></svg>`;
-function falaDracula(texto, depois) {
-  const d = $('#folha-in .dracula') || $('.dracula'); if (d) d.classList.add('falando');
+function falaDracula(texto, depois, id) {
+  const d = $('#folha-in .dracula') || $$('.dracula').find(x => x.offsetParent) || $('.dracula'); if (d) d.classList.add('falando');
   const fim = () => { $$('.dracula.falando').forEach(x => x.classList.remove('falando')); if (depois) depois(); };
+  if (id && narradorOn && clipeDe(id)) { narradorUltimo[id] = undefined; narrar(id, tocou => { if (tocou) fim(); else falaDracula(texto, depois); }); return; }
   if (!temVoz()) { setTimeout(fim, 1500); return; }
   try {
     speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; const v = vozPT(); if (v) u.voice = v;
@@ -2581,7 +2594,7 @@ document.addEventListener('click', e => {
   if (a === 'som') {
     ctxAudio(); const balao = $('#bv-balao');
     if (balao) balao.textContent = 'Muahaha! Se você me ouviu, o som está perfeito!';
-    falaDracula('Muahahaha! Bem-vindos à Rota Assombrada! Se você está me ouvindo, o som está perfeito.', () => SFX.risada());
+    carregarNarrador().then(() => falaDracula('Muahahaha! Bem-vindos à Rota Assombrada! Se você está me ouvindo, o som está perfeito.', () => SFX.risada(), 'drac-som'));
     $('#bv-som-resp').hidden = false; $('#bv-som-resp').textContent = 'Ouviu o Drácula? Se não, tire do silencioso, aumente o volume e toque de novo.';
   }
   if (a === 'musica') { alternarMusica(); const m = $('#bv-musica'); if (m) m.lastChild.textContent = AUDIO.tocando ? ' Desligar música' : ' Ligar música'; }
@@ -2591,7 +2604,7 @@ document.addEventListener('click', e => {
     ligarGPS(true);
     setTimeout(() => { if (!posicao && gpsErro == null) { gpsErro = 3; atualizarBoasVindasGPS(); } }, 20000);
   }
-  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); setTimeout(mostrarDicaMusica, 2500); if (vozAuto) setTimeout(() => falaDracula('Bons doces e travessuras, pequenos monstrinhos! Muahaha!'), 500); }
+  if (a === 'fim') { ls.set('hw.boasvindas', true); fecharFolha(); SFX.festa(); setTimeout(mostrarDicaMusica, 2500); if (vozAuto) setTimeout(() => falaDracula('Bons doces e travessuras, pequenos monstrinhos! Muahaha!', null, 'drac-bv'), 500); }
 });
 function lerRota() {
   let s = location.hash.replace(/^#\/?/, ''); try { s = decodeURIComponent(s); } catch {}

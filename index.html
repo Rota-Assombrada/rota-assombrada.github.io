@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/estilo.css?v=88">
+<link rel="stylesheet" href="css/estilo.css?v=89">
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
@@ -138,6 +138,7 @@
           <div class="cam-topo" id="cam-topo" hidden>
             <div class="cam-topo-in">
               <div class="cam-seta" id="cam-seta" aria-hidden="true"></div>
+              <div class="cam-drac" id="cam-drac" aria-hidden="true"></div>
               <div class="cam-txt">
                 <p class="cam-instrucao" id="cam-instrucao" aria-live="polite" aria-atomic="true"></p>
                 <p class="cam-meta" id="cam-meta"></p>
@@ -189,6 +190,7 @@
       </div>
         <div class="acoes" id="acoes-refazer" hidden><button class="btn btn-fantasma" id="btn-refazer">Montar outro roteiro</button></div>
         <div class="cartao" id="card-partida">
+        <div class="drac-cena drac-rota" id="drac-rota"></div>
         <h2>Montar o roteiro</h2>
         <p class="dica">Escolha de onde vocês saem. O app acha a ordem mais curta andando pelas ruas.</p>
         <div class="opcoes" id="partida" role="radiogroup" aria-label="Ponto de partida"></div>
@@ -357,6 +359,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
-<script type="module" src="js/app.js?v=88"></script>
+<script type="module" src="js/app.js?v=89"></script>
 </body>
 </html>

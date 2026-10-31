@@ -893,3 +893,13 @@ body.caminhando .toast{bottom:calc(var(--cam-base-h,130px) + 132px)}
   .cam-base{bottom:12px;border-radius:var(--raio);padding-bottom:12px}
 }
 @media (prefers-reduced-motion:reduce){.cam-cheguei.pulsar{animation:none}}
+/* Drácula no cartão do roteiro (dica sorteada, toque para ele falar) e no banner da caminhada enquanto o narrador fala */
+.drac-rota{justify-content:flex-start;gap:10px;margin:-4px 0 12px;max-width:none}
+.drac-rota .dracula{width:84px}
+.balao-rota{font-size:.92rem}
+.cam-drac{display:none;width:56px;height:56px;flex:none;align-items:center;justify-content:center}
+.cam-drac .dracula{width:54px;animation:none;filter:drop-shadow(0 0 10px rgba(155,107,255,.55))}
+body.narrando .cam-drac{display:flex}
+body.narrando .cam-seta{display:none}
+body.narrando .cam-drac .dracula .boca{animation:falar .22s ease-in-out infinite alternate}
+@media (max-width:380px){.drac-rota .dracula{width:70px}}
