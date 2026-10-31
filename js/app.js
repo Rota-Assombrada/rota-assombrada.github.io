@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=96';
+import CONFIG from './config.js?v=97';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -96,6 +96,10 @@ const PLATAFORMA = IOS ? 'ios' : /Android/i.test(navigator.userAgent) ? 'android
 const INSTALADO = (matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? 'sim' : 'nao';
 const simNao = v => v ? 'sim' : 'nao';
 let authVisto = false, gpsContado = false, vozIndisponivelContada = false, caminhadaInicio = 0; const clipesFaltando = new Set();
+// Performance Monitoring: medições de tempo (carga do condomínio, montar roteiro, rota pelas ruas, clipes). Sem o módulo, não faz nada.
+const medicoes = new Map();
+function medir_(nome, atributos) { try { if (!metrica.pf || medicoes.has(nome)) return; const t = metrica.pf.trace(metrica.perf, nome); Object.entries(atributos || {}).forEach(([k, v]) => t.putAttribute(k, String(v).slice(0, 100))); t.start(); medicoes.set(nome, t); } catch {} }
+function medido_(nome, metricas) { try { const t = medicoes.get(nome); if (!t) return; medicoes.delete(nome); Object.entries(metricas || {}).forEach(([k, v]) => t.putMetric(k, Math.round(v))); t.stop(); } catch {} }
 let ultimaTela = '';
 function contarTela(nome) { if (nome === ultimaTela) return; ultimaTela = nome; evento_('page_view', {page_title: nome, page_location: `${location.origin}/${nome}`}); }
 
@@ -167,8 +171,8 @@ function atualizarBarra() {
 }
 function carga(p) { cargas++; atualizarBarra(); return Promise.resolve(p).finally(() => { cargas = Math.max(0, cargas - 1); atualizarBarra(); }); }
 const abertas = new Set();
-function cargaInicio(nome) { if (abertas.has(nome)) return; abertas.add(nome); cargas++; atualizarBarra(); }
-function cargaFim(nome) { if (!abertas.delete(nome)) return; cargas = Math.max(0, cargas - 1); atualizarBarra(); }
+function cargaInicio(nome) { if (abertas.has(nome)) return; abertas.add(nome); cargas++; atualizarBarra(); medir_('carga_' + nome); }
+function cargaFim(nome) { if (!abertas.delete(nome)) return; cargas = Math.max(0, cargas - 1); atualizarBarra(); medido_('carga_' + nome, nome === 'casas' ? {casas: casas.length} : null); }
 const SPIN = '<span class="spinner" aria-hidden="true"></span>';
 const SKEL_ITEM = '<li class="skel-item" aria-hidden="true"><span class="skel skel-circ"></span><span class="skel-txt"><span class="skel skel-l1"></span><span class="skel skel-l2"></span></span></li>';
 const skelLista = (n = 2) => SKEL_ITEM.repeat(n) + '<li class="sr" role="status">Carregando…</li>';
@@ -263,12 +267,13 @@ const fb = {
         metrica.inst = an.initializeAnalytics(app, {config: {send_page_view: false, page_location: `${location.origin}/`, cookie_expires: 0, allow_google_signals: false, allow_ad_personalization_signals: false}});
         metrica.an = an; propriedade_({plataforma: PLATAFORMA, instalado: INSTALADO, versao_app: String(VERSAO_APP), narrador: simNao(narradorOn), voz_guia: simNao(vozAuto), logado: simNao(usuario), ...propsPendentes}); metrica.fila.splice(0).forEach(([n, p]) => evento_(n, p));
       }).catch(e => consoleErro('Analytics não iniciou', e));
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-performance.js').then(pf => { metrica.perf = pf.getPerformance(app); metrica.pf = pf; }).catch(e => consoleErro('Performance não iniciou', e));
     }
     this.fs = fs; this.db = fs.getFirestore(app); this.auth = auth; this.a = auth.getAuth(app); this.a.languageCode = 'pt';
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, fala: () => { const i = proximaParada(); return i >= 0 ? falaParada(i) : ''; }, narrador: [...narradorClipes.keys()].filter(k => narradorClipes.get(k)), narrados: narradosLog, trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, fala: () => { const i = proximaParada(); return i >= 0 ? falaParada(i) : ''; }, narrador: [...narradorClipes.keys()].filter(k => narradorClipes.get(k)), narrados: narradosLog, perf: !!metrica.pf, medindo: [...medicoes.keys()], trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -909,7 +914,7 @@ async function carregarRotaLinha() {
   if (!roteiro || rotaCarregando) return; const chave = chaveRoteiro(); if (chave === rotaChave && rotaTrechos) return;
   const pts = [roteiro.de].concat(roteiro.ordem.map(casaPorId).filter(Boolean));
   if (pts.length < 2 || pts.length > 90) return;
-  rotaCarregando = true; renderRoteiro();
+  rotaCarregando = true; renderRoteiro(); medir_('rota_ruas', {pontos: pts.length});
   try {
     const d = await rotaRuas(pts, 'overview=false&steps=true&geometries=geojson');
     if (chave !== chaveRoteiro()) return;
@@ -925,7 +930,7 @@ async function carregarRotaLinha() {
     rotaPernas = rotaTrechos.map(x => x.dist); rotaLinha = true; rotaChave = chave;
     evento_('rota_ruas', {motor: d.largo ? 'valhalla' : 'osrm', pernas: rotaTrechos.length, retas: rotaTrechos.filter(x => !x.ruas).length});
   } catch (e) { console.warn('Rota pelas ruas indisponível, usando linha reta.', e); evento_('rota_falhou'); rotaTrechos = null; rotaLinha = null; rotaPernas = null; rotaChave = chave; }
-  finally { rotaCarregando = false; renderPins(); renderRoteiro(); }
+  finally { rotaCarregando = false; medido_('rota_ruas', {pernas: (rotaTrechos || []).length}); renderPins(); renderRoteiro(); }
 }
 const MANOBRA = {left: 'vire à esquerda', right: 'vire à direita', 'slight left': 'siga levemente à esquerda', 'slight right': 'siga levemente à direita', 'sharp left': 'vire bem à esquerda', 'sharp right': 'vire bem à direita', straight: 'siga em frente', uturn: 'faça o retorno'};
 function textoInstrucao(passos, fmt) {
@@ -969,7 +974,7 @@ function otimizar(de, lista, matriz) {
   return ordem.slice(1).map(k => pts[k].id);
 }
 async function montarRoteiro() {
-  const narradorPronto = carregarNarrador();   // começa a baixar os clipes já no toque, enquanto a rota é calculada
+  medir_('montar_roteiro'); const narradorPronto = carregarNarrador();   // começa a baixar os clipes já no toque, enquanto a rota é calculada
   if (partida === 'gps' && !posicao) { ligarGPS(true); toast('Ligando o GPS… toque de novo em alguns segundos, ou escolha a portaria.'); return; }
   const pp = pontoPartida(); if (!pp) { toast('Sem ponto de partida: ligue o GPS ou peça ao admin para marcar a portaria.'); return; }
   let lista = casas.filter(c => typeof c.lat === 'number' && 'casa:' + c.id !== partida);
@@ -996,7 +1001,7 @@ async function montarRoteiro() {
   if (pontos.length > 1) mapa.fitBounds(pontos, {padding: [60, 60], maxZoom: 18});
   const bn = $('#btn-caminhar'); bn.scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'center'});
   bn.classList.remove('chamar'); void bn.offsetWidth; bn.classList.add('chamar'); setTimeout(() => bn.classList.remove('chamar'), 3600);
-  const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0, partida: String(partida).startsWith('casa:') ? 'casa' : partida});
+  const n = roteiro.ordem.length; medido_('montar_roteiro', {casas: n}); toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0, partida: String(partida).startsWith('casa:') ? 'casa' : partida});
   carregarRotaLinha(); await atualizarTrecho(true);
   // Fala curta: a dica do Modo caminhada sempre; a primeira casa, só com o guia por voz ligado.
   const idxFala = proximaParada();
@@ -1182,7 +1187,8 @@ async function carregarNarrador() {
   const pedidos = [];
   Object.entries(NARRADOR_FALAS).forEach(([id, n]) => { for (let k = 1; k <= n; k++) { const ch = `${id}-${k}`; if (narradorClipes.has(ch)) continue; narradorClipes.set(ch, null);
     pedidos.push((async () => { try { const r = await fetch(`audio/narrador/${ch}.mp3?v=${VERSAO_APP}`); if (!r.ok) throw 0; narradorClipes.set(ch, await c.decodeAudioData(await r.arrayBuffer())); } catch { narradorClipes.delete(ch); } })()); } });
-  await Promise.all(pedidos);
+  if (pedidos.length) medir_('clipes_narrador', {quantos: pedidos.length});
+  await Promise.all(pedidos); medido_('clipes_narrador', {carregados: [...narradorClipes.values()].filter(Boolean).length});
 }
 const temClipe = id => { const n = NARRADOR_FALAS[id] || 0; for (let k = 1; k <= n; k++) if (narradorClipes.get(`${id}-${k}`)) return true; return false; };
 // Vários clipes em sequência ("Em cem metros..." + "vira à esquerda!"); só usa se todos existirem, senão o chamador fala o texto inteiro.
