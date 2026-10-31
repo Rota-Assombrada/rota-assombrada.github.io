@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=91';
+import CONFIG from './config.js?v=92';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2575,10 +2575,11 @@ const DRACULA = `<svg class="dracula" viewBox="0 0 160 170" aria-hidden="true"><
 // el: qual Drácula está falando (o balão dele é que muda). Sem el, o visível; depois o das boas-vindas.
 function falaDracula(texto, depois, id, el) {
   const d = el || $$('.dracula').find(x => x.offsetParent) || $('#folha-in .dracula') || $('.dracula'); if (d) d.classList.add('falando');
+  const bal = d && d.parentElement && d.parentElement.querySelector('.balao'); const mostrar = t => { if (bal && t) bal.textContent = t; };   // o balão mostra o que ele diz
   const fim = () => { $$('.dracula.falando').forEach(x => x.classList.remove('falando')); if (depois) depois(); };
   if (id && narradorOn && clipeDe(id)) { narradorUltimo[id] = undefined; narrar(id, tocou => { if (tocou) fim(); else falaDracula(texto, depois); });
-    const bal = d && d.parentElement && d.parentElement.querySelector('.balao'), t = narradorTextos[narradorAtual]; if (bal && t) bal.textContent = t;   // balão mostra exatamente o que ele disse
-    return; }
+    mostrar(narradorTextos[narradorAtual]); return; }
+  mostrar(texto);
   if (!temVoz()) { setTimeout(fim, 1500); return; }
   try {
     speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; const v = vozPT(); if (v) u.voice = v;
@@ -2599,7 +2600,7 @@ function abrirBoasVindas(perm) {
     <p>Dois ajustes rápidos para o Conde guiar você pelas casas.</p>
     <div class="passo" id="bv-som"><span class="passo-ic">${IC_SOM}</span><div><b>Ligue o som</b>
       <p class="dica">Tire o celular do silencioso e aumente o volume. O guia fala o caminho e os botões fazem barulhos divertidos.</p></div>
-      <div class="acoes-bv"><button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><button class="btn btn-primario" data-bv="musica" id="bv-musica">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} ${AUDIO.tocando ? 'Desligar música' : 'Ligar música'}</button></div><p class="dica" id="bv-som-resp" hidden>Ouviu a risada? Se não, aumente o volume e toque de novo.</p></div>
+      <div class="acoes-bv"><button class="btn btn-sucesso" data-bv="som">${IC_SOM} Testar som</button><button class="btn btn-primario" data-bv="musica" id="bv-musica">${svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')} ${AUDIO.tocando ? 'Desligar música' : 'Ligar música'}</button></div><p class="dica invisivel" id="bv-som-resp">Ouviu o Drácula? Se não, tire do silencioso, aumente o volume e toque de novo.</p></div>
     <div class="passo" id="bv-gps"><span class="passo-ic">${IC_GPS}</span><div><b>Ligue o GPS</b>
       <p class="dica">Ele mostra onde você está no mapa e avisa quando chegar em cada casa.</p><div id="bv-gps-corpo">${passoGPS}</div></div></div>
     <div class="acoes"><button class="btn btn-primario btn-grande" data-bv="fim">Vamos lá!</button></div>
@@ -2616,10 +2617,9 @@ function atualizarBoasVindasGPS() {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-bv]'); if (!b) return; const a = b.dataset.bv;
   if (a === 'som') {
-    ctxAudio(); const balao = $('#bv-balao');
-    if (balao) balao.textContent = 'Muahaha! Se você me ouviu, o som está perfeito!';
+    ctxAudio();
     carregarNarrador().then(() => falaDracula('Muahahaha! Bem-vindos à Rota Assombrada! Se você está me ouvindo, o som está perfeito.', () => SFX.risada(), 'drac-som', $('#folha-in .dracula')));
-    $('#bv-som-resp').hidden = false; $('#bv-som-resp').textContent = 'Ouviu o Drácula? Se não, tire do silencioso, aumente o volume e toque de novo.';
+    $('#bv-som-resp').classList.remove('invisivel');
   }
   if (a === 'musica') { alternarMusica(); const m = $('#bv-musica'); if (m) m.lastChild.textContent = AUDIO.tocando ? ' Desligar música' : ' Ligar música'; }
   if (a === 'gps') {
