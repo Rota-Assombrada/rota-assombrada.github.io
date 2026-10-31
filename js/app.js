@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=93';
+import CONFIG from './config.js?v=94';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2680,26 +2680,31 @@ function aplicarRota() {
 // A cada 5 min (e ao voltar para a aba) confere a versão publicada e oferece "Atualizar".
 const VERSAO_APP = +((document.querySelector('script[src*="app.js?v="]') || {}).src || '').replace(/.*v=(\d+).*/, '$1') || 0;
 let avisouVersao = false;
-// Recarregar "/" não basta: a CDN do GitHub Pages guarda "/" e "/index.html" separados, por até 10 min cada, e ignora a query.
-// O checador lê /index.html; se o reload trouxer o "/" velho, o aviso volta. Então abrimos o próprio /index.html (o que o checador
-// acabou de ver novo), com um número único para o cache do celular não interferir; ajustarEndereco() limpa a URL depois.
-function recarregarNovo() { const q = new URLSearchParams(location.search); q.set('r', Date.now()); location.replace(`/index.html?${q}${location.hash || (cid ? '#' + cid : '')}`); }
+// A CDN do GitHub Pages guarda cada caminho ("/", "/c/XXX/", "/index.html") por até 10 min, em vários servidores, e ignora a query.
+// O app mora em "/" (a página /c/XXX/ é só a prévia para redes sociais, que manda para "/"): é esse objeto que se confere e recarrega,
+// com um número único para o cache do celular não interferir. Se mesmo assim vier velho (outro servidor da CDN), continua sozinho: espera e recarrega, no máximo 3 vezes.
+async function versaoPublicada(caminho) { try { const t = await (await fetch(`${caminho}?v=${Date.now()}`, {cache: 'no-store'})).text(); return +(t.match(/app\.js\?v=(\d+)/) || [])[1] || 0; } catch { return 0; } }
+function recarregarNovo() { const q = new URLSearchParams(location.search); q.set('r', Date.now()); location.replace(`/?${q}${location.hash || (cid ? '#' + cid : '')}`); }
 if (new URLSearchParams(location.search).has('r')) { const q = new URLSearchParams(location.search); q.delete('r'); history.replaceState(history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); }
+function avisoVersao(html, aoTocar) { $$('.aviso-versao:not(.aviso-carga)').forEach(x => x.remove()); const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao' + (aoTocar ? '' : ' atualizando'); b.innerHTML = html; if (aoTocar) b.addEventListener('click', aoTocar); else b.disabled = true; document.body.appendChild(b); return b; }
 async function conferirVersao() {
   if (avisouVersao || !VERSAO_APP || location.hostname === 'localhost') return;
-  try {
-    const t = await (await fetch(`/index.html?v=${Date.now()}`, {cache: 'no-store'})).text();
-    const nova = +(t.match(/app\.js\?v=(\d+)/) || [])[1] || 0;
-    if (nova > VERSAO_APP) {
-      avisouVersao = true;
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao'; b.innerHTML = `${IC.check} Tem novidade no app! Toque para atualizar`;
-      b.addEventListener('click', () => recarregarNovo()); document.body.appendChild(b);
-    }
-  } catch {}
+  const nova = await versaoPublicada('/');
+  if (nova > VERSAO_APP) { avisouVersao = true; ls.set('hw.versaoAlvo', nova); ls.set('hw.versaoTentativas', 0); avisoVersao(`${IC.check} Tem novidade no app! Toque para atualizar`, recarregarNovo); }
+}
+// Depois de recarregar: se a página ainda veio velha, espera a CDN entregar a nova e recarrega sozinho; esgotadas as tentativas, volta o aviso de toque.
+async function continuarAtualizacao() {
+  const alvo = +ls.get('hw.versaoAlvo', 0) || 0; if (!alvo || !VERSAO_APP || location.hostname === 'localhost') return;
+  if (VERSAO_APP >= alvo) { ls.set('hw.versaoAlvo', 0); ls.set('hw.versaoTentativas', 0); return; }
+  const n = +ls.get('hw.versaoTentativas', 0) || 0; avisouVersao = true;
+  if (n >= 3) { ls.set('hw.versaoAlvo', 0); ls.set('hw.versaoTentativas', 0); avisoVersao(`${IC.check} Tem novidade no app! Toque para atualizar`, recarregarNovo); return; }
+  ls.set('hw.versaoTentativas', n + 1); avisoVersao(`${IC.carregando} Atualizando o app…`);
+  for (let i = 0; i < 8; i++) { await new Promise(ok => setTimeout(ok, 6000)); if ((await versaoPublicada('/')) >= alvo) { recarregarNovo(); return; } }
+  $$('.aviso-versao:not(.aviso-carga)').forEach(x => x.remove()); avisouVersao = false;   // a CDN ainda não entregou: a checagem normal avisa de novo quando entregar
 }
 setInterval(conferirVersao, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) conferirVersao(); });
-setTimeout(conferirVersao, 20000);
+setTimeout(conferirVersao, 20000); setTimeout(continuarAtualizacao, 1500);
 
 /* ---------- carga travada ---------- */
 // Às vezes (rede ruim, Safari voltando do fundo) a conexão em tempo real fica muda e a tela não sai do "carregando".

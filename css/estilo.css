@@ -158,7 +158,8 @@ h2{font-size:1.15rem;font-weight:900;letter-spacing:.01em;display:flex;align-ite
 .pin.visitada{filter:grayscale(.7) drop-shadow(0 4px 4px rgba(0,0,0,.5));opacity:.7}
 .pin.fechada .corpo{fill:#9a6c3c}
 .pin.atual{animation:bob 1.2s ease-in-out infinite}
-.pin.atual::after{content:"";position:absolute;left:50%;top:88%;width:52px;height:52px;border-radius:50%;border:3px solid var(--veneno);transform:translate(-50%,-50%);animation:pulso 1.4s ease-out infinite}
+/* centrado por margem, não por transform: a animação usa "scale" e escalaria o translate junto, deslocando o anel */
+.pin.atual::after{content:"";position:absolute;left:50%;top:46%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;border:3px solid var(--veneno);animation:pulso 1.4s ease-out infinite}
 .pin.ordem::before{content:attr(data-ordem);position:absolute;right:-6px;top:-4px;width:22px;height:22px;border-radius:50%;background:var(--veneno);color:var(--no-veneno);font-weight:900;font-size:.75rem;display:flex;align-items:center;justify-content:center;z-index:2}
 .eu-wrap{background:none;border:0}
 .eu{position:relative;width:26px;height:26px}
@@ -907,3 +908,5 @@ body.narrando .cam-drac .dracula .boca{animation:falar .22s ease-in-out infinite
 @media (max-width:380px){.drac-rota .dracula{width:70px}}
 
 .invisivel{visibility:hidden}
+.aviso-versao.atualizando{opacity:.92;cursor:default}
+.aviso-versao.atualizando svg{animation:girar .9s linear infinite}
