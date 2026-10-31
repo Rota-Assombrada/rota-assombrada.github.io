@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=85';
+import CONFIG from './config.js?v=86';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2606,6 +2606,11 @@ function aplicarRota() {
 // A cada 5 min (e ao voltar para a aba) confere a versão publicada e oferece "Atualizar".
 const VERSAO_APP = +((document.querySelector('script[src*="app.js?v="]') || {}).src || '').replace(/.*v=(\d+).*/, '$1') || 0;
 let avisouVersao = false;
+// Recarregar "/" não basta: a CDN do GitHub Pages guarda "/" e "/index.html" separados, por até 10 min cada, e ignora a query.
+// O checador lê /index.html; se o reload trouxer o "/" velho, o aviso volta. Então abrimos o próprio /index.html (o que o checador
+// acabou de ver novo), com um número único para o cache do celular não interferir; ajustarEndereco() limpa a URL depois.
+function recarregarNovo() { const q = new URLSearchParams(location.search); q.set('r', Date.now()); location.replace(`/index.html?${q}${location.hash || (cid ? '#' + cid : '')}`); }
+if (new URLSearchParams(location.search).has('r')) { const q = new URLSearchParams(location.search); q.delete('r'); history.replaceState(history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); }
 async function conferirVersao() {
   if (avisouVersao || !VERSAO_APP || location.hostname === 'localhost') return;
   try {
@@ -2614,7 +2619,7 @@ async function conferirVersao() {
     if (nova > VERSAO_APP) {
       avisouVersao = true;
       const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao'; b.innerHTML = `${IC.check} Tem novidade no app! Toque para atualizar`;
-      b.addEventListener('click', () => location.reload()); document.body.appendChild(b);
+      b.addEventListener('click', () => recarregarNovo()); document.body.appendChild(b);
     }
   } catch {}
 }
@@ -2646,7 +2651,7 @@ function vigiarCarga() {
       evento_('carga_travada', {etapa: ainda});
       const b = document.createElement('button'); b.type = 'button'; b.className = 'aviso-versao aviso-carga';
       b.innerHTML = `${IC.carregando}<span>Está demorando… Toque para recarregar<small>Parou em: ${h(ainda)}</small></span>`;
-      b.addEventListener('click', () => location.reload()); document.body.appendChild(b);
+      b.addEventListener('click', () => recarregarNovo()); document.body.appendChild(b);
       const t = setInterval(() => { if (!etapaTravada()) { clearInterval(t); b.remove(); } }, 1000);
     }, 10000);
   }, 10000);
