@@ -858,7 +858,9 @@ body.caminhando #mapa{height:100%;min-height:0}
 body.caminhando .mapa-botoes{bottom:calc(var(--cam-base-h,130px) + 12px)}
 body.caminhando .leaflet-bottom{bottom:var(--cam-base-h,130px)}
 body.caminhando .leaflet-top{top:var(--cam-topo-h,110px)}
-body.caminhando .toast{bottom:calc(var(--cam-base-h,130px) + 72px)}
+/* nada pode cobrir o botão Cheguei: acima da barra ficam, nesta ordem, o pino Recentralizar, o aviso de nova versão e o toast */
+body.caminhando .aviso-versao:not(.aviso-carga){bottom:calc(var(--cam-base-h,130px) + 72px)}
+body.caminhando .toast{bottom:calc(var(--cam-base-h,130px) + 132px)}
 .cam-topo,.cam-base{position:fixed;left:0;right:0;z-index:1100;background:rgba(13,10,22,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--fg)}
 .cam-topo{top:0;border-bottom:1px solid var(--borda);padding:calc(10px + env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-right,0px)) 12px max(14px,env(safe-area-inset-left,0px))}
 .cam-base{bottom:0;border-top:1px solid var(--borda);padding:12px max(14px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
