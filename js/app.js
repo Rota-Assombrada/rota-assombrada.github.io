@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=92';
+import CONFIG from './config.js?v=93';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1160,7 +1160,7 @@ if (temVoz()) { try { speechSynthesis.getVoices(); speechSynthesis.addEventListe
 /* ---------- narrador assombrado (clipes em audio/narrador, gerados fora do site) ---------- */
 // As falas fixas (roteiro pronto, chegou, próxima…) vêm de clipes curtos; o que muda (casa, distância, rua) a voz do celular fala em seguida.
 // Cada fala tem variações (pronto-1.mp3, pronto-2.mp3…) e o narrador sorteia uma, nunca a mesma duas vezes seguidas: não fica repetitivo.
-const NARRADOR_FALAS = {pronto: 3, caminhada: 2, chegou: 5, proxima: 5, pulando: 3, fim: 2, voz: 2, 'drac-som': 1, 'drac-bv': 2, 'drac-toque': 5, 'drac-roteiro': 2, cachorro: 2,
+const NARRADOR_FALAS = {pronto: 3, caminhada: 2, chegou: 5, proxima: 5, pulando: 3, fim: 2, voz: 2, 'drac-som': 1, 'drac-bv': 2, 'drac-toque': 5, 'drac-roteiro': 2, 'drac-ola': 1, cachorro: 2,
   'dist-30': 1, 'dist-50': 1, 'dist-100': 1, 'dist-150': 1, 'dist-200': 1, 'dist-300': 1, 'dist-longe': 1, 'man-esquerda': 1, 'man-direita': 1, 'man-leve-esquerda': 1, 'man-leve-direita': 1, 'man-frente': 1, 'man-retorno': 1, 'man-chegando': 1};
 const narradorClipes = new Map(), narradorUltimo = {}, narradosLog = [], narradorTextos = {}; let narradorFonte = null, narradorTextosPedidos = false, narradorAtual = '';
 async function carregarNarrador() {
@@ -1189,13 +1189,19 @@ function preaquecerNarrador() { if (!narradorOn || !cid) return; const urls = [`
 function pararNarrador() { if (narradorFonte) { const s = narradorFonte; narradorFonte = null; try { s.onended = null; s.stop(); } catch {} VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); document.body.classList.remove('narrando'); } }
 // Toca o clipe e no fim chama depois(true). Sem clipe, narrador desligado ou áudio travado (página reaberta sem toque), chama depois(false) na hora:
 // a voz do celular diz a frase inteira e nada se perde.
-function narrar(id, depois) {
+// aoComecar(idk) avisa qual variação começou a tocar (o balão do Drácula usa).
+function narrar(id, depois, aoComecar) {
   const esc = narradorOn ? clipeDe(id) : null, buf = esc && esc.buf; const c = buf ? ctxAudio() : null;
-  if (!buf || !c || c.state !== 'running') { if (depois) depois(false); return; }
+  if (!buf || !c) { if (depois) depois(false); return; }
+  // Logo depois de um toque o áudio ainda pode estar "acordando": espera até meio segundo por ele antes de desistir do clipe.
+  if (c.state !== 'running') {
+    let feito = false; const fim = ok => { if (feito) return; feito = true; c.removeEventListener('statechange', onst); if (ok) narrar(id, depois, aoComecar); else if (depois) depois(false); };
+    const onst = () => { if (c.state === 'running') fim(true); }; c.addEventListener('statechange', onst); try { c.resume(); } catch {} setTimeout(() => fim(c.state === 'running'), 500); return;
+  }
   pararNarrador(); try { speechSynthesis.cancel(); } catch {}
   const s = c.createBufferSource(); s.buffer = buf; s.connect(AUDIO.master); narradorFonte = s;
   VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando'); document.body.classList.add('narrando');
-  narradosLog.push(id); narradorAtual = `${id}-${esc.k}`;
+  narradosLog.push(id); narradorAtual = `${id}-${esc.k}`; if (aoComecar) aoComecar(narradorAtual);
   s.onended = () => { if (narradorFonte !== s) return; narradorFonte = null; VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); document.body.classList.remove('narrando'); if (depois) depois(true); };
   s.start();
 }
@@ -2577,8 +2583,7 @@ function falaDracula(texto, depois, id, el) {
   const d = el || $$('.dracula').find(x => x.offsetParent) || $('#folha-in .dracula') || $('.dracula'); if (d) d.classList.add('falando');
   const bal = d && d.parentElement && d.parentElement.querySelector('.balao'); const mostrar = t => { if (bal && t) bal.textContent = t; };   // o balão mostra o que ele diz
   const fim = () => { $$('.dracula.falando').forEach(x => x.classList.remove('falando')); if (depois) depois(); };
-  if (id && narradorOn && clipeDe(id)) { narradorUltimo[id] = undefined; narrar(id, tocou => { if (tocou) fim(); else falaDracula(texto, depois); });
-    mostrar(narradorTextos[narradorAtual]); return; }
+  if (id && narradorOn && clipeDe(id)) { narradorUltimo[id] = undefined; narrar(id, tocou => { if (tocou) fim(); else falaDracula(texto, depois); }, idk => mostrar(narradorTextos[idk])); return; }
   mostrar(texto);
   if (!temVoz()) { setTimeout(fim, 1500); return; }
   try {
@@ -2595,7 +2600,7 @@ function abrirBoasVindas(perm) {
     : perm === 'indisponivel' ? '<p class="dica">Este aparelho não tem GPS. Você ainda pode usar o mapa e o roteiro saindo da portaria.</p>'
     : `<p class="dica">Ligue a localização do celular. Ao tocar no botão abaixo, o celular vai perguntar se o site pode usar sua localização: toque em <b>Permitir</b>.</p><button class="btn btn-primario" data-bv="gps">${IC_GPS} Ligar GPS</button>`;
   $('#folha-in').innerHTML = `<div class="boas-vindas">
-    <div class="drac-cena">${DRACULA}<div class="balao" id="bv-balao">Bem-vindos, pequenos mortais! Eu sou o Conde Drácula e vou guiar vocês na caçada aos doces.</div></div>
+    <div class="drac-cena">${DRACULA}<div class="balao" id="bv-balao">Bem-vindos, pequenos mortais! Eu sou o Conde Drácula e vou guiar vocês na caçada aos doces!</div></div>
     <h3>Antes da caçada começar</h3>
     <p>Dois ajustes rápidos para o Conde guiar você pelas casas.</p>
     <div class="passo" id="bv-som"><span class="passo-ic">${IC_SOM}</span><div><b>Ligue o som</b>
@@ -2605,7 +2610,19 @@ function abrirBoasVindas(perm) {
       <p class="dica">Ele mostra onde você está no mapa e avisa quando chegar em cada casa.</p><div id="bv-gps-corpo">${passoGPS}</div></div></div>
     <div class="acoes"><button class="btn btn-primario btn-grande" data-bv="fim">Vamos lá!</button></div>
   </div>`;
-  $('#folha').hidden = false;
+  $('#folha').hidden = false; saudacaoDracula();
+}
+// A saudação toca sozinha onde o navegador deixa (áudio já liberado); no iPhone, só depois de um toque: fica armada para o primeiro toque na folha,
+// menos em "Testar som", que já tem a fala dele.
+let saudou = false;
+function saudacaoDracula() {
+  if (saudou || !narradorOn) return;
+  const tocar = () => { if (saudou || $('#folha').hidden || !$('#bv-balao')) return; saudou = true; falaDracula('Bem-vindos, pequenos mortais! Eu sou o Conde Drácula e vou guiar vocês na caçada aos doces!', null, 'drac-ola', $('#folha-in .dracula')); };
+  carregarNarrador().then(() => {
+    const c = AUDIO.ctx; if (c && c.state === 'running' && temClipe('drac-ola')) { tocar(); return; }
+    const aoTocar = e => { document.removeEventListener('pointerdown', aoTocar, true); if (e.target.closest('[data-bv="som"]')) { saudou = true; return; } setTimeout(tocar, 150); };
+    document.addEventListener('pointerdown', aoTocar, true);
+  });
 }
 function atualizarBoasVindasGPS() {
   const c = $('#bv-gps-corpo'); if (!c || $('#folha').hidden) return;
