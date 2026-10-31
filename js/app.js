@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=89';
+import CONFIG from './config.js?v=90';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -261,7 +261,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, fala: () => { const i = proximaParada(); return i >= 0 ? falaParada(i) : ''; }, narrador: [...narradorClipes.keys()].filter(k => narradorClipes.get(k)), trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, fala: () => { const i = proximaParada(); return i >= 0 ? falaParada(i) : ''; }, narrador: [...narradorClipes.keys()].filter(k => narradorClipes.get(k)), narrados: narradosLog, trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -989,30 +989,38 @@ async function montarRoteiro() {
   carregarRotaLinha(); await atualizarTrecho(true);
   // Fala curta: a dica do Modo caminhada sempre; a primeira casa, só com o guia por voz ligado.
   const idxFala = proximaParada();
-  await narradorPronto; narrar('pronto', tocou => falar(`${tocou ? '' : 'Roteiro pronto, '}${n} casa${n > 1 ? 's' : ''}. Toque em Modo caminhada. ` + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : '')));
+  await narradorPronto; narrar('pronto', tocou => falar(`${tocou ? '' : 'Roteiro pronto, '}${n} casa${n > 1 ? 's' : ''}. Toque em Modo caminhada. `, () => { if (vozAuto && idxFala >= 0) anunciarParada(idxFala); }));
   if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
 }
 function proximaParada() { if (!roteiro) return -1; return roteiro.ordem.findIndex(id => !visitadas.has(id) && casaPorId(id)); }
 function origemAtual(idx) { if (posicao && Date.now() - posicao.t < 60000) return {lat: posicao.lat, lng: posicao.lng}; for (let i = idx - 1; i >= 0; i--) { const c = casaPorId(roteiro.ordem[i]); if (c) return {lat: c.lat, lng: c.lng}; } return roteiro.de; }
 // Fala curta: casa, família, distância e a próxima manobra. Só avisa o que muda a visita (cachorro, fechada); o resto fica na tela.
-function falaParada(idx) {
-  const c = casaPorId(roteiro.ordem[idx]); if (!c) return '';
-  const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
-  let s = `Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}. ${falaM(d)}. `;
-  s += tr ? `${instrucaoAtual(tr, posFresca() ? posicao : null).texto}. ` : `${maiuscula(direcaoFala(de, c))}. `;
-  if ((c.flags || []).includes('cachorro')) s += 'Tem cachorro. ';
-  if (!abertaAgora(c)) { const j = janelaCasa(c); s += j && Date.now() > j.fim ? 'Já fechou. ' : `Abre às ${horario(c).ini || 'hora do evento'}. `; }
-  return s;
+function partesParada(idx) {
+  const c = casaPorId(roteiro.ordem[idx]); if (!c) return null;
+  const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c); const ia = tr ? instrucaoAtual(tr, posFresca()) : null;
+  let casa = `Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}. `;
+  const cachorro = (c.flags || []).includes('cachorro'); if (cachorro && !(narradorOn && temClipe('cachorro'))) casa += 'Tem cachorro. ';
+  if (!abertaAgora(c)) { const j = janelaCasa(c); casa += j && Date.now() > j.fim ? 'Já fechou. ' : `Abre às ${horario(c).ini || 'hora do evento'}. `; }
+  return {casa, cachorro, ia, instr: `${falaM(d)}. ${ia ? ia.texto : maiuscula(direcaoFala(de, c))}.`};
+}
+function falaParada(idx) { const p = partesParada(idx); return p ? p.casa + p.instr + ' ' : ''; }
+// Anuncia a parada: clipe de abertura (opcional) → voz do celular com a casa → instrução pelo narrador (ou pelo celular, sem clipes).
+function anunciarParada(idx, clipe, prefixo) {
+  const p = partesParada(idx); if (!p) return;
+  // casa (celular) → "tem cachorro" (clipe, se houver) → instrução (clipes ou celular). Marca a instrução como já dita para o GPS não repetir logo em seguida.
+  const instr = () => { ultimaFalaTexto = p.ia ? p.ia.texto : ''; ultimaFalaT = Date.now(); falarInstrucao(p.ia, p.instr); };
+  const depoisCasa = () => { if (p.cachorro && narradorOn && temClipe('cachorro')) narrar('cachorro', instr); else instr(); };
+  if (clipe) narrar(clipe, tocou => falar((tocou ? '' : (prefixo || '')) + p.casa, depoisCasa)); else falar(p.casa, depoisCasa);
 }
 let anunciadoChegada = null, ultimaFalaDist = 0, ultimaFalaT = 0, ultimaFalaTexto = '';
 function aoMoverGPS() {
   if (!roteiro || !posicao) return; const idx = proximaParada(); if (idx < 0) return; const c = casaPorId(roteiro.ordem[idx]); const d = distM(posicao, c);
-  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); if (!caminhando) toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) narrar('chegou', tocou => falar(`${tocou ? '' : 'Chegou! '}Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}.`)); return; }
+  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); if (!caminhando) toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) narrar('chegou', tocou => falar(`${tocou ? '' : 'Chegou! '}Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}.`, () => { if ((c.flags || []).includes('cachorro') && narradorOn && temClipe('cachorro')) narrar('cachorro'); })); return; }
   atualizarTrecho(false);
   const tr = trechoDe(c); const dRest = tr ? Math.max(d, tr.dist - distM(tr.de, posicao)) : d;
   // Fala a manobra quando ela muda (como um GPS) ou a cada 100 m / 40 s; antes falava a cada 60 m e era prolixo.
   const txt = tr ? instrucaoAtual(tr, posicao).texto : direcaoFala(posicao, c), passou = Date.now() - ultimaFalaT;
-  if (vozAuto && d > 40 && !VOZ.falando && ((txt !== ultimaFalaTexto && passou > 10000) || (Math.abs(dRest - ultimaFalaDist) >= 100 && passou > 40000))) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); ultimaFalaTexto = txt; falar(tr ? `${falaM(dRest)}. ${txt}.` : `${falaM(d)}, ${txt}.`); }
+  if (vozAuto && d > 40 && !VOZ.falando && ((txt !== ultimaFalaTexto && passou > 10000) || (Math.abs(dRest - ultimaFalaDist) >= 100 && passou > 40000))) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); ultimaFalaTexto = txt; if (tr) falarInstrucao(instrucaoAtual(tr, posicao), `${falaM(dRest)}. ${txt}.`); else falar(`${falaM(d)}, ${txt}.`); }
 }
 function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsa.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
 async function cheguei() {
@@ -1020,7 +1028,7 @@ async function cheguei() {
   const b = $(caminhando ? '#cam-cheguei' : '#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
   const prox = proximaParada();
   if (prox < 0) { if (!caminhando) toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) narrar('fim', tocou => { if (!tocou) falar('Última casa! Roteiro concluído. Feliz Halloween!'); }); }
-  else { await atualizarTrecho(true); if (vozAuto) narrar('proxima', tocou => falar((tocou ? '' : 'Próxima: ') + falaParada(prox))); }
+  else { await atualizarTrecho(true); if (vozAuto) anunciarParada(prox, 'proxima', 'Próxima: '); }
 }
 function pararNavegacao() {
   evento_('navegacao_parada'); sairCaminhada(false, true);
@@ -1029,7 +1037,7 @@ function pararNavegacao() {
   renderRoteiro(); renderPins(); renderPlacar(); SFX.pop(); toast('Navegação encerrada. As casas visitadas continuam marcadas.');
   $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
 }
-async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) narrar('pulando', tocou => falar((tocou ? '' : 'Pulando. Próxima: ') + falaParada(prox))); } }
+async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) anunciarParada(prox, 'pulando', 'Pulando. Próxima: '); } }
 
 /* ---------- modo caminhada: mapa em tela cheia seguindo a pessoa, instrução e botões juntos ---------- */
 let caminhando = false, caminhadaVista = false, fimFestejado = false, bloqueioTela = null;
@@ -1140,20 +1148,21 @@ function restaurarCaminhada() {
 const VOZ = {falando: false};
 function temVoz() { return 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window; }
 function vozPT() { try { const vs = speechSynthesis.getVoices(); return vs.find(v => /pt[-_]BR/i.test(v.lang) && /Google|Luciana|Francisca|Natural/i.test(v.name)) || vs.find(v => /pt[-_]BR/i.test(v.lang)) || vs.find(v => /^pt/i.test(v.lang)) || null; } catch { return null; } }
-function falar(texto) {
-  if (!temVoz()) { toast('Este navegador não tem voz. Leia a parada na tela.'); return; }
+function falar(texto, depois) {
+  if (!temVoz()) { toast('Este navegador não tem voz. Leia a parada na tela.'); if (depois) depois(); return; }
   pararNarrador(); try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; const v = vozPT(); if (v) u.voice = v; u.rate = 1;
     u.onstart = () => { VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando'); };
-    u.onend = u.onerror = () => { VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); };
-    speechSynthesis.speak(u); } catch { toast('Não consegui falar agora.'); }
+    u.onend = u.onerror = () => { VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); if (depois) { const d = depois; depois = null; d(); } };
+    speechSynthesis.speak(u); } catch { toast('Não consegui falar agora.'); if (depois) depois(); }
 }
 if (temVoz()) { try { speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => {}); } catch {} }
 
 /* ---------- narrador assombrado (clipes em audio/narrador, gerados fora do site) ---------- */
 // As falas fixas (roteiro pronto, chegou, próxima…) vêm de clipes curtos; o que muda (casa, distância, rua) a voz do celular fala em seguida.
 // Cada fala tem variações (pronto-1.mp3, pronto-2.mp3…) e o narrador sorteia uma, nunca a mesma duas vezes seguidas: não fica repetitivo.
-const NARRADOR_FALAS = {pronto: 3, caminhada: 2, chegou: 5, proxima: 5, pulando: 3, fim: 2, voz: 2, 'drac-som': 1, 'drac-bv': 2, 'drac-toque': 5, 'drac-roteiro': 2};
-const narradorClipes = new Map(), narradorUltimo = {}; let narradorFonte = null;
+const NARRADOR_FALAS = {pronto: 3, caminhada: 2, chegou: 5, proxima: 5, pulando: 3, fim: 2, voz: 2, 'drac-som': 1, 'drac-bv': 2, 'drac-toque': 5, 'drac-roteiro': 2, cachorro: 2,
+  'dist-30': 1, 'dist-50': 1, 'dist-100': 1, 'dist-150': 1, 'dist-200': 1, 'dist-300': 1, 'dist-longe': 1, 'man-esquerda': 1, 'man-direita': 1, 'man-leve-esquerda': 1, 'man-leve-direita': 1, 'man-frente': 1, 'man-retorno': 1, 'man-chegando': 1};
+const narradorClipes = new Map(), narradorUltimo = {}, narradosLog = []; let narradorFonte = null;
 async function carregarNarrador() {
   const c = narradorOn ? ctxAudio() : null; if (!c) return;
   const pedidos = [];
@@ -1161,6 +1170,13 @@ async function carregarNarrador() {
     pedidos.push((async () => { try { const r = await fetch(`audio/narrador/${ch}.mp3?v=${VERSAO_APP}`); if (!r.ok) throw 0; narradorClipes.set(ch, await c.decodeAudioData(await r.arrayBuffer())); } catch { narradorClipes.delete(ch); } })()); } });
   await Promise.all(pedidos);
 }
+const temClipe = id => { const n = NARRADOR_FALAS[id] || 0; for (let k = 1; k <= n; k++) if (narradorClipes.get(`${id}-${k}`)) return true; return false; };
+// Vários clipes em sequência ("Em cem metros..." + "vira à esquerda!"); só usa se todos existirem, senão o chamador fala o texto inteiro.
+function narrarSeq(ids, depois) { if (!ids.length) { if (depois) depois(true); return; } narrar(ids[0], tocou => { if (!tocou) { if (depois) depois(false); return; } narrarSeq(ids.slice(1), depois); }); }
+const DIST_CLIPE = m => m <= 40 ? 'dist-30' : m <= 75 ? 'dist-50' : m <= 125 ? 'dist-100' : m <= 175 ? 'dist-150' : m <= 250 ? 'dist-200' : m <= 350 ? 'dist-300' : 'dist-longe';
+const MAN_CLIPE = {left: 'man-esquerda', right: 'man-direita', 'slight left': 'man-leve-esquerda', 'slight right': 'man-leve-direita', 'sharp left': 'man-esquerda', 'sharp right': 'man-direita', straight: 'man-frente', uturn: 'man-retorno', arrive: 'man-chegando'};
+// Instrução pelo narrador (distância + manobra) quando os clipes existem e o narrador está ligado; senão, a voz do celular com o texto.
+function falarInstrucao(ia, texto, depois) { const ids = ia && [DIST_CLIPE(ia.dist), MAN_CLIPE[ia.icone] || 'man-frente']; if (narradorOn && ids && ids.every(temClipe)) narrarSeq(ids, depois); else falar(texto, depois); }
 function clipeDe(id) {
   const n = NARRADOR_FALAS[id] || 0, ops = [];
   for (let k = 1; k <= n; k++) { const b = narradorClipes.get(`${id}-${k}`); if (b && !(n > 1 && k === narradorUltimo[id])) ops.push([k, b]); }
@@ -1175,6 +1191,7 @@ function narrar(id, depois) {
   pararNarrador(); try { speechSynthesis.cancel(); } catch {}
   const s = c.createBufferSource(); s.buffer = buf; s.connect(AUDIO.master); narradorFonte = s;
   VOZ.falando = true; abaixarMusica(true); $('#guia').classList.add('falando'); document.body.classList.add('narrando');
+  narradosLog.push(id);
   s.onended = () => { if (narradorFonte !== s) return; narradorFonte = null; VOZ.falando = false; abaixarMusica(false); $('#guia').classList.remove('falando'); document.body.classList.remove('narrando'); if (depois) depois(true); };
   s.start();
 }
@@ -2308,7 +2325,7 @@ function ligarEventos() {
   $('#btn-caminhar').addEventListener('click', () => entrarCaminhada());
   $('#cam-cheguei').addEventListener('click', cheguei);
   $('#cam-pular').addEventListener('click', pularParada);
-  $('#cam-ouvir').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
+  $('#cam-ouvir').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) anunciarParada(i); });
   $('#cam-sair').addEventListener('click', () => sairCaminhada());
   $('#cam-fim-sair').addEventListener('click', () => sairCaminhada());
   $('#cam-recentrar').addEventListener('click', recentrarCaminhada);
@@ -2364,7 +2381,7 @@ function ligarEventos() {
   $('#btn-pular').addEventListener('click', pularParada);
   ['#busca-membros', '#busca-casas'].forEach(i => $(i).addEventListener('input', filtrarAdmin));
   $('#ordem-casas').addEventListener('change', e => { ls.set('hw.ordemCasas', e.target.value); renderAdmin(); });
-  $('#btn-falar').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) falar(falaParada(i)); });
+  $('#btn-falar').addEventListener('click', () => { const i = proximaParada(); if (i >= 0) anunciarParada(i); });
   $('#opt-voz').addEventListener('change', e => { vozAuto = e.target.checked; ls.set('hw.voz', vozAuto); if (vozAuto) carregarNarrador().then(() => narrar('voz', tocou => { if (!tocou) falar('Guia por voz ligado. Vamos caçar doces!'); })); else { pararNarrador(); try { speechSynthesis.cancel(); } catch {} } });
   $('#opt-narrador').addEventListener('change', e => { narradorOn = e.target.checked; ls.set('hw.narrador', narradorOn); if (narradorOn) carregarNarrador().then(() => narrar('voz')); else pararNarrador(); });
   $('#opt-auto-chegada').addEventListener('change', e => { autoChegada = e.target.checked; ls.set('hw.autochegada', autoChegada); if (autoChegada) ligarGPS(false); });
