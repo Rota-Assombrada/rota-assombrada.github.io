@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=94';
+import CONFIG from './config.js?v=95';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1338,8 +1338,12 @@ function cartaoCasa(c, idx) {
 }
 function abrirFolha(id) {
   const c = casaPorId(id); if (!c) return; const vis = visitadas.has(id); const l = linksNav(c);
+  // Ação principal é dentro do site: ir para esta casa no modo caminhada (vira a próxima parada); sem roteiro, montar um. Google Maps fica como alternativa.
+  const prox = roteiro && proximaParada() >= 0 ? roteiro.ordem[proximaParada()] : null;
+  const ir = !roteiro ? 'Montar roteiro' : prox === id ? 'Seguir para esta casa' : 'Ir para esta casa agora';
   $('#folha-in').innerHTML = cartaoCasa(c) + `<div class="acoes acoes-folha">
-    <a class="btn btn-primario btn-grande" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.navegar} Navegar no Google Maps <small class="recomendado">recomendado</small></a>
+    <button class="btn btn-primario btn-grande" data-acao="ir" data-id="${h(id)}">${IC.navegar} ${ir}</button>
+    <a class="btn btn-fantasma" href="${linkPrincipal(c)}" target="_blank" rel="noopener">${IC.google} Google Maps</a>
     <button class="btn ${vis ? 'btn-fantasma' : 'btn-sucesso'}" data-acao="visitar" data-id="${h(id)}">${IC.check} ${vis ? 'Desmarcar visita' : 'Marcar como visitada'}</button>
     <button class="btn btn-fantasma" data-acao="ouvir" data-id="${h(id)}">${IC.ouvir} Ouvir</button>
     ${podeEditar(c) ? `<button class="btn btn-fantasma" data-acao="editar" data-id="${h(id)}">${IC.editar} Editar</button><button class="btn ${c.esgotado ? 'btn-sucesso' : 'btn-fantasma'} btn-esgotou" data-acao="esgotou" data-id="${h(id)}">${IC.doce} ${c.esgotado ? 'Voltei a ter doces' : 'Acabaram os doces'}</button>` : ''}
@@ -2357,6 +2361,12 @@ function ligarEventos() {
   $('#mapa-vazio').addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irAba(b.dataset.ir); });
   $('#folha').addEventListener('click', e => { if (e.target === e.currentTarget) fecharFolha(); const b = e.target.closest('[data-acao]'); if (!b) return; const id = b.dataset.id; const a = b.dataset.acao;
     if (a === 'visitar') { const v = !visitadas.has(id); marcarVisitada(id, v); if (v) SFX.sucesso(); fecharFolha(); if (v && roteiro && vozAuto && roteiro.ordem.includes(id)) { const p = proximaParada(); if (p >= 0) falar('Boa! ' + falaParada(p)); } }
+    if (a === 'ir') {
+      fecharFolha(); if (!roteiro) { irAba('roteiro'); return; }
+      const i = roteiro.ordem.indexOf(id);
+      if (i !== proximaParada()) { if (i >= 0) roteiro.ordem.splice(i, 1); visitadas.delete(id); lsa.set('visitadas', [...visitadas]); const pos = proximaParada(); roteiro.ordem.splice(pos < 0 ? roteiro.ordem.length : pos, 0, id); lsa.set('roteiro', roteiro); trecho = null; anunciadoChegada = null; renderRoteiro(); renderPins(); carregarRotaLinha(); }
+      entrarCaminhada(); atualizarTrecho(true).then(() => { const k = proximaParada(); if (vozAuto && k >= 0) anunciarParada(k, 'proxima', 'Próxima: '); }); return;
+    }
     if (a === 'ouvir') { const c = casaPorId(id); if (!c) return; const i = roteiro ? roteiro.ordem.indexOf(id) : -1; falar(i >= 0 ? falaParada(i) : `${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. ${posicao ? 'Fica a uns ' + falaM(distM(posicao, c)) + ', ' + direcaoFala(posicao, c) + '. ' : ''}${(c.oferece || []).length ? 'Oferece ' + listaFala((c.oferece || []).map(k => rotuloDe(OFERECE, k).toLowerCase())) + '.' : ''} ${c.obs || ''}`); }
     if (a === 'esgotou') { const c = casaPorId(id); if (c) alternarEsgotado(c).then(() => abrirFolha(id)); return; }
     if (a === 'editar') { const c = casaPorId(id); fecharFolha(); editandoId = id; criandoOutra = false; preencherForm(c); irAba('participar'); }
