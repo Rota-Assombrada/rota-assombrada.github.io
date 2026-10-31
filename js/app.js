@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=83';
+import CONFIG from './config.js?v=84';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -261,7 +261,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -688,7 +688,7 @@ function iniciarMapa() {
   const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Imagens &copy; Esri'});
   noite.addTo(mapa);
   L.control.layers({'Noite': noite, 'Ruas': ruas, 'Satélite': satelite}, null, {position: 'topright'}).addTo(mapa);
-  mapa.attributionControl.addAttribution('Rotas a pé: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS/OSRM</a>');
+  mapa.attributionControl.addAttribution('Rotas a pé: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS/Valhalla</a>');
   camadaPins = L.layerGroup().addTo(mapa); camadaExtras = L.layerGroup().addTo(mapa);
   mapa.on('click', e => toqueMapa(e.latlng));
   setTimeout(() => mapa.invalidateSize(), 300);
@@ -836,7 +836,7 @@ function pontoPartida() {
   if (evento.portaria) return {p: evento.portaria, nome: 'a portaria'};
   return null;
 }
-/* ---------- rotas a pé pelas ruas (OSRM do OpenStreetMap via FOSSGIS, gratuito) ---------- */
+/* ---------- rotas a pé pelas ruas (Valhalla e OSRM do OpenStreetMap via FOSSGIS, gratuitos) ---------- */
 const ROTEADOR = 'https://routing.openstreetmap.de/routed-foot';
 async function osrm(servico, pts, params) {
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
@@ -847,13 +847,50 @@ async function osrm(servico, pts, params) {
     const d = await r.json(); if (d.code !== 'Ok') throw new Error(d.code); return d;
   } finally { clearTimeout(tm); }
 }
+// O OSRM a pé ignora ruas marcadas como particulares (quase todo condomínio) e encaixa a casa na rua pública mais perto, longe demais.
+// O Valhalla, também da FOSSGIS, passa pelas ruas do condomínio. A resposta vira o formato do OSRM para o resto do código não mudar.
+const ROTEADOR_V = 'https://valhalla1.openstreetmap.de';
+const MANOBRA_V = {1: ['depart'], 2: ['depart', 'right'], 3: ['depart', 'left'], 4: ['arrive'], 5: ['arrive', 'right'], 6: ['arrive', 'left'], 7: ['new name', 'straight'], 8: ['continue', 'straight'], 9: ['turn', 'slight right'], 10: ['turn', 'right'], 11: ['turn', 'sharp right'], 12: ['turn', 'uturn'], 13: ['turn', 'uturn'], 14: ['turn', 'sharp left'], 15: ['turn', 'left'], 16: ['turn', 'slight left'], 17: ['continue', 'straight'], 18: ['turn', 'slight right'], 19: ['turn', 'slight left'], 20: ['turn', 'right'], 21: ['turn', 'left'], 22: ['continue', 'straight'], 23: ['fork', 'slight right'], 24: ['fork', 'slight left'], 25: ['merge', 'straight'], 26: ['roundabout'], 27: ['exit roundabout'], 37: ['merge', 'slight right'], 38: ['merge', 'slight left']};
+// A forma do trecho vem como polyline com 6 casas decimais.
+function decodificarLinha6(s) { const pts = []; let i = 0, lat = 0, lng = 0; while (i < s.length) { for (const k of [0, 1]) { let r = 0, sh = 0, b; do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); const d = r & 1 ? ~(r >> 1) : r >> 1; if (k) lng += d; else lat += d; } pts.push([lat / 1e6, lng / 1e6]); } return pts; }
+async function valhalla(pts) {
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const corpo = {locations: pts.map(p => ({lat: +(+p.lat).toFixed(6), lon: +(+p.lng).toFixed(6)})), costing: 'pedestrian', directions_options: {language: 'pt-BR', units: 'kilometers'}};
+    const r = await carga(fetch(`${ROTEADOR_V}/route?json=${encodeURIComponent(JSON.stringify(corpo))}`, {signal: ctl.signal, referrerPolicy: 'strict-origin'}));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const t = (await r.json()).trip; if (!t || t.status !== 0 || !t.legs) throw new Error('valhalla ' + (t && t.status_message));
+    // "distance" do waypoint = quanto o ponto foi encaixado na rua, medido pelas pontas da forma de cada trecho
+    const waypoints = pts.map(() => ({distance: 0}));
+    const legs = t.legs.map((leg, i) => {
+      const forma = decodificarLinha6(leg.shape || ''); if (forma.length < 2) throw new Error('trecho sem forma');
+      [[i, forma[0]], [i + 1, forma[forma.length - 1]]].forEach(([k, q]) => { waypoints[k].distance = Math.max(waypoints[k].distance, distM(pts[k], {lat: q[0], lng: q[1]})); });
+      const steps = (leg.maneuvers || []).map(m => { const [type, modifier] = MANOBRA_V[m.type] || ['continue', 'straight']; return {distance: (m.length || 0) * 1000, name: (m.street_names || [])[0] || '', maneuver: {type, modifier}, geometry: {coordinates: forma.slice(m.begin_shape_index, m.end_shape_index + 1).map(([la, lo]) => [lo, la])}}; });
+      return {distance: (leg.summary.length || 0) * 1000, steps};
+    });
+    return {code: 'Ok', routes: [{distance: legs.reduce((t, l) => t + l.distance, 0), legs}], waypoints, largo: true};
+  } finally { clearTimeout(tm); }
+}
+// Caminho pelas ruas: Valhalla em partes de até 10 pontos, um pedido por segundo (regra da FOSSGIS). Se falhar, OSRM.
+async function rotaRuas(pts, params) {
+  try {
+    const legs = [], waypoints = [];
+    for (let k = 0; k < pts.length - 1; k += 9) {
+      if (k) await new Promise(ok => setTimeout(ok, 1000));
+      const d = await valhalla(pts.slice(k, k + 10));
+      d.routes[0].legs.forEach(l => legs.push(l)); d.waypoints.forEach((w, j) => { const q = waypoints[k + j]; waypoints[k + j] = q ? {distance: Math.max(q.distance, w.distance)} : w; });
+    }
+    return {code: 'Ok', routes: [{distance: legs.reduce((t, l) => t + l.distance, 0), legs}], waypoints, largo: true};
+  } catch (e) { console.warn('Valhalla indisponível, tentando OSRM.', e); return osrm('route', pts, params); }
+}
 let rotaLinha = null, rotaPernas = null, rotaChave = '', rotaCarregando = false;
 let rotaTrechos = null;   // [{pts:[[lat,lng]...], ruas:bool}] por trecho entre paradas
 // Ruas de condomínio costumam estar marcadas como particulares no OpenStreetMap; o roteador a pé dá a volta por fora.
 // Se o caminho pelas ruas for bem maior que a linha reta, ele não serve: usamos a linha direta.
-const plausivel = (m, a, b) => { const r = distM(a, b); return typeof m === 'number' && m <= Math.max(2.2 * r, r + 300); };
-// O roteador "encaixa" cada ponto na rua pública mais próxima; se o encaixe ficou longe, o ponto não está numa rua roteável.
-const ENCAIXE_MAX = 40;
+// Com o Valhalla (que anda pelas ruas do condomínio) a folga é maior: em ruas que dão voltas, 120 m em linha reta viram 450 m a pé.
+const plausivel = (m, a, b, largo) => { const r = distM(a, b); return typeof m === 'number' && m <= (largo ? Math.max(3.5 * r, r + 600) : Math.max(2.2 * r, r + 300)); };
+// O roteador "encaixa" cada ponto na rua mais próxima; se o encaixe ficou longe, o ponto não está numa rua roteável (lotes fundos chegam a uns 50 m).
+const ENCAIXE_MAX = 60;
 const encaixeOk = w => !!w && typeof w.distance === 'number' && w.distance <= ENCAIXE_MAX;
 let roteiroAberto = false;   // true enquanto a pessoa reabriu as opções para montar outro roteiro
 let trecho = null, trechoBuscando = false, trechoT = 0;
@@ -864,12 +901,12 @@ async function carregarRotaLinha() {
   if (pts.length < 2 || pts.length > 90) return;
   rotaCarregando = true; renderRoteiro();
   try {
-    const d = await osrm('route', pts, 'overview=false&steps=true&geometries=geojson');
+    const d = await rotaRuas(pts, 'overview=false&steps=true&geometries=geojson');
     if (chave !== chaveRoteiro()) return;
     const legs = d.routes[0].legs;
     rotaTrechos = legs.map((leg, i) => {
       const a = pts[i], b = pts[i + 1];
-      const ok = encaixeOk(d.waypoints[i]) && encaixeOk(d.waypoints[i + 1]) && plausivel(leg.distance, a, b) && leg.distance > 0;
+      const ok = encaixeOk(d.waypoints[i]) && encaixeOk(d.waypoints[i + 1]) && plausivel(leg.distance, a, b, d.largo) && leg.distance > 0;
       if (!ok) return {pts: [[a.lat, a.lng], [b.lat, b.lng]], ruas: false, dist: distM(a, b)};
       const linha = []; leg.steps.forEach(s => (s.geometry.coordinates || []).forEach(([lng, lat]) => linha.push([lat, lng])));
       linha.unshift([a.lat, a.lng]); linha.push([b.lat, b.lng]);
@@ -894,9 +931,9 @@ async function atualizarTrecho(forcar) {
   if (trechoBuscando || (!forcar && Date.now() - trechoT < 15000 && trecho && trecho.casaId === c.id)) return trecho;
   trechoBuscando = true; trechoT = Date.now(); if (!$('#guia').hidden) renderGuia();
   try {
-    const d = await osrm('route', [de, c], 'overview=false&steps=true&geometries=geojson');
+    const d = await rotaRuas([de, c], 'overview=false&steps=true&geometries=geojson');
     const r = d.routes[0];
-    const ok = encaixeOk(d.waypoints[0]) && encaixeOk(d.waypoints[1]) && plausivel(r.distance, de, c) && r.distance > 0;
+    const ok = encaixeOk(d.waypoints[0]) && encaixeOk(d.waypoints[1]) && plausivel(r.distance, de, c, d.largo) && r.distance > 0;
     // pts: a linha do trecho para desenhar no mapa; ini: onde cada passo começa nela (para medir até a próxima manobra).
     if (ok) { const passos = r.legs[0].steps, pts = [[de.lat, de.lng]], ini = []; passos.forEach(s => { ini.push(pts.length); (s.geometry.coordinates || []).forEach(([lng, lat]) => pts.push([lat, lng])); }); pts.push([c.lat, c.lng]); trecho = {casaId: c.id, de, dist: r.distance, passos, pts, ini}; }
     else trecho = {casaId: c.id, de, reta: true};
@@ -950,7 +987,7 @@ async function montarRoteiro() {
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
   // A dica do Modo caminhada sempre é falada; os detalhes da primeira casa, só com o guia por voz ligado.
-  const dica = 'Toque em Modo caminhada para seguir pelo mapa, ou abra no Google Maps. ';
+  const dica = 'Toque em Modo caminhada para seguir pelo mapa. ';
   const idxFala = proximaParada();
   const saindo = /^a /.test(pp.nome) ? 'da ' + pp.nome.slice(2) : /^o /.test(pp.nome) ? 'do ' + pp.nome.slice(2) : 'de ' + pp.nome;
   falar(`Roteiro pronto com ${n} casa${n > 1 ? 's' : ''}, saindo ${saindo}. ` + dica + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : ''));

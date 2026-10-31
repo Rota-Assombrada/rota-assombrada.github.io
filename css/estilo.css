@@ -871,13 +871,13 @@ body.caminhando .toast{bottom:calc(var(--cam-base-h,130px) + 72px)}
 .cam-txt p{margin:0}
 .cam-instrucao{font-size:1.15rem;font-weight:800;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cam-meta{font-weight:900;color:var(--veneno);font-variant-numeric:tabular-nums;font-size:1rem;margin-top:2px}
-.cam-parada{font-size:.85rem;font-weight:700;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.cam-parada{font-size:.9rem;font-weight:700;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .cam-fim-sair{min-height:50px;flex:none}
 .cam-base-in{display:flex;flex-direction:column;gap:10px}
 .cam-base .btn{box-shadow:none;margin:0}
 .cam-cheguei{width:100%;min-height:54px;font-size:1.1rem}
 .cam-linha{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.cam-linha .btn{min-height:50px;padding:6px 4px;flex-direction:column;gap:2px;font-size:.8rem;line-height:1.1;text-align:center;border-radius:14px}
+.cam-linha .btn{min-height:50px;padding:6px 4px;flex-direction:column;gap:2px;font-size:.85rem;line-height:1.1;text-align:center;border-radius:14px}
 .cam-linha .btn svg{width:20px;height:20px}
 .cam-base.fim .cam-linha{grid-template-columns:1fr}
 .cam-base.fim .cam-linha .btn{flex-direction:row;gap:8px;font-size:1rem}
