@@ -1,4 +1,4 @@
-import CONFIG from './config.js?v=86';
+import CONFIG from './config.js?v=87';
 
 /* ---------- utilidades ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -261,7 +261,7 @@ const fb = {
     // Só em testes locais (localhost com ?emu): usa os emuladores do Firebase em vez da produção.
     if (emu) {
       fs.connectFirestoreEmulator(this.db, '127.0.0.1', 8080); auth.connectAuthEmulator(this.a, 'http://127.0.0.1:9099', {disableWarnings: true});
-      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
+      window.__teste = {fb: this, estado: () => ({cid, papel, donoPlataforma, podeVerCasas, casas: casas.length, evento, editandoId, pinCasa, moradoresForm, marcador: marcadorCasa && marcadorCasa.getLatLng(), indice: indiceAtual && indiceAtual.size, membrosCarregados, fala: () => { const i = proximaParada(); return i >= 0 ? falaParada(i) : ''; }, trechos: rotaTrechos && rotaTrechos.map(x => x.ruas), trechosInfo: rotaTrechos && rotaTrechos.map(x => ({ruas: x.ruas, dist: Math.round(x.dist)})), ordem: roteiro && roteiro.ordem, mapa: mapa && {z: mapa.getZoom(), b: mapa.getBounds().toBBoxString()}, sincronizando: sincronizandoIndice, trecho, caminhando, modoSeguir, proxima: proximaParada()})};
     }
     this.pronto = true;
     auth.getRedirectResult(this.a).catch(e => console.error('Retorno do login falhou', e));
@@ -986,44 +986,40 @@ async function montarRoteiro() {
   bn.classList.remove('chamar'); void bn.offsetWidth; bn.classList.add('chamar'); setTimeout(() => bn.classList.remove('chamar'), 3600);
   const n = roteiro.ordem.length; toast(`Roteiro com ${n} casa${n > 1 ? 's' : ''} pronto!`); evento_('roteiro_montado', {casas: n, a_pe: matriz ? 1 : 0});
   carregarRotaLinha(); await atualizarTrecho(true);
-  // A dica do Modo caminhada sempre é falada; os detalhes da primeira casa, só com o guia por voz ligado.
-  const dica = 'Toque em Modo caminhada para seguir pelo mapa. ';
+  // Fala curta: a dica do Modo caminhada sempre; a primeira casa, só com o guia por voz ligado.
   const idxFala = proximaParada();
-  const saindo = /^a /.test(pp.nome) ? 'da ' + pp.nome.slice(2) : /^o /.test(pp.nome) ? 'do ' + pp.nome.slice(2) : 'de ' + pp.nome;
-  falar(`Roteiro pronto com ${n} casa${n > 1 ? 's' : ''}, saindo ${saindo}. ` + dica + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : ''));
+  falar(`Roteiro pronto, ${n} casa${n > 1 ? 's' : ''}. Toque em Modo caminhada. ` + (vozAuto && idxFala >= 0 ? falaParada(idxFala) : ''));
   if (rotaLinhaBounds()) mapa.fitBounds(rotaLinhaBounds(), {padding: [60, 60], maxZoom: 18});
 }
 function proximaParada() { if (!roteiro) return -1; return roteiro.ordem.findIndex(id => !visitadas.has(id) && casaPorId(id)); }
 function origemAtual(idx) { if (posicao && Date.now() - posicao.t < 60000) return {lat: posicao.lat, lng: posicao.lng}; for (let i = idx - 1; i >= 0; i--) { const c = casaPorId(roteiro.ordem[i]); if (c) return {lat: c.lat, lng: c.lng}; } return roteiro.de; }
+// Fala curta: casa, família, distância e a próxima manobra. Só avisa o que muda a visita (cachorro, fechada); o resto fica na tela.
 function falaParada(idx) {
   const c = casaPorId(roteiro.ordem[idx]); if (!c) return '';
   const de = origemAtual(idx); const tr = trechoDe(c); const d = tr ? tr.dist : distM(de, c);
-  const ofer = (c.oferece || []).map(k => rotuloDe(OFERECE, k).toLowerCase());
-  const avisos = (c.flags || []).filter(k => k !== 'pequenos').map(k => ({cachorro: 'tem cachorro', alergia: 'tem opção sem açúcar', assustadora: 'é bem assustadora'}[k])).filter(Boolean);
-  let s = `Parada ${idx + 1} de ${roteiro.ordem.length}: ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. `;
-  s += tr ? `Fica a uns ${falaM(d)} andando. ${textoInstrucao(tr.passos, falaM)} ` : `Fica a uns ${falaM(d)}, ${direcaoFala(de, c)}. `;
-  if (ofer.length) s += `Oferece ${listaFala(ofer)}. `;
-  if (avisos.length) s += `Atenção: ${listaFala(avisos)}. `;
-  if ((c.flags || []).includes('pequenos')) s += 'Boa para os pequenos. ';
-  if (!abertaAgora(c)) { const j = janelaCasa(c); s += j && Date.now() < j.base ? `Essa casa abre no dia ${fmtData(evento.data)}, às ${horario(c).ini || 'hora do evento'}. ` : j && Date.now() > j.fim ? 'Essa casa já fechou. ' : `Essa casa abre às ${horario(c).ini}. `; }
-  if (c.obs) s += c.obs.replace(/\s+/g, ' ').trim() + (/[.!?]$/.test(c.obs.trim()) ? ' ' : '. ');
+  let s = `Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}. ${falaM(d)}. `;
+  s += tr ? `${instrucaoAtual(tr, posFresca() ? posicao : null).texto}. ` : `${maiuscula(direcaoFala(de, c))}. `;
+  if ((c.flags || []).includes('cachorro')) s += 'Tem cachorro. ';
+  if (!abertaAgora(c)) { const j = janelaCasa(c); s += j && Date.now() > j.fim ? 'Já fechou. ' : `Abre às ${horario(c).ini || 'hora do evento'}. `; }
   return s;
 }
-let anunciadoChegada = null, ultimaFalaDist = 0, ultimaFalaT = 0;
+let anunciadoChegada = null, ultimaFalaDist = 0, ultimaFalaT = 0, ultimaFalaTexto = '';
 function aoMoverGPS() {
   if (!roteiro || !posicao) return; const idx = proximaParada(); if (idx < 0) return; const c = casaPorId(roteiro.ordem[idx]); const d = distM(posicao, c);
-  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); if (!caminhando) toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) falar(`Chegou! ${nomeCasaFala(c)}${c.familia ? ', ' + c.familia : ''}. Pegue os doces e toque em Cheguei para a próxima.`); return; }
+  if (autoChegada && d <= 25 && anunciadoChegada !== c.id) { anunciadoChegada = c.id; SFX.plim(); if (!caminhando) toast(`Você chegou: ${nomeCasaTxt(c)}!`); if (vozAuto) falar(`Chegou! Casa ${c.numero}${c.familia ? ', ' + c.familia : ''}.`); return; }
   atualizarTrecho(false);
   const tr = trechoDe(c); const dRest = tr ? Math.max(d, tr.dist - distM(tr.de, posicao)) : d;
-  if (vozAuto && d > 40 && Math.abs(dRest - ultimaFalaDist) >= 60 && Date.now() - ultimaFalaT > 25000 && !VOZ.falando) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); falar(tr ? `Faltam uns ${falaM(dRest)}. ${textoInstrucao(tr.passos, falaM)}` : `Faltam ${falaM(d)}, ${direcaoFala(posicao, c)}.`); }
+  // Fala a manobra quando ela muda (como um GPS) ou a cada 100 m / 40 s; antes falava a cada 60 m e era prolixo.
+  const txt = tr ? instrucaoAtual(tr, posicao).texto : direcaoFala(posicao, c), passou = Date.now() - ultimaFalaT;
+  if (vozAuto && d > 40 && !VOZ.falando && ((txt !== ultimaFalaTexto && passou > 10000) || (Math.abs(dRest - ultimaFalaDist) >= 100 && passou > 40000))) { ultimaFalaDist = dRest; ultimaFalaT = Date.now(); ultimaFalaTexto = txt; falar(tr ? `${falaM(dRest)}. ${txt}.` : `${falaM(d)}, ${txt}.`); }
 }
 function marcarVisitada(id, sim = true) { if (sim) visitadas.add(id); else visitadas.delete(id); lsa.set('visitadas', [...visitadas]); renderRoteiro(); renderPins(); renderPlacar(); }
 async function cheguei() {
-  const idx = proximaParada(); if (idx < 0) return; evento_('chegou_na_casa'); marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; trecho = null;
+  const idx = proximaParada(); if (idx < 0) return; evento_('chegou_na_casa'); marcarVisitada(roteiro.ordem[idx], true); SFX.sucesso(); anunciadoChegada = null; ultimaFalaDist = 0; ultimaFalaTexto = ''; trecho = null;
   const b = $(caminhando ? '#cam-cheguei' : '#btn-cheguei'); const r = b.getBoundingClientRect(); explodir(r.left + r.width / 2, r.top + r.height / 2);
   const prox = proximaParada();
-  if (prox < 0) { if (!caminhando) toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa visitada. Roteiro concluído! Feliz Halloween, e cuidado com os fantasmas no caminho de volta.'); }
-  else { await atualizarTrecho(true); if (vozAuto) falar('Boa! ' + falaParada(prox)); }
+  if (prox < 0) { if (!caminhando) toast('Roteiro concluído! Feliz Halloween!'); if (vozAuto) falar('Última casa! Roteiro concluído. Feliz Halloween!'); }
+  else { await atualizarTrecho(true); if (vozAuto) falar('Próxima: ' + falaParada(prox)); }
 }
 function pararNavegacao() {
   evento_('navegacao_parada'); sairCaminhada(false, true);
@@ -1032,7 +1028,7 @@ function pararNavegacao() {
   renderRoteiro(); renderPins(); renderPlacar(); SFX.pop(); toast('Navegação encerrada. As casas visitadas continuam marcadas.');
   $('#mapa').scrollIntoView({behavior: reduzMovimento ? 'auto' : 'smooth', block: 'start'});
 }
-async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. ' + falaParada(prox)); } }
+async function pularParada() { const idx = proximaParada(); if (idx < 0) return; const id = roteiro.ordem.splice(idx, 1)[0]; roteiro.ordem.push(id); lsa.set('roteiro', roteiro); SFX.pop(); anunciadoChegada = null; trecho = null; renderRoteiro(); renderPins(); carregarRotaLinha(); const prox = proximaParada(); if (prox >= 0) { await atualizarTrecho(true); if (vozAuto) falar('Pulando. Próxima: ' + falaParada(prox)); } }
 
 /* ---------- modo caminhada: mapa em tela cheia seguindo a pessoa, instrução e botões juntos ---------- */
 let caminhando = false, caminhadaVista = false, fimFestejado = false, bloqueioTela = null;
