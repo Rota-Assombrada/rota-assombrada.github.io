@@ -429,7 +429,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--roxo);outline:none;bo
 .lista-casas li{align-items:stretch}
 .lista-casas li .acoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:8px;width:100%}
 .lista-casas li .acoes .btn{width:100%;justify-content:center}
-@media (min-width:560px){.lista-casas li .acoes{width:auto;flex:0 0 auto;grid-auto-flow:column;grid-template-columns:none}}
+/* Tela larga: ações numa linha à direita, cada botão do tamanho do texto, centradas na altura; quebram linha se faltar espaço. */
+@media (min-width:560px){.lista-casas li .acoes{display:flex;width:auto;max-width:100%;flex:0 1 auto;margin-left:auto;justify-content:flex-end;align-items:center;align-self:center}.lista-casas li .acoes .btn{width:auto;white-space:nowrap}}
 .toast{max-width:min(92vw,480px);overflow-wrap:anywhere;border-radius:18px}
 
 /* reCAPTCHA: o selo flutuante cobriria a barra de abas; o aviso obrigatório fica no rodapé da tela inicial */
